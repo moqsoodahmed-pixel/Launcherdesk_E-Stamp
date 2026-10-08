@@ -3,10 +3,11 @@
   "build": {
     "builder": "RAILPACK",
     "watchPatterns": [
-      "apps/api/**",
-      "packages/**",
-      "package.json",
-      "package-lock.json"
+      "**/apps/api/**",
+      "**/packages/**",
+      "**/package.json",
+      "**/package-lock.json",
+      "**/railway.json"
     ]
   },
   "deploy": {
