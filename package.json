@@ -6,7 +6,12 @@
     "apps/*",
     "packages/*"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
+    "start": "npm run start --workspace=apps/api",
+    "start:api": "npm run start --workspace=apps/api",
     "dev:api": "npm run dev --workspace=apps/api",
     "dev:web": "npm run dev --workspace=apps/web",
     "build:web": "npm run build --workspace=apps/web",
