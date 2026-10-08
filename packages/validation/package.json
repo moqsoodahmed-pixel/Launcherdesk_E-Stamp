@@ -1,0 +1,2 @@
+{ "name": "@launcherdesk/validation", "version": "0.1.0", "main": "src/index.js", "private": true,
+  "dependencies": { "zod": "^3.23.8", "@launcherdesk/shared": "*" } }
