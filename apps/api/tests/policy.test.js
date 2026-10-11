@@ -471,7 +471,7 @@ describe("Enforcement mechanism - works in isolation, but is NOT wired into any 
 });
 
 describe("Refund/no-refund behavior - unchanged regression check", () => {
-  it("cancelRequest still does not credit the wallet on cancellation", async () => {
+  it("cancelling inside the window releases the reservation and never writes a refund credit", async () => {
     const { org, article } = await makeOrgWithArticle({ balance: 100000, fixedAmount: 500 });
     const creator = new mongoose.Types.ObjectId();
     const { request } = await EStampRequestService.createRequest({
@@ -487,13 +487,16 @@ describe("Refund/no-refund behavior - unchanged regression check", () => {
       numberOfEStamps: 1,
     });
     const walletAfterCreate = await Wallet.findOne({ organizationId: org._id });
-    const balanceAfterDebit = walletAfterCreate.balance;
-    expect(balanceAfterDebit).toBe(100000 - 500);
+    expect(walletAfterCreate.balance).toBe(100000); // reserved, not debited
+    expect(walletAfterCreate.reservedBalance).toBe(500);
 
     await EStampRequestService.cancelRequest(request._id.toString(), org._id, creator.toString(), Role.SUPER_ADMIN);
 
     const walletAfterCancel = await Wallet.findOne({ organizationId: org._id });
-    expect(walletAfterCancel.balance).toBe(balanceAfterDebit); // unchanged - no refund credited
+    expect(walletAfterCancel.balance).toBe(100000); // untouched
+    expect(walletAfterCancel.reservedBalance).toBe(0); // hold released
+    const { WalletTransaction } = await import("../src/models/index.js");
+    expect(await WalletTransaction.countDocuments({ organizationId: org._id })).toBe(0); // no debit, no refund credit
   });
 });
 

@@ -19,7 +19,7 @@ import { Role, Permission, AuditAction, OrganizationStatus, OrderStatus, getEffe
 import { BulkEStampService } from "../src/services/bulk-estamp.service.js";
 import * as bulkController from "../src/controllers/bulk-estamp.controller.js";
 import { requirePermission } from "../src/middleware/authorize.js";
-import { getWalletBalance } from "../src/services/wallet.service.js";
+import { getWalletBalance, getWalletSummary } from "../src/services/wallet.service.js";
 import { SettingsService } from "../src/services/settings.service.js";
 import { makeReq, makeRes, runController, runMiddleware } from "./helpers/http.js";
 
@@ -310,7 +310,8 @@ describe("Confirm - true reuse of EStampRequestService.createRequest", () => {
     // here is that it is indistinguishable from a single-request order at
     // the same lifecycle point, not a specific literal value.
     expect(order.eStampStatus).toBe(request.status);
-    expect(order.paymentStatus).toBe("PAID");
+    // Reserved at submit, charged when the window closes (same as single requests).
+    expect(order.paymentStatus).toBe("PENDING");
     expect(order.status).toBe(OrderStatus.ONGOING);
     expect(order.requestId.toString()).toBe(request._id.toString());
   });
@@ -339,14 +340,15 @@ describe("Confirm - wallet safety (upfront gate)", () => {
     expect(items.every((i) => i.status === "FAILED")).toBe(true);
   });
 
-  it("sufficient balance succeeds and debits exactly the sum of the created rows", async () => {
+  it("sufficient balance succeeds and reserves exactly the sum of the created rows", async () => {
     const { org, user, article } = await makeOrgWithArticle({ balance: 2000, fixedAmount: 500 });
     const buffer = buildCsv([rowFor(article), rowFor(article, { firstParty: "Carl" })]);
     const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "sufficient.csv" });
     const result = await BulkEStampService.confirmBatch(batch._id.toString(), org._id.toString(), user._id.toString(), Role.SUPER_ADMIN);
     expect(result.batch.status).toBe("COMPLETED");
     expect(result.batch.createdRequests).toBe(2);
-    expect(await getWalletBalance(org._id)).toBe(1000); // 2000 - (500+500)
+    expect((await getWalletSummary(org._id)).availableBalance).toBe(1000); // 2000 - (500+500) reserved
+    expect(await getWalletBalance(org._id)).toBe(2000); // nothing debited until the windows close
     expect(await EStampRequest.countDocuments({ organizationId: org._id })).toBe(2);
   });
 
@@ -379,7 +381,7 @@ describe("Confirm - idempotency and concurrency", () => {
     const second = await BulkEStampService.confirmBatch(batch._id.toString(), org._id.toString(), user._id.toString(), Role.SUPER_ADMIN);
     expect(second.alreadyProcessed).toBe(true);
     expect(await EStampRequest.countDocuments({ organizationId: org._id })).toBe(1);
-    expect(await getWalletBalance(org._id)).toBe(1500);
+    expect((await getWalletSummary(org._id)).availableBalance).toBe(1500); // reserved once, not twice
   });
 
   it("two concurrent confirm calls result in exactly one creation pass (atomic claim)", async () => {
@@ -392,7 +394,7 @@ describe("Confirm - idempotency and concurrency", () => {
     ]);
     expect(results.every((r) => r.status === "fulfilled")).toBe(true);
     expect(await EStampRequest.countDocuments({ organizationId: org._id })).toBe(1);
-    expect(await getWalletBalance(org._id)).toBe(1500);
+    expect((await getWalletSummary(org._id)).availableBalance).toBe(1500); // reserved once, not twice
   });
 });
 

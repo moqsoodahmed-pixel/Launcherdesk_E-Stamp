@@ -81,7 +81,7 @@ describe("Payment order creation", () => {
 });
 
 describe("Signature verification", () => {
-  it("a valid signature succeeds and credits the wallet exactly once", async () => {
+  it("a valid signature marks the payment SUCCESS + PENDING_CREDIT and does NOT credit the wallet", async () => {
     const org = await makeOrgWithWallet(0);
     const orderResult = await PaymentService.createOrder({ organizationId: org._id, userId: new mongoose.Types.ObjectId(), amount: 1000 });
     const razorpayPaymentId = `pay_${new mongoose.Types.ObjectId()}`;
@@ -94,8 +94,11 @@ describe("Signature verification", () => {
       userId: new mongoose.Types.ObjectId(),
     });
     expect(payment.status).toBe(PaymentStatus.SUCCESS);
+    expect(payment.balanceStatus).toBe("PENDING_CREDIT");
+    // Ledger flow: the balance only moves when an admin credits it.
     const wallet = await Wallet.findOne({ organizationId: org._id });
-    expect(wallet.balance).toBe(1000);
+    expect(wallet.balance).toBe(0);
+    expect(await WalletTransaction.countDocuments({ organizationId: org._id })).toBe(0);
   });
 
   it("an invalid signature fails, marks the payment FAILED, and never credits the wallet", async () => {
@@ -121,18 +124,19 @@ describe("Signature verification", () => {
     expect(verifyRazorpayPaymentSchema.safeParse({ razorpay_order_id: "x", razorpay_payment_id: "y", razorpay_signature: "z", amount: 1 }).success).toBe(false);
   });
 
-  it("repeated verification of an already-successful payment is idempotent (no double credit)", async () => {
+  it("repeated verification of an already-successful payment is idempotent (still pending, never credited)", async () => {
     const org = await makeOrgWithWallet(0);
     const orderResult = await PaymentService.createOrder({ organizationId: org._id, userId: new mongoose.Types.ObjectId(), amount: 300 });
     const razorpayPaymentId = `pay_${new mongoose.Types.ObjectId()}`;
     const signature = mockCheckoutSignature(orderResult.razorpayOrderId, razorpayPaymentId);
     const params = { razorpayOrderId: orderResult.razorpayOrderId, razorpayPaymentId, razorpaySignature: signature, userId: new mongoose.Types.ObjectId() };
     await PaymentService.confirmPayment(params);
-    await PaymentService.confirmPayment(params); // second call, same order id
+    const again = await PaymentService.confirmPayment(params); // second call, same order id
+    expect(again.balanceStatus).toBe("PENDING_CREDIT");
     const wallet = await Wallet.findOne({ organizationId: org._id });
-    expect(wallet.balance).toBe(300);
+    expect(wallet.balance).toBe(0);
     const txCount = await WalletTransaction.countDocuments({ organizationId: org._id, referenceType: "PAYMENT" });
-    expect(txCount).toBe(1);
+    expect(txCount).toBe(0);
   });
 });
 
@@ -143,7 +147,7 @@ describe("Webhook", () => {
     return { org, orderResult };
   }
 
-  it("a valid webhook (payment.captured) credits the wallet", async () => {
+  it("a valid webhook (payment.captured) marks the payment PENDING_CREDIT without crediting the wallet", async () => {
     const { org, orderResult } = await makeCreatedPayment(750);
     const razorpayPaymentId = `pay_${new mongoose.Types.ObjectId()}`;
     const body = { event: "payment.captured", payload: { payment: { entity: { id: razorpayPaymentId, order_id: orderResult.razorpayOrderId, status: "captured" } } } };
@@ -151,8 +155,11 @@ describe("Webhook", () => {
     const signature = mockWebhookSignature(rawBody);
     const result = await PaymentService.handleWebhook(rawBody, signature);
     expect(result.handled).toBe(true);
+    const payment = await Payment.findOne({ razorpayOrderId: orderResult.razorpayOrderId });
+    expect(payment.status).toBe(PaymentStatus.SUCCESS);
+    expect(payment.balanceStatus).toBe("PENDING_CREDIT");
     const wallet = await Wallet.findOne({ organizationId: org._id });
-    expect(wallet.balance).toBe(750);
+    expect(wallet.balance).toBe(0);
   });
 
   it("an invalid webhook signature is rejected and never touches the wallet", async () => {
@@ -165,7 +172,7 @@ describe("Webhook", () => {
     expect(wallet.balance).toBe(0);
   });
 
-  it("a duplicate webhook delivery for an already-processed payment does not double-credit", async () => {
+  it("a duplicate webhook delivery for an already-processed payment is a no-op", async () => {
     const { org, orderResult } = await makeCreatedPayment(400);
     const razorpayPaymentId = `pay_${new mongoose.Types.ObjectId()}`;
     const body = { event: "payment.captured", payload: { payment: { entity: { id: razorpayPaymentId, order_id: orderResult.razorpayOrderId, status: "captured" } } } };
@@ -175,7 +182,8 @@ describe("Webhook", () => {
     const second = await PaymentService.handleWebhook(rawBody, signature);
     expect(second.alreadyProcessed).toBe(true);
     const wallet = await Wallet.findOne({ organizationId: org._id });
-    expect(wallet.balance).toBe(400);
+    expect(wallet.balance).toBe(0);
+    expect(await Payment.countDocuments({ organizationId: org._id, status: PaymentStatus.SUCCESS })).toBe(1);
   });
 
   it("a webhook for an unknown/foreign order id is handled safely without throwing", async () => {
@@ -209,13 +217,15 @@ describe("Webhook", () => {
 });
 
 describe("Wallet crediting via payment: concurrency", () => {
-  it("two concurrent confirmations of the same order cannot double-credit", async () => {
+  it("two concurrent confirmations, then crediting, add the amount exactly once", async () => {
     const org = await makeOrgWithWallet(0);
     const orderResult = await PaymentService.createOrder({ organizationId: org._id, userId: new mongoose.Types.ObjectId(), amount: 1000 });
     const razorpayPaymentId = `pay_${new mongoose.Types.ObjectId()}`;
     const signature = mockCheckoutSignature(orderResult.razorpayOrderId, razorpayPaymentId);
     const params = { razorpayOrderId: orderResult.razorpayOrderId, razorpayPaymentId, razorpaySignature: signature, userId: new mongoose.Types.ObjectId() };
     await Promise.allSettled([PaymentService.confirmPayment(params), PaymentService.confirmPayment(params)]);
+    expect((await Wallet.findOne({ organizationId: org._id })).balance).toBe(0);
+    await PaymentService.creditPaymentToBalance(orderResult.paymentId, { id: new mongoose.Types.ObjectId().toString() });
     const wallet = await Wallet.findOne({ organizationId: org._id });
     expect(wallet.balance).toBe(1000); // exactly once, not 2000
   });
@@ -273,6 +283,8 @@ describe("Assistant Master Admin oversight", () => {
     const org = await makeOrgWithWallet();
     const master = await User.create({ name: "Master", email: `m-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.MASTER_ADMIN, organizationId: null });
     const assistantId = new mongoose.Types.ObjectId().toString();
+    // Assistants may only act on organizations assigned to them.
+    await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistantId });
     const body = { ...createRazorpayOrderSchema.parse({ amount: 500 }), organizationId: org._id.toString() };
     const req = makeReq({ user: { id: assistantId, role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: [Permission.PAYMENT_MANAGE] }, body });
 

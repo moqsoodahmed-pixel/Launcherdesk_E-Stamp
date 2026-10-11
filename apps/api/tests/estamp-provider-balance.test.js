@@ -61,6 +61,8 @@ async function makeIssuedOrder({ balance = 100000, fixedAmount = 500, stateCode 
   });
   request.status = "LOCKED";
   await request.save();
+  // The lock job also converts the reservation into the real DEBIT.
+  await EStampRequestService.chargeRequest(request);
   order.eStampStatus = "CREATED";
   await order.save();
   await EStampRequestService.processOrder(order._id.toString(), org._id.toString(), creator.toString(), Role.MASTER_ADMIN);

@@ -32,12 +32,19 @@ async function paidPayment(org, amount = 500) {
   await PaymentService.confirmPayment({ razorpayOrderId: o.razorpayOrderId, razorpayPaymentId: pid, razorpaySignature: sig(o.razorpayOrderId, pid), userId: uid() });
   return { ...o, razorpayPaymentId: pid };
 }
+// Ledger flow: a verified payment only reaches the balance once an admin
+// credits it.
+async function creditedPayment(org, amount = 500) {
+  const p = await paidPayment(org, amount);
+  await PaymentService.creditPaymentToBalance(p.paymentId, { id: uid().toString() });
+  return p;
+}
 
 describe("Org A (10000) vs Org B (5000) isolation", () => {
   it("B cannot reach the balance, ledger, payments, payment detail or financial report of A via organizationId", async () => {
     const A = await makeOrg(10000);
     const B = await makeOrg(5000);
-    const pa = await paidPayment(A, 700);
+    const pa = await creditedPayment(A, 700);
     const spoof = { params: { organizationId: A._id.toString() }, query: { organizationId: A._id.toString() } };
 
     const bal = await runController(walletController.getBalance, tenant(B, FIN, Role.SUPER_ADMIN, spoof), makeRes());
@@ -93,7 +100,7 @@ describe("wallet permissions and scoping", () => {
 
   it("transactions response reports page and limit, capped", async () => {
     const org = await makeOrg(0);
-    await paidPayment(org, 100);
+    await creditedPayment(org, 100);
     const r = await runController(walletController.listTransactions, tenant(org, FIN, Role.SUPER_ADMIN, { query: { limit: "5000" } }), makeRes());
     expect(r.res.body.data.limit).toBe(100);
     expect(r.res.body.data.page).toBe(1);
@@ -138,7 +145,7 @@ describe("payment list filters", () => {
 describe("payment detail walletEffect", () => {
   it("reports the real ledger credit for a successful payment, and none for a CREATED one", async () => {
     const org = await makeOrg(0);
-    const paid = await paidPayment(org, 640);
+    const paid = await creditedPayment(org, 640);
     const open = await PaymentService.createOrder({ organizationId: org._id, userId: uid(), amount: 75 });
     const d1 = await runController(paymentController.getPayment, tenant(org, FIN, Role.SUPER_ADMIN, { params: { id: paid.paymentId.toString() } }), makeRes());
     expect(d1.res.body.data.walletEffect).toMatchObject({ type: "CREDIT", amount: 640, balanceAfter: 640 });
@@ -154,9 +161,9 @@ describe("payment detail walletEffect", () => {
     expect(JSON.stringify(d.res.body.data)).not.toContain("razorpaySignature");
   });
 
-  it("repeated verify of the same payment credits the wallet once", async () => {
+  it("re-verifying an already credited payment never credits it again", async () => {
     const org = await makeOrg(0);
-    const p = await paidPayment(org, 200);
+    const p = await creditedPayment(org, 200);
     await PaymentService.confirmPayment({ razorpayOrderId: p.razorpayOrderId, razorpayPaymentId: p.razorpayPaymentId, razorpaySignature: sig(p.razorpayOrderId, p.razorpayPaymentId), userId: uid() });
     expect((await Wallet.findOne({ organizationId: org._id })).balance).toBe(200);
     expect(await Payment.countDocuments({ organizationId: org._id })).toBe(1);

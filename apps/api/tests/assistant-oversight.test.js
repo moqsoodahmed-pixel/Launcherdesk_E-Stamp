@@ -144,6 +144,8 @@ describe("Test 12 & 13: Assistant Master Admin balance change creates audit + Ma
     const master = await makeMasterAdmin();
     const org = await makeOrgWithWallet(1000);
     const { user: assistant } = await makeAssistant();
+    // Assistants only reach organizations assigned to them.
+    await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistant._id });
 
     const req = makeReq({
       user: { id: assistant._id.toString(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: DEFAULT_ROLE_PERMISSIONS[Role.ASSISTANT_MASTER_ADMIN] },

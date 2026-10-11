@@ -57,6 +57,8 @@ async function makeLockedOrder({ balance = 100000, fixedAmount = 500 } = {}) {
   request.status = EStampRequestStatus.LOCKED;
   request.lockedAt = new Date();
   await request.save();
+  // The lock job also converts the reservation into the real DEBIT.
+  await EStampRequestService.chargeRequest(request);
   order.eStampStatus = EStampOrderProcessingStatus.CREATED;
   await order.save();
   return { org, article, request, order, creator };
@@ -329,6 +331,8 @@ describe("RBAC", () => {
     const { org, order } = await makeLockedOrder();
     const master = await User.create({ name: "Master", email: `m-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.MASTER_ADMIN, organizationId: null });
     const assistantId = new mongoose.Types.ObjectId().toString();
+    // Assistants only reach organizations assigned to them.
+    await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistantId });
     const req = makeReq({ user: { id: assistantId, role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: [Permission.ORDER_MANAGE] }, params: { id: order._id.toString() }, query: { organizationId: org._id.toString() } });
     const { error } = await runController(orderController.processOrder, req, makeRes());
     expect(error).toBeNull();

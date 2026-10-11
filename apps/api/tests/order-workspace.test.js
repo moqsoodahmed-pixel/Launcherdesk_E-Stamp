@@ -38,6 +38,8 @@ async function makeLockedOrder({ balance = 100000, fixedAmount = 500 } = {}) {
   });
   request.status = "LOCKED";
   await request.save();
+  // The lock job also converts the reservation into the real DEBIT.
+  await EStampRequestService.chargeRequest(request);
   order.eStampStatus = EStampOrderProcessingStatus.CREATED;
   await order.save();
   return { org, request, order };
@@ -49,6 +51,12 @@ function master(overrides = {}) {
 }
 function assistant(permissions, overrides = {}) {
   return makeReq({ user: { id: uid(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions }, ...overrides });
+}
+// Assistants only reach organizations assigned to them.
+async function assignedAssistant(order, permissions) {
+  const req = assistant(permissions);
+  await Organization.updateOne({ _id: order.organizationId }, { assignedAssistantId: req.user.id });
+  return req;
 }
 function client(orgId, permissions, role = Role.ADMIN, overrides = {}) {
   return makeReq({ user: { id: uid(), role, organizationId: orgId.toString(), permissions }, ...overrides });
@@ -81,9 +89,9 @@ describe("availableActions (server-authoritative)", () => {
 
   it("an Assistant without ORDER_MANAGE gets no actions; with it, gets process", async () => {
     const { order } = await makeLockedOrder();
-    const without = await detail(assistant([Permission.ORDER_VIEW]), order._id);
+    const without = await detail(await assignedAssistant(order, [Permission.ORDER_VIEW]), order._id);
     expect(without.data.availableActions.process).toBe(false);
-    const withManage = await detail(assistant([Permission.ORDER_VIEW, Permission.ORDER_MANAGE]), order._id);
+    const withManage = await detail(await assignedAssistant(order, [Permission.ORDER_VIEW, Permission.ORDER_MANAGE]), order._id);
     expect(withManage.data.availableActions.process).toBe(true);
   });
 
@@ -144,7 +152,7 @@ describe("audit history gating", () => {
 
   it("an Assistant without AUDIT_VIEW does not receive history", async () => {
     const { order } = await makeLockedOrder();
-    const { data } = await detail(assistant([Permission.ORDER_VIEW]), order._id);
+    const { data } = await detail(await assignedAssistant(order, [Permission.ORDER_VIEW]), order._id);
     expect(data.history).toBeNull();
   });
 });
@@ -273,7 +281,7 @@ describe("wallet safety", () => {
 describe("audit of views", () => {
   it("an Assistant view is still audited (ORDER_VIEWED)", async () => {
     const { order } = await makeLockedOrder();
-    await detail(assistant([Permission.ORDER_VIEW]), order._id);
+    await detail(await assignedAssistant(order, [Permission.ORDER_VIEW]), order._id);
     const entry = await AuditLog.findOne({ entityType: "EStampOrder", entityId: order._id.toString(), action: "ORDER_VIEWED" });
     expect(entry).not.toBeNull();
   });

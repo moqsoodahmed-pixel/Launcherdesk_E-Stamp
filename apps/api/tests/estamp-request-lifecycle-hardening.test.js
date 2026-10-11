@@ -168,38 +168,42 @@ describe("Boundary correctness: strictly `deadline > now` for both modify and ca
   });
 });
 
-describe("Financial safety: modify cannot touch calculated amount (schema-level restriction)", () => {
-  it("the strict update schema rejects considerationPrice/numberOfEStamps/articleId/stateCode outright (400, not silently dropped)", () => {
+describe("Financial safety: modify can only change the amount through server recalculation", () => {
+  // Ledger flow: considerationPrice / numberOfEStamps may change inside the
+  // window (the server recalculates and moves the reservation), but the
+  // amount itself, the article and the state can never be set by a client.
+  it("the strict update schema rejects articleId/stateCode/calculatedStampDuty/reservedAmount outright (400, not silently dropped)", () => {
     for (const [field, value] of [
-      ["considerationPrice", 999999],
-      ["numberOfEStamps", 50],
       ["articleId", new mongoose.Types.ObjectId().toString()],
       ["stateCode", "MH"],
+      ["calculatedStampDuty", 1],
+      ["reservedAmount", 1],
+      ["chargeStatus", "CHARGED"],
     ]) {
       const result = updateEStampRequestSchema.safeParse({ firstParty: "Alice", [field]: value });
       expect(result.success).toBe(false);
     }
+    expect(updateEStampRequestSchema.safeParse({ considerationPrice: 100 }).success).toBe(true);
+    expect(updateEStampRequestSchema.safeParse({ numberOfEStamps: 2 }).success).toBe(true);
+    expect(updateEStampRequestSchema.safeParse({ numberOfEStamps: 0 }).success).toBe(false);
   });
 
-  it("a full route-shaped tamper attempt (validateBody middleware) is rejected with 400 before ever reaching the service, and the wallet/calculatedStampDuty are provably unchanged", async () => {
+  it("a route-shaped attempt to set the amount directly is rejected with 400 before the service, and the wallet/calculatedStampDuty are provably unchanged", async () => {
     const { org, article } = await makeOrgWithArticle({ balance: 10000, fixedAmount: 500 });
     const { request } = await makeRequest(org, article);
     const walletBefore = await Wallet.findOne({ organizationId: org._id });
 
-    const req = makeReq({ body: { firstParty: "Alice Updated", considerationPrice: 999999 } });
+    const req = makeReq({ body: { firstParty: "Alice Updated", calculatedStampDuty: 1 } });
     const { threw } = await runMiddleware(validateBody(updateEStampRequestSchema), req, makeRes());
     expect(threw).not.toBeNull();
     expect(threw.statusCode).toBe(400);
 
-    // Since validateBody rejects before the controller/service ever run, the
-    // request/wallet are necessarily untouched - confirmed explicitly here
-    // rather than merely assumed.
     const reloadedRequest = await EStampRequest.findById(request._id);
     expect(reloadedRequest.calculatedStampDuty).toBe(500);
-    expect(reloadedRequest.considerationPrice).toBe(0);
     expect(reloadedRequest.firstParty).toBe("Alice");
     const walletAfter = await Wallet.findOne({ organizationId: org._id });
     expect(walletAfter.balance).toBe(walletBefore.balance);
+    expect(walletAfter.reservedBalance).toBe(walletBefore.reservedBalance);
   });
 });
 

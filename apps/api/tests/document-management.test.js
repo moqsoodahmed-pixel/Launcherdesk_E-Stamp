@@ -87,6 +87,8 @@ async function makeIssuedOrder({ org, balance = 100000, fixedAmount = 500 } = {}
   request.status = EStampRequestStatus.LOCKED;
   request.lockedAt = new Date();
   await request.save();
+  // The lock job also converts the reservation into the real DEBIT.
+  await EStampRequestService.chargeRequest(request);
   order.eStampStatus = EStampOrderProcessingStatus.CREATED;
   await order.save();
   await EStampRequestService.processOrder(order._id.toString(), org._id.toString(), requester._id.toString(), Role.SUPER_ADMIN);

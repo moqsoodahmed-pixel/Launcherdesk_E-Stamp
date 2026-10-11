@@ -204,10 +204,11 @@ describe("Full lifecycle - real endpoints end to end", () => {
     expect(createdRequest.calculatedStampDuty).toBe(750);
     expect(createdRequest.status).toBe(EStampRequestStatus.MODIFICATION_WINDOW);
 
-    // The wallet debit and the request creation are provably linked - exactly
-    // the funded amount minus the calculated duty, never a different amount.
+    // Ledger flow: submitting RESERVES the calculated duty - the balance is
+    // untouched until the window closes, but it is no longer available.
     const walletAfterRequest = await Wallet.findOne({ organizationId: orgId });
-    expect(walletAfterRequest.balance).toBe(50000 - 750);
+    expect(walletAfterRequest.balance).toBe(50000);
+    expect(walletAfterRequest.reservedBalance).toBe(750);
 
     // 7. Simulate the modification window actually expiring, then run the
     // REAL lockExpiredRequests cron job (not a direct status overwrite) so
@@ -223,6 +224,11 @@ describe("Full lifecycle - real endpoints end to end", () => {
     expect(lockedRequest.status).toBe(EStampRequestStatus.LOCKED);
     const lockedOrder = await EStampOrder.findById(createdOrder._id);
     expect(lockedOrder.eStampStatus).toBe(EStampOrderProcessingStatus.CREATED);
+    // Locking converts the reservation into exactly one DEBIT.
+    expect(lockedRequest.chargeStatus).toBe("CHARGED");
+    const walletAfterLock = await Wallet.findOne({ organizationId: orgId });
+    expect(walletAfterLock.balance).toBe(50000 - 750);
+    expect(walletAfterLock.reservedBalance).toBe(0);
 
     // 8. An internal ops actor (Master Admin) processes and syncs the order
     // through the mock provider to a real ISSUED state - order processing is

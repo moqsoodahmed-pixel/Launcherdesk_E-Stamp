@@ -56,7 +56,7 @@ function reqAsUser(user, overrides = {}) {
 }
 
 describe("Creation", () => {
-  it("a valid request succeeds, debits the wallet, and creates a linked order", async () => {
+  it("a valid request succeeds, RESERVES (does not debit) the amount, and creates a linked order", async () => {
     const { org, article } = await makeOrgWithArticle({ balance: 10000, fixedAmount: 500 });
     const user = await User.create({ name: "U", email: `u-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.USER, organizationId: org._id });
     const { request, order } = await EStampRequestService.createRequest({ ...baseRequestBody(article), organizationId: org._id, createdBy: user._id, actorRole: Role.USER });
@@ -64,8 +64,11 @@ describe("Creation", () => {
     expect(request.calculatedStampDuty).toBe(500);
     expect(order.requestId.toString()).toBe(request._id.toString());
     expect(order.amount).toBe(500);
+    expect(request.chargeStatus).toBe("RESERVED");
+    expect(request.reservedAmount).toBe(500);
     const wallet = await Wallet.findOne({ organizationId: org._id });
-    expect(wallet.balance).toBe(9500);
+    expect(wallet.balance).toBe(10000); // nothing debited inside the window
+    expect(wallet.reservedBalance).toBe(500);
 
     const auditEntry = await AuditLog.findOne({ action: AuditAction.ESTAMP_REQUEST_CREATED, entityId: request._id.toString() });
     expect(auditEntry).not.toBeNull();
@@ -202,7 +205,8 @@ describe("Wallet / balance", () => {
     expect(succeeded.length).toBe(1);
     expect(failed.length).toBe(1);
     const wallet = await Wallet.findOne({ organizationId: org._id });
-    expect(wallet.balance).toBe(0); // charged exactly once, never negative
+    expect(wallet.balance).toBe(500); // reserved, not yet charged
+    expect(wallet.reservedBalance).toBe(500); // reserved exactly once - available is 0, never negative
   });
 });
 
@@ -215,7 +219,8 @@ describe("Idempotency: double-submission protection", () => {
     const second = await EStampRequestService.createRequest({ ...body, organizationId: org._id, createdBy: creator });
     expect(second.request._id.toString()).toBe(first.request._id.toString());
     const wallet = await Wallet.findOne({ organizationId: org._id });
-    expect(wallet.balance).toBe(500); // charged exactly once, not twice
+    expect(wallet.balance).toBe(1000);
+    expect(wallet.reservedBalance).toBe(500); // reserved exactly once, not twice
     const count = await EStampRequest.countDocuments({ organizationId: org._id });
     expect(count).toBe(1);
   });

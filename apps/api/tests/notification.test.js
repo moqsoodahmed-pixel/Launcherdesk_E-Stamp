@@ -61,6 +61,8 @@ async function makeLockedOrder({ balance = 100000, fixedAmount = 500 } = {}) {
   });
   request.status = "LOCKED";
   await request.save();
+  // The lock job also converts the reservation into the real DEBIT.
+  await EStampRequestService.chargeRequest(request);
   order.eStampStatus = EStampOrderProcessingStatus.CREATED;
   await order.save();
   return { org, article, request, order, requester };
@@ -297,8 +299,9 @@ describe("Email provider", () => {
     const signature = mockCheckoutSignature(orderResult.razorpayOrderId, razorpayPaymentId);
     const payment = await PaymentService.confirmPayment({ razorpayOrderId: orderResult.razorpayOrderId, razorpayPaymentId, razorpaySignature: signature, userId: user._id });
     expect(payment.status).toBe(PaymentStatus.SUCCESS);
+    expect(payment.balanceStatus).toBe("PENDING_CREDIT"); // queued for an admin to credit, unaffected by the email failure
     const wallet = await Wallet.findOne({ organizationId: org._id });
-    expect(wallet.balance).toBe(500); // wallet credit unaffected by absent/failed notification
+    expect(wallet.balance).toBe(0); // ledger flow: verify never credits by itself
   });
 });
 
