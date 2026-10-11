@@ -69,6 +69,12 @@ exports.env = {
     // file.routes.js's multer limit is derived from this SAME value, so
     // there is exactly one place this number is configured.
     DOCUMENT_MAX_FILE_SIZE_MB: parseInt(process.env.DOCUMENT_MAX_FILE_SIZE_MB || "10", 10),
+    // How orders are fulfilled. "manual" (default): the assigned Assistant
+    // Master Admin stamps outside the app and uploads the certificate; no
+    // E-Stamp provider is ever called. "provider": the provider-integration
+    // flow (process/sync/webhook) exactly as before. Default value of the
+    // ESTAMP_FULFILMENT setting (a Master Admin override in Settings wins).
+    ESTAMP_FULFILMENT: process.env.ESTAMP_FULFILMENT === "provider" ? "provider" : "manual",
     ESTAMP_PROVIDER: process.env.ESTAMP_PROVIDER || "mock",
     ESTAMP_API_BASE_URL: process.env.ESTAMP_API_BASE_URL || "",
     ESTAMP_API_KEY: process.env.ESTAMP_API_KEY || "",

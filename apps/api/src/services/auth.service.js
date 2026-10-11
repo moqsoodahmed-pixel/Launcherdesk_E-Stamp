@@ -122,6 +122,8 @@ exports.AuthService = {
                 // requirePermission()/authenticate.js computing this exact
                 // same value from role+user.permissions on every request.
                 permissions: shared_1.getEffectivePermissions(user.role, user.permissions),
+                // Same UX-only field as GET /auth/me (see auth.controller me).
+                fulfilmentMode: await require("./settings.service").SettingsService.getFulfilmentMode(),
             },
         };
     },

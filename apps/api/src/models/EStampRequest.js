@@ -45,6 +45,9 @@ const eStampRequestSchema = new mongoose_1.Schema({
     chargeStatus: { type: String, enum: ["RESERVED", "CHARGED", "RELEASED", "SHORTFALL"] },
     reservedAmount: { type: Number, min: 0 },
     chargedAt: { type: Date },
+    // Set when a failed manual fulfilment reversed the charge (one CREDIT,
+    // idempotency key estamp-refund:<requestId>).
+    refundedAt: { type: Date },
 }, { timestamps: true });
 eStampRequestSchema.index({ organizationId: 1, createdAt: -1 });
 eStampRequestSchema.index({ organizationId: 1, status: 1 });

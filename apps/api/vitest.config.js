@@ -14,6 +14,9 @@ export default defineConfig({
     env: {
       JWT_SECRET: "test_secret",
       JWT_REFRESH_SECRET: "test_refresh_secret",
+      // Existing provider tests exercise the provider flow; manual-mode
+      // tests switch per test via the ESTAMP_FULFILMENT setting override.
+      ESTAMP_FULFILMENT: "provider",
     },
     // Each test file boots its own MongoMemoryServer, which downloads/locks a
     // shared binary cache file. Running test files concurrently makes them

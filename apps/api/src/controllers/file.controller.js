@@ -11,6 +11,7 @@ const notification_service_1 = require("../services/notification.service");
 const models_2 = require("../models");
 const shared_1 = require("@launcherdesk/shared");
 const sanitizeFilename_1 = require("../utils/sanitizeFilename");
+const estamp_notifications_1 = require("../services/estamp-notifications");
 // Internal roles (Master/Assistant Master Admin) always have organizationId
 // === null on their OWN account - they act ON BEHALF OF a client org, so the
 // target org must come from the request, never from their own record.
@@ -108,23 +109,7 @@ exports.uploadFile = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         // somehow called again for the same order (blocked above anyway by
         // the existingDoc check, but this is the same defense-in-depth
         // pattern used everywhere else in this codebase).
-        const request = await models_1.EStampRequest.findById(order.requestId);
-        const requester = request ? await models_2.User.findById(request.createdBy).select("role email") : null;
-        if (request && requester) {
-            await (0, notification_service_1.notifyUser)({
-                recipientId: request.createdBy.toString(),
-                recipientRole: requester.role,
-                type: shared_1.NotificationType.ESTAMP_STATUS,
-                title: "E-Stamp certificate available",
-                message: `Your E-Stamp certificate for order ${order.orderNumber} is ready to download.`,
-                organizationId,
-                relatedActorId: req.user.id,
-                entityType: "EStampOrder",
-                entityId: order._id,
-                eventKey: `estamp-order:${order._id.toString()}:certificate_available`,
-                email: requester.email ? { to: requester.email, method: "sendEStampReadyEmail", args: [order.orderNumber] } : undefined,
-            });
-        }
+        await (0, estamp_notifications_1.notifyCertificateAvailable)(order, req.user.id);
     }
     await (0, audit_service_1.recordAudit)({
         actorId: req.user.id,

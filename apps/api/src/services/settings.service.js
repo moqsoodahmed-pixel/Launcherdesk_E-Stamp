@@ -218,6 +218,10 @@ exports.SettingsService = {
     // Thin, fallback-baked helpers for the real runtime consumers - reads
     // cleanly at each call site instead of every consumer repeating
     // getEffectiveValue("...") with the exact right key string.
+    // "manual" | "provider" - see config/env.js ESTAMP_FULFILMENT.
+    async getFulfilmentMode() {
+        return (await this.getEffectiveValue("ESTAMP_FULFILMENT")) === "provider" ? "provider" : "manual";
+    },
     async getRequestModifyWindowMinutes() {
         return this.getEffectiveValue("REQUEST_MODIFY_WINDOW_MINUTES");
     },

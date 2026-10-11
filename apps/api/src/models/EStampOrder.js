@@ -30,6 +30,12 @@ const eStampOrderSchema = new mongoose_1.Schema({
     issuedAt: { type: Date },
     lastSyncedAt: { type: Date },
     retryCount: { type: Number, default: 0 },
+    // Manual fulfilment (ESTAMP_FULFILMENT=manual): who stamped it and when.
+    // providerReference holds the stamp reference typed in at fulfilment.
+    fulfilledBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User" },
+    startedAt: { type: Date },
+    fulfilmentNotes: { type: String, maxlength: 1000 },
+    failedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User" },
 }, { timestamps: true });
 eStampOrderSchema.index({ organizationId: 1, status: 1 });
 eStampOrderSchema.index({ organizationId: 1, createdAt: -1 });

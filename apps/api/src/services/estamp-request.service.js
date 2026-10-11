@@ -10,6 +10,7 @@ const estamp_providers_1 = require("./estamp-providers");
 const ApiError_1 = require("../utils/ApiError");
 const audit_service_1 = require("./audit.service");
 const notification_service_1 = require("./notification.service");
+const estamp_notifications_1 = require("./estamp-notifications");
 const settings_service_1 = require("./settings.service");
 const policy_service_1 = require("./policy.service");
 const Policy_1 = require("../models/Policy");
@@ -145,27 +146,8 @@ async function applyProviderResult(order, request, result, actorId, actorRole, r
             action: shared_2.AuditAction.ESTAMP_ISSUED, entityType: "EStampOrder", entityId: order._id.toString(),
             metadata: { providerReference: order.providerReference }, req,
         });
-        const requester = await models_1.User.findById(request.createdBy).select("role email");
-        if (requester) {
-            // eventKey = one issuance per order - even if this branch were
-            // somehow reached twice (it structurally can't be, see the
-            // terminal-state guard above), the unique index on
-            // Notification.eventKey/EmailLog.eventKey is the actual
-            // guarantee against a duplicate "issued" email/notification.
-            await (0, notification_service_1.notifyUser)({
-                recipientId: request.createdBy.toString(),
-                recipientRole: requester.role,
-                type: shared_2.NotificationType.ESTAMP_STATUS,
-                title: "E-Stamp issued",
-                message: `Your E-Stamp request ${request.requestNumber} has been issued.`,
-                organizationId: order.organizationId.toString(),
-                relatedActorId: actorId,
-                entityType: "EStampOrder",
-                entityId: order._id,
-                eventKey: `estamp-order:${order._id.toString()}:issued`,
-                email: requester.email ? { to: requester.email, method: "sendOrderIssuedEmail", args: [order.orderNumber] } : undefined,
-            });
-        }
+        // eventKey-gated: at most one "issued" notification/email per order.
+        await (0, estamp_notifications_1.notifyOrderIssued)(order, request, actorId);
         if (actorRole === shared_2.Role.ASSISTANT_MASTER_ADMIN) {
             await (0, notification_service_1.notifyAllMasterAdmins)({
                 type: shared_2.NotificationType.ASSISTANT_ADMIN_ACTIVITY,
@@ -190,22 +172,7 @@ async function applyProviderResult(order, request, result, actorId, actorRole, r
             action: shared_2.AuditAction.ESTAMP_PROCESSING_FAILED, entityType: "EStampOrder", entityId: order._id.toString(),
             metadata: { providerReference: order.providerReference, reason: order.failureReason }, req,
         });
-        const failedRequester = await models_1.User.findById(request.createdBy).select("role email");
-        if (failedRequester) {
-            await (0, notification_service_1.notifyUser)({
-                recipientId: request.createdBy.toString(),
-                recipientRole: failedRequester.role,
-                type: shared_2.NotificationType.ESTAMP_STATUS,
-                title: "E-Stamp processing failed",
-                message: `E-Stamp processing for your request ${request.requestNumber} failed.`,
-                organizationId: order.organizationId.toString(),
-                relatedActorId: actorId,
-                entityType: "EStampOrder",
-                entityId: order._id,
-                eventKey: `estamp-order:${order._id.toString()}:failed`,
-                email: failedRequester.email ? { to: failedRequester.email, method: "sendOrderFailedEmail", args: [order.orderNumber, order.failureReason] } : undefined,
-            });
-        }
+        await (0, estamp_notifications_1.notifyOrderFailed)(order, request, actorId);
         if (actorRole === shared_2.Role.ASSISTANT_MASTER_ADMIN) {
             await (0, notification_service_1.notifyAllMasterAdmins)({
                 type: shared_2.NotificationType.ASSISTANT_ADMIN_ACTIVITY,
@@ -613,7 +580,12 @@ exports.EStampRequestService = {
         if (result.success) {
             const charged = await models_1.EStampRequest.findOneAndUpdate({ _id: request._id, chargeStatus: { $in: ["RESERVED", "SHORTFALL"] } }, { $set: { chargeStatus: "CHARGED", chargedAt: new Date() } }, { new: true });
             if (charged) {
-                await models_1.EStampOrder.findOneAndUpdate({ requestId: charged._id }, { paymentStatus: "PAID" });
+                const paidOrder = await models_1.EStampOrder.findOneAndUpdate({ requestId: charged._id }, { paymentStatus: "PAID" }, { new: true });
+                // Manual fulfilment: the order is now ready to stamp - tell the
+                // assigned assistant (or every Master Admin) once.
+                if (paidOrder && (await settings_service_1.SettingsService.getFulfilmentMode()) === "manual") {
+                    await (0, estamp_notifications_1.notifyOrderToFulfil)(paidOrder);
+                }
                 await (0, audit_service_1.recordAudit)({
                     actorId: null,
                     actorRole: "SYSTEM_CRON",

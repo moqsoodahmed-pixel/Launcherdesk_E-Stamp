@@ -9,6 +9,7 @@ const models_1 = require("../models");
 const ApiError_1 = require("../utils/ApiError");
 const crypto_1 = require("../utils/crypto");
 const audit_service_1 = require("../services/audit.service");
+const settings_service_1 = require("../services/settings.service");
 const shared_1 = require("@launcherdesk/shared");
 exports.login = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { email, password } = req.body;
@@ -43,6 +44,9 @@ exports.me = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     return (0, ApiResponse_1.ok)(res, {
         ...user.toObject(),
         permissions: shared_1.getEffectivePermissions(user.role, user.permissions),
+        // UX-only: lets the frontend show the manual-fulfilment screens and
+        // hide provider screens. Every route is enforced server-side.
+        fulfilmentMode: await settings_service_1.SettingsService.getFulfilmentMode(),
     });
 });
 // Forgot password: does not reveal whether the email exists.

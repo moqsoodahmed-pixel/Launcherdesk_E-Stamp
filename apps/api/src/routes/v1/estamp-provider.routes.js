@@ -45,6 +45,8 @@ router.use(authenticate_1.authenticate);
 // Assistant Master Admin (must be explicitly granted by Master Admin, same
 // pattern as every other Assistant-oversight permission in this codebase).
 router.use((0, authorize_1.requirePermission)(shared_1.Permission.ESTAMP_PROVIDER_VIEW));
+// Manual fulfilment has no provider account to look at.
+router.use((0, require("../../middleware/fulfilmentMode").requireFulfilmentMode)("provider"));
 router.get("/balance", ctrl.getBalance);
 router.post("/balance/refresh", ctrl.refreshBalance);
 router.get("/usage", ctrl.getUsage);

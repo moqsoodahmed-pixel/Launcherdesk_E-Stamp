@@ -39,21 +39,38 @@ const authenticate_1 = require("../../middleware/authenticate");
 const authorize_1 = require("../../middleware/authorize");
 const shared_1 = require("@launcherdesk/shared");
 const rateLimiters_1 = require("../../middleware/rateLimiters");
+const fulfilmentMode_1 = require("../../middleware/fulfilmentMode");
+const multer = require("multer");
+const file_service_1 = require("../../services/file.service");
+// Certificate upload for manual fulfilment: same outer size ceiling as
+// /files/upload; FileService.validate enforces the live limit, MIME
+// allowlist and executable-signature check.
+const certificateUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: file_service_1.FileService.MULTER_CEILING_BYTES } });
+const providerOnly = (0, fulfilmentMode_1.requireFulfilmentMode)("provider");
+const manualOnly = (0, fulfilmentMode_1.requireFulfilmentMode)("manual");
+// Only LauncherDesk staff ever fulfil orders - never a client role, even if
+// it were granted ORDER_MANAGE.
+const staffOnly = (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN, shared_1.Role.ASSISTANT_MASTER_ADMIN);
 const router = (0, express_1.Router)();
 // E-Stamp provider webhook - registered BEFORE authenticate below, so it is
 // never subject to session authentication (the provider cannot present a
 // LauncherDesk JWT). Its own signature verification is the only trust
 // boundary for this route (see order.controller.providerWebhook).
-router.post("/webhook/:provider", ctrl.providerWebhook);
+router.post("/webhook/:provider", (0, fulfilmentMode_1.requireFulfilmentMode)("provider", { goneStatus: true }), ctrl.providerWebhook);
 router.use(authenticate_1.authenticate);
 router.get("/", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.listOrders);
 router.get("/summary", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getOrderSummary);
+router.get("/fulfilment-summary", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getFulfilmentSummary);
 router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getOrder);
 // Operational processing actions - permission-gated (ORDER_MANAGE), not
 // role-only. Master Admin has it implicitly (all permissions); an Assistant
 // Master Admin only if Master Admin explicitly grants it; no client role
 // has ORDER_MANAGE by default.
-router.post("/:id/process", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), ctrl.processOrder);
-router.post("/:id/sync", rateLimiters_1.providerSyncLimiter, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), ctrl.syncOrder);
-router.post("/:id/retry", rateLimiters_1.providerSyncLimiter, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), ctrl.retryOrder);
+router.post("/:id/process", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), providerOnly, ctrl.processOrder);
+router.post("/:id/sync", rateLimiters_1.providerSyncLimiter, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), providerOnly, ctrl.syncOrder);
+router.post("/:id/retry", rateLimiters_1.providerSyncLimiter, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), providerOnly, ctrl.retryOrder);
+// Manual fulfilment (assigned assistant or Master Admin; checked in the controller).
+router.post("/:id/start", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, ctrl.startFulfilment);
+router.post("/:id/fulfil", rateLimiters_1.documentUploadLimiter, staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, certificateUpload.single("file"), ctrl.fulfilOrder);
+router.post("/:id/fail", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, ctrl.failOrder);
 exports.default = router;

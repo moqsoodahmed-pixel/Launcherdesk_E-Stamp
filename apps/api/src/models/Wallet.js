@@ -26,7 +26,7 @@ const walletTransactionSchema = new mongoose_1.Schema({
     balanceAfter: { type: Number, required: true },
     referenceType: {
         type: String,
-        enum: ["PAYMENT", "ESTAMP_REQUEST", "MANUAL_ADJUSTMENT", "REFUND"],
+        enum: ["PAYMENT", "ESTAMP_REQUEST", "ESTAMP_REQUEST_REVERSAL", "MANUAL_ADJUSTMENT", "REFUND"],
         required: true,
     },
     referenceId: { type: mongoose_1.Schema.Types.ObjectId },

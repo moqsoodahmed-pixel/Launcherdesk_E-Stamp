@@ -68,5 +68,5 @@ router.get("/financial", ctrl.getFinancial);
 router.get("/organizations", ctrl.getOrganizations);
 router.get("/bulk", ctrl.getBulk);
 router.get("/recent-activity", ctrl.getRecentActivity);
-router.get("/provider", ctrl.getProvider);
+router.get("/provider", (0, require("../../middleware/fulfilmentMode").requireFulfilmentMode)("provider"), ctrl.getProvider);
 exports.default = router;

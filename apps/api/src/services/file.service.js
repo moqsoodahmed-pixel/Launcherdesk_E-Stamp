@@ -127,6 +127,24 @@ exports.FileService = {
             orderId: params.orderId,
         });
     },
+    // Removes an uploaded asset (storage object + FileAsset row). Used to
+    // undo an upload when the business step it belonged to did not complete
+    // (manual fulfilment is all-or-nothing). Storage deletion is best-effort
+    // and logged; the FileAsset row is always removed so nothing references
+    // the object.
+    async deleteAsset(asset) {
+        if (!asset)
+            return;
+        if (env_1.env.CLOUDINARY_CLOUD_NAME && asset.cloudinaryPublicId) {
+            try {
+                await getCloudinary().uploader.destroy(asset.cloudinaryPublicId, { type: "private", resource_type: asset.resourceType || "raw" });
+            }
+            catch (err) {
+                logger_1.logger.error("[file.service] failed to delete storage object during rollback", { assetId: asset._id?.toString(), error: err?.message });
+            }
+        }
+        await models_1.FileAsset.deleteOne({ _id: asset._id });
+    },
     async getSignedUrl(publicId) {
         if (!env_1.env.CLOUDINARY_CLOUD_NAME) {
             return `https://mock-storage.local/${publicId}`;

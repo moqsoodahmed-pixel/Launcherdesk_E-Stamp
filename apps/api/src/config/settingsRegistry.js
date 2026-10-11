@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SETTINGS_REGISTRY = void 0;
+const env_1 = require("./env");
 // Phase 17 - Advanced System Settings & Configuration Management.
 //
 // This is the ONLY allowlist through which a SystemSetting row can ever be
@@ -29,6 +30,14 @@ exports.SETTINGS_REGISTRY = void 0;
 // reachable through this system - env.js remains their only source of
 // truth, full stop.
 exports.SETTINGS_REGISTRY = {
+    ESTAMP_FULFILMENT: {
+        key: "ESTAMP_FULFILMENT",
+        valueType: "ENUM",
+        category: "BUSINESS",
+        allowedValues: ["manual", "provider"],
+        defaultValue: env_1.env.ESTAMP_FULFILMENT,
+        description: "How E-Stamp orders are fulfilled: \"manual\" (the assigned Assistant Master Admin stamps outside the app and uploads the certificate) or \"provider\" (automated E-Stamp provider integration).",
+    },
     REQUEST_MODIFY_WINDOW_MINUTES: {
         key: "REQUEST_MODIFY_WINDOW_MINUTES",
         valueType: "INTEGER",

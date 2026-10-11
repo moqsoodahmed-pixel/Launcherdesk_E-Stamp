@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.providerWebhook = exports.retryOrder = exports.syncOrder = exports.processOrder = exports.getOrderSummary = exports.getOrder = exports.listOrders = void 0;
+exports.getFulfilmentSummary = exports.failOrder = exports.fulfilOrder = exports.startFulfilment = exports.providerWebhook = exports.retryOrder = exports.syncOrder = exports.processOrder = exports.getOrderSummary = exports.getOrder = exports.listOrders = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const dateRange_1 = require("../utils/dateRange");
 const ApiResponse_1 = require("../utils/ApiResponse");
@@ -12,6 +12,8 @@ const audit_service_1 = require("../services/audit.service");
 const shared_1 = require("@launcherdesk/shared");
 const sanitizeFilename_1 = require("../utils/sanitizeFilename");
 const orgAccess_1 = require("../utils/orgAccess");
+const fulfilment_service_1 = require("../services/fulfilment.service");
+const settings_service_1 = require("../services/settings.service");
 // Assistant Master Admins only reach orders of organizations assigned to
 // them; same "not found" as a missing order so ids are never confirmed.
 async function assertOrderAccess(req, orderId) {
@@ -102,6 +104,21 @@ async function buildOrderFilter(req) {
             filter.organizationId = { $in: matchingIds.map((id) => new mongoose_1.Types.ObjectId(id)) };
         }
     }
+    // Manual fulfilment queue: orders still to stamp (CREATED/PROCESSING)
+    // whose request has left its window and been CHARGED - never in-window,
+    // CANCELLED or SHORTFALL. Internal actors only, inside their scope.
+    if (req.query.queue !== undefined) {
+        if (req.query.queue !== "fulfil")
+            throw ApiError_1.ApiError.badRequest("Invalid queue filter", "INVALID_QUEUE");
+        if (!isInternalActor(req))
+            throw ApiError_1.ApiError.forbidden("Only LauncherDesk staff can view the fulfilment queue");
+        const requestFilter = fulfilment_service_1.FulfilmentService.fulfillableRequestFilter();
+        if (filter.organizationId)
+            requestFilter.organizationId = filter.organizationId;
+        const requests = await models_1.EStampRequest.find(requestFilter).select("_id");
+        filter.requestId = { $in: requests.map((r) => r._id) };
+        filter.eStampStatus = { $in: fulfilment_service_1.FULFILLABLE_ORDER_STATUSES };
+    }
     if (search) {
         // Only fields actually present on EStampOrder itself - never an
         // unrestricted regex across unrelated collections.
@@ -136,14 +153,23 @@ exports.listOrders = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const requestIds = items.map((o) => o.requestId);
     const orgIds = isInternalActor(req) ? [...new Set(items.map((o) => o.organizationId.toString()))] : [];
     const [requests, orgs] = await Promise.all([
-        requestIds.length ? models_1.EStampRequest.find({ _id: { $in: requestIds } }).select("requestNumber") : [],
+        requestIds.length ? models_1.EStampRequest.find({ _id: { $in: requestIds } }).select("requestNumber lockedAt") : [],
         orgIds.length ? models_1.Organization.find({ _id: { $in: orgIds } }).select("name") : [],
     ]);
     const requestNumberById = new Map(requests.map((r) => [r._id.toString(), r.requestNumber]));
+    const lockedAtById = new Map(requests.map((r) => [r._id.toString(), r.lockedAt]));
+    const isQueue = req.query.queue === "fulfil";
+    const articles = isQueue && items.length ? await models_1.Article.find({ _id: { $in: [...new Set(items.map((o) => o.articleId.toString()))] } }).select("title articleCode") : [];
+    const articleById = new Map(articles.map((a) => [a._id.toString(), a]));
     const orgNameById = new Map(orgs.map((o) => [o._id.toString(), o.name]));
     const enriched = items.map((o) => {
         const plain = o.toObject();
         plain.requestNumber = requestNumberById.get(o.requestId.toString()) ?? null;
+        if (isQueue) {
+            plain.lockedAt = lockedAtById.get(o.requestId.toString()) ?? null;
+            const article = articleById.get(o.articleId.toString());
+            plain.articleTitle = article ? article.title : null;
+        }
         if (isInternalActor(req))
             plain.organizationName = orgNameById.get(o.organizationId.toString()) ?? null;
         return plain;
@@ -178,6 +204,36 @@ exports.getOrderSummary = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 // provider reference is exactly Sync, and for ISSUED/FAILED is an
 // idempotent no-op. It therefore never does anything Process/Sync do not,
 // and an unconfirmed SUBMITTING order is intentionally never resubmitted.
+// Plain-language client timeline for manual fulfilment: Submitted, Window
+// ends, Queued, In progress, then Issued or Failed. Only real timestamps.
+function manualTimeline(order, request, document) {
+    const steps = [
+        request?.createdAt && { key: "submitted", label: "Submitted", at: request.createdAt },
+        request?.modificationDeadline && { key: "window", label: "Window ends", at: request.modificationDeadline, upcoming: request.status === shared_1.EStampRequestStatus.MODIFICATION_WINDOW },
+        request?.lockedAt && { key: "queued", label: "Queued", at: request.lockedAt },
+        order.startedAt && { key: "in_progress", label: "In progress", at: order.startedAt },
+        order.eStampStatus === shared_1.EStampOrderProcessingStatus.ISSUED && { key: "issued", label: "Issued", at: order.issuedAt, downloadable: !!document },
+        order.eStampStatus === shared_1.EStampOrderProcessingStatus.FAILED && { key: "failed", label: "Failed", at: order.updatedAt, reason: order.failureReason },
+    ];
+    return steps.filter(Boolean);
+}
+// Manual-mode actions: only ORDER_MANAGE internal staff who may act on this
+// organization (assigned assistant or Master Admin), and only when the
+// request is locked AND charged.
+async function computeManualActions(req, order, request) {
+    const none = { process: false, sync: false, retry: false, start: false, fulfil: false, fail: false };
+    const canManage = req.user.permissions.includes(shared_1.Permission.ORDER_MANAGE) && isInternalActor(req);
+    if (!canManage || !request || !(await (0, orgAccess_1.canAccessOrganization)(req, order.organizationId)))
+        return none;
+    const open = fulfilment_service_1.FULFILLABLE_ORDER_STATUSES.includes(order.eStampStatus) && fulfilment_service_1.FULFILLABLE_REQUEST_STATUSES.includes(request.status);
+    const charged = request.chargeStatus === "CHARGED";
+    return {
+        ...none,
+        start: open && charged && order.eStampStatus === shared_1.EStampOrderProcessingStatus.CREATED,
+        fulfil: open && charged,
+        fail: open,
+    };
+}
 function computeAvailableActions(req, order, request) {
     const canManage = req.user.permissions.includes(shared_1.Permission.ORDER_MANAGE);
     const status = order.eStampStatus;
@@ -218,7 +274,8 @@ exports.getOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     // A lightweight, read-only operational timeline built entirely from
     // existing order timestamps and audit history - not a second state
     // machine, just a view over data that already exists.
-    const timeline = [
+    const fulfilmentMode = await settings_service_1.SettingsService.getFulfilmentMode();
+    const timeline = fulfilmentMode === "manual" ? manualTimeline(order, request, document) : [
         request?.createdAt && { label: "Request created", at: request.createdAt },
         { label: "Order created", at: order.createdAt },
         order.submittedAt && { label: "Submitted to provider", at: order.submittedAt },
@@ -259,7 +316,8 @@ exports.getOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             downloadAvailable: order.downloadStatus === "AVAILABLE" || order.downloadStatus === "DOWNLOADED",
         } : null,
         timeline,
-        availableActions: computeAvailableActions(req, order, request),
+        availableActions: fulfilmentMode === "manual" ? await computeManualActions(req, order, request) : computeAvailableActions(req, order, request),
+        fulfilmentMode,
         // Audit history is only returned to an actor holding AUDIT_VIEW.
         history: historyEntries,
     });
@@ -297,4 +355,43 @@ exports.providerWebhook = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const signature = req.headers["x-estamp-signature"];
     const result = await estamp_request_service_1.EStampRequestService.handleProviderWebhook(req.rawBody, signature);
     return (0, ApiResponse_1.ok)(res, { received: true, ...result });
+});
+// ---- Manual fulfilment (ESTAMP_FULFILMENT=manual) ------------------------
+// Loads the order + request and enforces the assignment rule: Master Admin
+// on any organization, an Assistant only on assigned ones (403 otherwise).
+async function loadForFulfilment(req) {
+    if (!mongoose_1.Types.ObjectId.isValid(req.params.id))
+        throw ApiError_1.ApiError.notFound("Order not found");
+    const order = await models_1.EStampOrder.findById(req.params.id);
+    if (!order)
+        throw ApiError_1.ApiError.notFound("Order not found");
+    await (0, orgAccess_1.assertCanActOnOrganization)(req, order.organizationId);
+    const request = await models_1.EStampRequest.findById(order.requestId);
+    return { order, request };
+}
+exports.startFulfilment = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { order, request } = await loadForFulfilment(req);
+    const result = await fulfilment_service_1.FulfilmentService.start(order, request, req.user, req);
+    return (0, ApiResponse_1.ok)(res, result, result.alreadyStarted ? "Already in progress" : "Fulfilment started");
+});
+exports.fulfilOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { order, request } = await loadForFulfilment(req);
+    const result = await fulfilment_service_1.FulfilmentService.fulfil(order, request, req.user, {
+        file: req.file,
+        stampReference: req.body?.stampReference,
+        notes: req.body?.notes,
+    }, req);
+    return (0, ApiResponse_1.ok)(res, { order: result.order, request: result.request, documentId: result.document._id }, "Order issued");
+});
+exports.failOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { order, request } = await loadForFulfilment(req);
+    const result = await fulfilment_service_1.FulfilmentService.fail(order, request, req.user, { reason: req.body?.reason, refundBalance: req.body?.refundBalance }, req);
+    return (0, ApiResponse_1.ok)(res, { order: result.order, request: result.request, refund: result.refund }, "Order marked failed");
+});
+// GET /orders/fulfilment-summary - queue size, oldest age and (for the
+// caller's scope) orders fulfilled today. Internal actors only.
+exports.getFulfilmentSummary = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const ids = await (0, orgAccess_1.getAccessibleOrganizationIds)(req);
+    const summary = await fulfilment_service_1.FulfilmentService.summary(ids === null ? undefined : { $in: ids });
+    return (0, ApiResponse_1.ok)(res, summary);
 });
