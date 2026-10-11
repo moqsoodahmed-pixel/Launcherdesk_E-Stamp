@@ -1,187 +1,234 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
+import { useAuth } from "../../context/AuthContext";
+import { useApi } from "../../hooks/useApi";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { hasPermission, PERMISSIONS } from "../../utils/permissions";
+import { actionErrorMessage, formatCurrency } from "../../utils/format";
+import PageHeader from "../../components/common/PageHeader";
+import LoadingState from "../../components/common/LoadingState";
+import ErrorState from "../../components/common/ErrorState";
+import EmptyState from "../../components/common/EmptyState";
 
-const inputClass =
-  "rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
+const LIMIT = 20;
+const inputClass = "rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
+const CERTIFICATE_LABELS = { NOT_AVAILABLE: "Not available", AVAILABLE: "Available", DOWNLOADED: "Downloaded" };
 
-function fmtDate(d) {
-  return d ? new Date(d).toLocaleString() : "-";
+function fmt(date) {
+  return date ? new Date(date).toLocaleDateString() : "-";
 }
-function money(n) {
-  return n === null || n === undefined ? "-" : `₹${Number(n).toLocaleString("en-IN")}`;
-}
 
+// Issued E-Stamps = orders whose processing status is ISSUED. Listing is
+// read-only for every role; Download needs estamp.download.
 export default function EStampsPage() {
-  const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
+  const { user } = useAuth();
+  const canDownload = hasPermission(user, PERMISSIONS.ESTAMP_DOWNLOAD);
+
   const [page, setPage] = useState(1);
-  const limit = 10;
   const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
   const [stateCode, setStateCode] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [states, setStates] = useState([]);
   const [downloadingId, setDownloadingId] = useState(null);
   const [downloadError, setDownloadError] = useState(null);
+  const search = useDebouncedValue(searchInput.trim(), 400);
 
-  // debounce the search box
   useEffect(() => {
-    const t = setTimeout(() => {
-      setPage(1);
-      setSearch(searchInput.trim());
-    }, 400);
-    return () => clearTimeout(t);
-  }, [searchInput]);
-
-  const load = useCallback(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
     apiClient
-      .get("/orders", {
-        params: {
-          page,
-          limit,
-          eStampStatus: "ISSUED", // only orders the provider has actually issued
-          sortBy: "updatedAt",
-          sortDir: "desc",
-          search: search || undefined,
-          stateCode: stateCode.trim().toUpperCase() || undefined,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-        },
-      })
-      .then(({ data }) => {
-        if (cancelled) return;
-        setItems(data.data.items || []);
-        setTotal(data.data.total || 0);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(
-          err?.response?.status === 403
-            ? "You do not have permission to view E-Stamps."
-            : err?.response?.data?.message || "Failed to load E-Stamps."
-        );
-      })
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, [page, search, stateCode, dateFrom, dateTo]);
+      .get("/articles/states")
+      .then((res) => setStates(Array.isArray(res.data.data) ? res.data.data : []))
+      .catch(() => setStates([]));
+  }, []);
 
-  useEffect(() => load(), [load]);
+  // Any filter change returns to the first page.
+  useEffect(() => setPage(1), [search, stateCode, dateFrom, dateTo]);
 
-  async function download(orderId) {
+  const { data, loading, error, refetch } = useApi(
+    (signal) =>
+      apiClient
+        .get("/orders", {
+          signal,
+          params: {
+            eStampStatus: "ISSUED",
+            page,
+            limit: LIMIT,
+            sortBy: "createdAt",
+            sortDir: "desc",
+            search: search || undefined,
+            stateCode: stateCode || undefined,
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined,
+          },
+        })
+        .then((r) => r.data.data),
+    [page, search, stateCode, dateFrom, dateTo],
+    { errorMessage: "Failed to load E-Stamps." }
+  );
+
+  async function handleDownload(order) {
     setDownloadError(null);
-    setDownloadingId(orderId);
+    setDownloadingId(order._id);
     try {
-      const { data: res } = await apiClient.get(`/files/estamp/${orderId}/download`);
-      // Same handling as OrderDetailPage: the API returns { url, filename } (a short-lived signed URL).
+      const { data: res } = await apiClient.get(`/files/estamp/${order._id}/download`);
       const { url, filename } = res.data;
+      // Fetch the short-lived signed URL as a blob and save it under our
+      // own sanitized filename - never navigate to the raw storage URL.
       const blobResponse = await fetch(url);
       if (!blobResponse.ok) throw new Error("Download failed");
       const blob = await blobResponse.blob();
-      const href = URL.createObjectURL(blob);
+      const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = href;
+      link.href = objectUrl;
       link.download = filename || "estamp-certificate";
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(href);
+      URL.revokeObjectURL(objectUrl);
     } catch (err) {
-      setDownloadError(
-        err?.response?.status === 403
-          ? "You do not have permission to download certificates."
-          : err?.response?.data?.message || "Certificate download failed. Please try again."
-      );
+      setDownloadError(actionErrorMessage(err, `Certificate download failed for ${order.orderNumber}. Please try again.`));
     } finally {
       setDownloadingId(null);
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const items = data?.items || [];
+  const total = data?.total || 0;
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+  const hasFilters = !!(search || stateCode || dateFrom || dateTo);
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">E-Stamps</h1>
-        <p className="text-sm text-slate-500">Issued E-Stamp certificates.</p>
-      </div>
+      <PageHeader title="E-Stamps" subtitle="Issued E-Stamp certificates" />
 
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <input aria-label="Search order number" className={inputClass + " w-64"} placeholder="Search order # or reference" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
-        <input aria-label="State code" className={inputClass + " w-28"} placeholder="State (KA)" maxLength={10} value={stateCode} onChange={(e) => { setPage(1); setStateCode(e.target.value); }} />
-        <input aria-label="From date" type="date" className={inputClass} value={dateFrom} onChange={(e) => { setPage(1); setDateFrom(e.target.value); }} />
-        <span className="text-sm text-slate-500">to</span>
-        <input aria-label="To date" type="date" className={inputClass} value={dateTo} onChange={(e) => { setPage(1); setDateTo(e.target.value); }} />
-      </div>
-
-      {downloadError && <p role="alert" className="mb-3 rounded-lg bg-red-50 text-red-700 text-sm p-3">{downloadError}</p>}
-
-      <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase text-slate-500 bg-slate-50">
-              <th className="px-4 py-3">Order</th>
-              <th className="px-4 py-3">State</th>
-              <th className="px-4 py-3">Amount</th>
-              <th className="px-4 py-3">Issued</th>
-              <th className="px-4 py-3">Certificate</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Loading...</td></tr>
-            )}
-            {!loading && error && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-red-600">
-                  {error}{" "}
-                  <button type="button" className="underline font-medium" onClick={load}>Retry</button>
-                </td>
-              </tr>
-            )}
-            {!loading && !error && items.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No issued E-Stamps yet.</td></tr>
-            )}
-            {!loading && !error && items.map((o) => (
-              <tr key={o._id} className="border-t border-slate-100">
-                <td className="px-4 py-3 font-medium">
-                  <Link className="text-brand-600 hover:underline" to={`/orders/${o._id}`}>{o.orderNumber}</Link>
-                </td>
-                <td className="px-4 py-3">{o.stateCode || "-"}</td>
-                <td className="px-4 py-3">{money(o.amount)}</td>
-                <td className="px-4 py-3">{fmtDate(o.issuedAt || o.updatedAt)}</td>
-                <td className="px-4 py-3">{String(o.downloadStatus || "NOT_AVAILABLE").replace(/_/g, " ")}</td>
-                <td className="px-4 py-3 text-right">
-                  {o.downloadStatus && o.downloadStatus !== "NOT_AVAILABLE" ? (
-                    <button type="button" disabled={downloadingId === o._id} onClick={() => download(o._id)} className="text-brand-600 hover:underline disabled:opacity-60">
-                      {downloadingId === o._id ? "Downloading..." : "Download"}
-                    </button>
-                  ) : (
-                    <span className="text-slate-400">Not available</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-between mt-4 text-sm text-slate-600">
-        <span>{total} E-Stamp{total === 1 ? "" : "s"}</span>
-        <div className="flex items-center gap-3">
-          <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-50">Previous</button>
-          <span>Page {page} of {totalPages}</span>
-          <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-50">Next</button>
+      <div className="flex flex-wrap items-end gap-3 mb-4">
+        <div>
+          <label htmlFor="estamps-search" className="block text-xs font-medium text-slate-600 mb-1">
+            Search
+          </label>
+          <input id="estamps-search" placeholder="Order # or provider reference" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className={`${inputClass} w-full sm:w-72`} />
         </div>
+        <div>
+          <label htmlFor="estamps-state" className="block text-xs font-medium text-slate-600 mb-1">
+            State
+          </label>
+          {states.length > 0 ? (
+            <select id="estamps-state" value={stateCode} onChange={(e) => setStateCode(e.target.value)} className={inputClass}>
+              <option value="">All states</option>
+              {states.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input id="estamps-state" placeholder="State code" value={stateCode} onChange={(e) => setStateCode(e.target.value)} className={`${inputClass} w-28`} />
+          )}
+        </div>
+        <div>
+          <label htmlFor="estamps-from" className="block text-xs font-medium text-slate-600 mb-1">
+            From
+          </label>
+          <input id="estamps-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label htmlFor="estamps-to" className="block text-xs font-medium text-slate-600 mb-1">
+            To
+          </label>
+          <input id="estamps-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={inputClass} />
+        </div>
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchInput("");
+              setStateCode("");
+              setDateFrom("");
+              setDateTo("");
+            }}
+            className="text-sm text-slate-500 hover:underline pb-2"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
+
+      {downloadError && (
+        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+          {downloadError}
+        </div>
+      )}
+
+      {loading && <LoadingState text="Loading E-Stamps..." />}
+      {!loading && error && <ErrorState message={error} onRetry={refetch} />}
+      {!loading && !error && items.length === 0 && (
+        <div className="bg-white rounded-xl border border-slate-200">
+          <EmptyState title={hasFilters ? "No E-Stamps match these filters" : "No issued E-Stamps yet"} />
+        </div>
+      )}
+      {!loading && !error && items.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+              <tr>
+                <th className="text-left px-4 py-3">Order</th>
+                <th className="text-left px-4 py-3">State</th>
+                <th className="text-right px-4 py-3">Amount</th>
+                <th className="text-left px-4 py-3">Issued</th>
+                <th className="text-left px-4 py-3">Certificate</th>
+                <th className="px-4 py-3">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((o) => (
+                <tr key={o._id} className="border-t border-slate-100">
+                  <td className="px-4 py-3">
+                    <Link to={`/orders/${o._id}`} className="font-medium text-brand-600 hover:underline">
+                      {o.orderNumber}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{o.stateCode || "-"}</td>
+                  <td className="px-4 py-3 text-right">{formatCurrency(o.amount)}</td>
+                  <td className="px-4 py-3 text-slate-500">{fmt(o.issuedAt)}</td>
+                  <td className="px-4 py-3 text-slate-600">{CERTIFICATE_LABELS[o.downloadStatus] || o.downloadStatus || "-"}</td>
+                  <td className="px-4 py-3 text-right">
+                    {canDownload && o.downloadStatus && o.downloadStatus !== "NOT_AVAILABLE" && (
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(o)}
+                        disabled={downloadingId === o._id}
+                        aria-label={`Download certificate for ${o.orderNumber}`}
+                        className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                      >
+                        {downloadingId === o._id ? "Downloading..." : "Download"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!error && total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 mt-4 text-sm text-slate-500">
+          <span>
+            Page {page} of {totalPages} ({total} total)
+          </span>
+          <div className="space-x-2">
+            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+              Previous
+            </button>
+            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
