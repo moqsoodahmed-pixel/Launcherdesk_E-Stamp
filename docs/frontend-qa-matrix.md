@@ -7,7 +7,7 @@ Every API response is `{ success, data, message }`; pages unwrap `res.data.data`
 Roles key: **MA** Master Admin · **AMA** Assistant Master Admin (only explicitly granted
 permissions) · **SA** Super Admin · **AD** Admin · **US** User.
 
-Status: **works** · **placeholder** (PlaceholderPage, built in Phase 3) · **empty-by-data**
+Status: **works** · **empty-by-data**
 (works, but shows nothing until data exists).
 
 | Route | Page file | API endpoints | Permission (route guard = API) | Roles that see it | Status | Notes |
@@ -23,11 +23,11 @@ Status: **works** · **placeholder** (PlaceholderPage, built in Phase 3) · **em
 | `/estamps/bulk` | estamps/BulkEStampPage.jsx | GET /bulk-estamps `{page,limit}`, GET /bulk-estamps/template (blob) | estamp.bulk_create | MA (view), SA, AD | works / empty-by-data | Template downloads with auth. Create hidden for internal roles. |
 | `/estamps/bulk/new` | estamps/BulkUploadWizard.jsx | POST /bulk-estamps/upload, GET /bulk-estamps/:id, POST /bulk-estamps/:id/confirm | estamp.bulk_create + tenant role | SA, AD | works | Row-by-row validation errors; structural failure keeps the batch (4xx details now kept in production). |
 | `/estamps/bulk/:batchId` | estamps/BulkBatchDetailPage.jsx | GET /bulk-estamps/:id, POST …/confirm, POST …/cancel | estamp.bulk_create | MA, SA, AD | works | 404 → not found; other errors → Retry. Polls while PROCESSING. |
-| `/estamps` | PlaceholderPage | — | estamp.view | MA, AMA*, SA, AD, US | placeholder | Phase 3. |
+| `/estamps` | estamps/EStampsPage.jsx | GET /orders `{eStampStatus:ISSUED,page,limit,sortBy,sortDir,search,stateCode,dateFrom,dateTo}`, GET /articles/states, GET /files/estamp/:orderId/download | estamp.view (Download: estamp.download) | MA, AMA*, SA, AD, US | empty-by-data | Issued orders only; debounced search, state and date filters, pagination. Download fetches the signed URL as a blob. Read-only for every role. Empty until the provider issues an E-Stamp (mock provider today). |
 | `/organizations` | organizations/OrganizationsListPage.jsx | GET /organizations | client.view + internal role | MA, AMA* | works | |
 | `/organizations/new` | organizations/CreateOrganizationPage.jsx | POST /organizations | client.manage + internal role | MA, AMA* | works | |
 | `/organizations/:id` | organizations/OrganizationDetailPage.jsx | GET /organizations/:id, PATCH /organizations/:id, PATCH …/status (MA only), POST …/super-admin | client.view + internal role | MA, AMA* | works | Status buttons MA-only; empty phone omitted when provisioning. |
-| `/assistant-admins` | PlaceholderPage | — | MASTER_ADMIN role | MA | placeholder | Phase 3. |
+| `/assistant-admins` | assistants/AssistantAdminsPage.jsx | GET /users?role=ASSISTANT_MASTER_ADMIN, POST /users/assistant-admins, PATCH /users/:id/status, PATCH /users/:id/permissions | MASTER_ADMIN role | MA | works | Temp password shown once (dismissible). Permissions modal sends the full set (grants and revokes). Clear 403/409/429 messages. |
 | `/users` | users/UsersListPage.jsx | GET /users `{page,limit,search,role,status}`, PATCH /users/:id/status | user.view | MA, SA, AD | works | URL drives role filter/title/button; only manageable roles offered; tenant-scoped by the API. |
 | `/users/new` | users/CreateUserPage.jsx | POST /users | user.create | MA, SA | works | Role from `?role=`, limited to creatable roles. |
 | `/users/:id` | users/EditUserPage.jsx | GET /users/:id, PATCH /users/:id, PATCH /users/:id/role | user.view (edit: user.manage) | MA, SA, AD | works | Read-only for ADMIN; empty phone omitted; no reload flash; Retry. |
@@ -45,11 +45,9 @@ Status: **works** · **placeholder** (PlaceholderPage, built in Phase 3) · **em
 | `/policies` | policies/PolicyPage.jsx | GET /policies/:type/current, GET /policies/acknowledgements/mine, POST /policies/acknowledge | authenticated | all | empty-by-data | Shows "no published policy" until one is published — see below. |
 | `/policies/manage` | policies/PolicyAdminPage.jsx | GET /policies/:type/history, POST /policies, POST /policies/:id/publish | policy.view (create/publish: policy.manage) | MA, AMA* | works | |
 | `/settings` | settings/SystemSettingsPage.jsx | GET /settings, PATCH /settings/:key | settings.view | MA, AMA* | works | |
-| `/files/upload` | PlaceholderPage | — | estamp.upload | AMA* | placeholder | Phase 3. |
-| `/files/download` | PlaceholderPage | — | estamp.download | AMA* | placeholder | Phase 3. |
-| `/organization/profile` | PlaceholderPage | — | authenticated | SA | placeholder | Phase 3. |
-| `/about` | PlaceholderPage | — | authenticated | SA | placeholder | Phase 3. |
-| `/profile` | PlaceholderPage | — | authenticated | MA, AMA, AD, US | placeholder | Phase 3. |
+| `/organization/profile` | organizations/CompanyProfilePage.jsx | GET /profile/organization | SUPER_ADMIN role | SA | works | Read-only own organization; 404 → "No company linked". |
+| `/about` | about/AboutPage.jsx | — | authenticated | SA | works | Static; support email and description are constants at the top of the file. |
+| `/profile` | profile/ProfilePage.jsx | GET /auth/me, PATCH /profile, POST /auth/change-password | authenticated | all | works | Email/role read-only. Password change reuses the shared ChangePasswordForm. |
 | `/` | — | — | — | — | works | Redirects to `/dashboard`. |
 | `*` | NotFoundPage.jsx | — | — | all | works | Real 404 page. |
 
@@ -70,3 +68,5 @@ database (it stops once a Master Admin exists). For an existing database:
 - No server-side check stops a `mustChangePassword` user calling other APIs directly; only the UI enforces the forced change.
 - Assistant Master Admins without global report access must paste an organization id (no picker).
 - Audit metadata is redacted in the UI only; there is no server-side redaction.
+
+`/files/upload` and `/files/download` were removed in Phase 3: they duplicated Orders (upload) and E-Stamps (download).

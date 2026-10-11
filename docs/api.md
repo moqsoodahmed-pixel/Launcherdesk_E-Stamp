@@ -23,6 +23,13 @@ Base URL: `/api/v1`. All endpoints except `/auth/login`, `/auth/login/verify-otp
 `POST /` create (role must be strictly below creator's authority) · `GET /` list (scoped to caller's org,
 or filterable by `organizationId` for internal roles) · `PATCH /:id/status` activate/deactivate
 
+## Profile — `/profile` (any authenticated user, own data only)
+`GET /organization` the caller's own organization (`name contactEmail contactPhone gstin address status
+isEstampServiceEnabled createdAt`); the id comes only from the session, 404 if the user has no organization ·
+`PATCH /` `{ name?, phone? }` edits the caller's own name (2-150 chars) and phone (empty string clears it,
+otherwise 6-20 chars). Email, role and organization are never changed here. Audited as `USER_MODIFIED`;
+never returns `passwordHash`.
+
 ## Wallet — `/wallet`
 `GET /balance` · `GET /transactions` (own org) · `GET /:organizationId/balance` and
 `POST /:organizationId/credit` (internal roles only — manual credit, goes through the same atomic service
