@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Link } from "react-router-dom";
 import UsersListPage from "./UsersListPage";
 import { apiClient } from "../../api/client";
 
@@ -8,9 +8,14 @@ vi.mock("../../api/client", () => ({
   apiClient: { get: vi.fn(), patch: vi.fn() },
 }));
 
-function renderPage() {
+let mockActor = { role: "MASTER_ADMIN" };
+vi.mock("../../context/AuthContext", () => ({
+  useAuth: () => ({ user: mockActor }),
+}));
+
+function renderPage(url = "/users") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[url]}>
       <UsersListPage />
     </MemoryRouter>
   );
@@ -33,6 +38,7 @@ const user = (overrides = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockActor = { role: "MASTER_ADMIN" };
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -169,5 +175,84 @@ describe("UsersListPage - mobile responsiveness (Phase 38)", () => {
     renderPage();
     const table = await screen.findByRole("table");
     expect(table.parentElement).toHaveClass("overflow-x-auto");
+  });
+});
+
+describe("UsersListPage - role filter driven by the URL (Manage Users / Manage Admins)", () => {
+  function Nav() {
+    return (
+      <>
+        <Link to="/users?role=USER">Manage Users</Link>
+        <Link to="/users?role=ADMIN">Manage Admins</Link>
+      </>
+    );
+  }
+
+  it("/users?role=ADMIN requests ADMIN accounts with matching dropdown, title and button", async () => {
+    mockActor = { role: "SUPER_ADMIN" };
+    apiClient.get.mockResolvedValue(page([]));
+    renderPage("/users?role=ADMIN");
+    await screen.findByText("No users found.");
+    expect(apiClient.get.mock.calls[0][1].params.role).toBe("ADMIN");
+    expect(screen.getByLabelText("Role")).toHaveValue("ADMIN");
+    expect(screen.getByRole("heading", { name: "Admins" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "+ Add Admin" })).toHaveAttribute("href", "/users/new?role=ADMIN");
+  });
+
+  it("switching sidebar links updates the filter without a page reload", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    mockActor = { role: "SUPER_ADMIN" };
+    apiClient.get.mockResolvedValue(page([]));
+    render(
+      <MemoryRouter initialEntries={["/users?role=USER"]}>
+        <Nav />
+        <UsersListPage />
+      </MemoryRouter>
+    );
+    await screen.findByText("No users found.");
+    expect(screen.getByRole("link", { name: "+ Add User" })).toBeInTheDocument();
+    await u.click(screen.getByRole("link", { name: "Manage Admins" }));
+    await waitFor(() => expect(apiClient.get.mock.calls.at(-1)[1].params.role).toBe("ADMIN"));
+    expect(screen.getByLabelText("Role")).toHaveValue("ADMIN");
+    expect(screen.getByRole("heading", { name: "Admins" })).toBeInTheDocument();
+    await u.click(screen.getByRole("link", { name: "Manage Users" }));
+    await waitFor(() => expect(apiClient.get.mock.calls.at(-1)[1].params.role).toBe("USER"));
+    expect(screen.getByLabelText("Role")).toHaveValue("USER");
+  });
+
+  it("resets to page 1 when a filter changes", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    apiClient.get.mockResolvedValue(page([user()], 25));
+    renderPage("/users?role=USER&page=2");
+    await screen.findByText("Page 2 of 3 (25 total)");
+    await u.selectOptions(screen.getByLabelText("Status"), "active");
+    await waitFor(() => expect(apiClient.get.mock.calls.at(-1)[1].params).toMatchObject({ page: 1, status: "active" }));
+  });
+
+  it("only offers roles the actor may manage - a SUPER_ADMIN never sees SUPER_ADMIN, an ADMIN only USER", async () => {
+    apiClient.get.mockResolvedValue(page([]));
+    mockActor = { role: "SUPER_ADMIN" };
+    const { unmount } = renderPage();
+    await screen.findByText("No users found.");
+    expect(Array.from(screen.getByLabelText("Role").querySelectorAll("option")).map((o) => o.value)).toEqual(["", "ADMIN", "USER"]);
+    unmount();
+    mockActor = { role: "ADMIN" };
+    renderPage("/users?role=SUPER_ADMIN");
+    await screen.findByText("No users found.");
+    expect(Array.from(screen.getByLabelText("Role").querySelectorAll("option")).map((o) => o.value)).toEqual(["", "USER"]);
+    // A role outside the allowed set in the URL is ignored, not sent.
+    expect(apiClient.get.mock.calls.at(-1)[1].params.role).toBeUndefined();
+  });
+
+  it("shows the server error with a Retry button that refetches", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    apiClient.get.mockRejectedValueOnce({ response: { status: 500, data: { message: "Boom" } } }).mockResolvedValue(page([user()]));
+    renderPage();
+    expect(await screen.findByText("Boom")).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Alice")).toBeInTheDocument();
   });
 });

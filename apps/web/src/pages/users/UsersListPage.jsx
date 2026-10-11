@@ -1,61 +1,84 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
+import { useAuth } from "../../context/AuthContext";
+import { useApi } from "../../hooks/useApi";
+import { getErrorMessage } from "../../utils/errors";
+import { hasPermission, PERMISSIONS } from "../../utils/permissions";
+import { manageableRoles, creatableRoles, ROLE_LABELS } from "../../utils/roles";
+import PageHeader from "../../components/common/PageHeader";
+import ErrorState from "../../components/common/ErrorState";
 
-const ROLE_OPTIONS = ["SUPER_ADMIN", "ADMIN", "USER"];
+const LIMIT = 10;
+const TITLES = { SUPER_ADMIN: "Super Admins", ADMIN: "Admins", USER: "Users" };
 
 export default function UsersListPage() {
-  const [searchParams] = useSearchParams();
-  const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-  const [search, setSearch] = useState("");
-  const [role, setRole] = useState(searchParams.get("role") || "");
-  const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { user: me } = useAuth();
+  // The URL is the single source of truth for every filter, so the sidebar's
+  // /users?role=USER vs /users?role=ADMIN links (and back/forward) always
+  // drive the dropdown, the request and the title together.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const roleOptions = manageableRoles(me?.role);
+  const rawRole = searchParams.get("role") || "";
+  const role = roleOptions.includes(rawRole) ? rawRole : "";
+  const status = searchParams.get("status") || "";
+  const search = searchParams.get("search") || "";
+  const page = Math.max(1, parseInt(searchParams.get("page"), 10) || 1);
   const [notice, setNotice] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    apiClient
-      .get("/users", { params: { page, limit, search: search || undefined, role: role || undefined, status: status || undefined } })
-      .then((res) => {
-        setItems(res.data.data.items);
-        setTotal(res.data.data.total);
-      })
-      .catch((err) => setError(err?.response?.data?.message || "Failed to load users."))
-      .finally(() => setLoading(false));
-  }, [page, limit, search, role, status]);
+  // Any filter change resets to page 1; empty values are removed from the URL.
+  function setFilter(key, value) {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    if (key !== "page") next.delete("page");
+    setSearchParams(next, { replace: key === "search" });
+  }
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data, loading, error, refetch } = useApi(
+    (signal) =>
+      apiClient
+        .get("/users", { params: { page, limit: LIMIT, search: search || undefined, role: role || undefined, status: status || undefined }, signal })
+        .then((res) => res.data.data),
+    [page, search, role, status],
+    { errorMessage: "Failed to load users." }
+  );
+  const items = data?.items || [];
+  const total = data?.total || 0;
+  const limit = LIMIT;
+  const load = refetch;
+  const setPage = (fn) => setFilter("page", String(typeof fn === "function" ? fn(page) : fn));
 
   async function handleStatusChange(user, isActive) {
     const verb = isActive ? "activate" : "deactivate";
     if (!window.confirm(`${isActive ? "Activate" : "Deactivate"} ${user.name}?`)) return;
+    setActionError(null);
     try {
       await apiClient.patch(`/users/${user._id}/status`, { isActive });
       setNotice(`${user.name} ${verb}d.`);
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || `Failed to ${verb} user.`);
+      setActionError(getErrorMessage(err, `Failed to ${verb} user.`));
     }
   }
 
+  const createRole = creatableRoles(me?.role).includes(role) ? role : "USER";
+  const canCreate = hasPermission(me, PERMISSIONS.USER_CREATE) && creatableRoles(me?.role).length > 0;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">Users</h1>
-        <Link to="/users/new" className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
-          + Add Employee
-        </Link>
-      </div>
+      <PageHeader
+        title={role ? TITLES[role] : "Users"}
+        actions={
+          canCreate && (
+            <Link to={`/users/new?role=${createRole}`} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
+              + Add {ROLE_LABELS[createRole]}
+            </Link>
+          )
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input
@@ -63,23 +86,17 @@ export default function UsersListPage() {
           aria-label="Search users"
           placeholder="Search by name or email..."
           value={search}
-          onChange={(e) => {
-            setPage(1);
-            setSearch(e.target.value);
-          }}
+          onChange={(e) => setFilter("search", e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
         <select
           aria-label="Role"
           value={role}
-          onChange={(e) => {
-            setPage(1);
-            setRole(e.target.value);
-          }}
+          onChange={(e) => setFilter("role", e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">All roles</option>
-          {ROLE_OPTIONS.map((r) => (
+          {roleOptions.map((r) => (
             <option key={r} value={r}>
               {r.replace(/_/g, " ")}
             </option>
@@ -88,10 +105,7 @@ export default function UsersListPage() {
         <select
           aria-label="Status"
           value={status}
-          onChange={(e) => {
-            setPage(1);
-            setStatus(e.target.value);
-          }}
+          onChange={(e) => setFilter("status", e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">All statuses</option>
@@ -104,7 +118,12 @@ export default function UsersListPage() {
       </div>
 
       {notice && <div className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{notice}</div>}
-      {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {actionError && <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{actionError}</div>}
+      {error && (
+        <div className="mb-4">
+          <ErrorState message={error} onRetry={load} />
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -135,11 +154,11 @@ export default function UsersListPage() {
                 </td>
               </tr>
             )}
-            {items.map((u) => (
+            {!loading && items.map((u) => (
               <tr key={u._id} className="border-t border-slate-100">
                 <td className="px-4 py-3 font-medium text-slate-900">{u.name}</td>
                 <td className="px-4 py-3 text-slate-600">{u.email}</td>
-                <td className="px-4 py-3 text-slate-600">{u.phone || "-"}</td>
+                <td className="px-4 py-3 text-slate-600">{u.phone?.trim() ? u.phone : "-"}</td>
                 <td className="px-4 py-3">
                   <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs">{u.role.replace(/_/g, " ")}</span>
                 </td>

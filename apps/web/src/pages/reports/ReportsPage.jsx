@@ -1,7 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { getErrorMessage } from "../../utils/errors";
+import { useApi } from "../../hooks/useApi";
+import LoadingState from "../../components/common/LoadingState";
 
 // @launcherdesk/shared is a CommonJS package built around a runtime
 // `__exportStar` re-export loop (see packages/shared/src/index.js) that
@@ -49,7 +52,7 @@ function isInternalRole(role) {
 
 function errorMessage(err, fallback) {
   if (err?.response?.status === 403) return "You do not have permission to view this.";
-  return err?.response?.data?.message || fallback;
+  return getErrorMessage(err, fallback);
 }
 
 export default function ReportsPage() {
@@ -65,101 +68,43 @@ export default function ReportsPage() {
   const [customTo, setCustomTo] = useState("");
   const [orgFilter, setOrgFilter] = useState("");
 
-  const [dashboard, setDashboard] = useState(null);
-  const [requests, setRequests] = useState(null);
-  const [orders, setOrders] = useState(null);
-  const [financial, setFinancial] = useState(null);
-  const [organizations, setOrganizations] = useState(null);
-  const [bulk, setBulk] = useState(null);
-  const [provider, setProvider] = useState(null);
-
-  const [loading, setLoading] = useState(true);
-  const [errors, setErrors] = useState({});
-
   const dateParams = preset === "custom" ? { from: customFrom || undefined, to: customTo || undefined } : { preset };
   const scopeParams = orgFilter ? { organizationId: orgFilter.trim() } : {};
   const canLoadScoped = !orgRequired || !!orgFilter.trim();
 
-  const load = useCallback(() => {
-    if (!canLoadScoped) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    const nextErrors = {};
-
-    const dashboardP = apiClient
-      .get("/reports/dashboard", { params: scopeParams })
-      .then((r) => setDashboard(r.data.data))
-      .catch((err) => {
-        nextErrors.dashboard = errorMessage(err, "Failed to load dashboard summary.");
-        setDashboard(null);
-      });
-
-    const requestsP = apiClient
-      .get("/reports/requests", { params: { ...scopeParams, ...dateParams } })
-      .then((r) => setRequests(r.data.data))
-      .catch((err) => {
-        nextErrors.requests = errorMessage(err, "Failed to load request analytics.");
-        setRequests(null);
-      });
-
-    const ordersP = apiClient
-      .get("/reports/orders", { params: { ...scopeParams, ...dateParams } })
-      .then((r) => setOrders(r.data.data))
-      .catch((err) => {
-        nextErrors.orders = errorMessage(err, "Failed to load order analytics.");
-        setOrders(null);
-      });
-
-    const financialP = canViewFinancial
-      ? apiClient
-          .get("/reports/financial", { params: { ...scopeParams, ...dateParams } })
-          .then((r) => setFinancial(r.data.data))
-          .catch((err) => {
-            nextErrors.financial = errorMessage(err, "Failed to load financial report.");
-            setFinancial(null);
-          })
-      : Promise.resolve();
-
-    const organizationsP = canViewGlobal
-      ? apiClient
-          .get("/reports/organizations", { params: { limit: 10 } })
-          .then((r) => setOrganizations(r.data.data))
-          .catch((err) => {
-            nextErrors.organizations = errorMessage(err, "Failed to load organizations report.");
-            setOrganizations(null);
-          })
-      : Promise.resolve();
-
-    const bulkP = apiClient
-      .get("/reports/bulk", { params: { ...scopeParams, ...dateParams } })
-      .then((r) => setBulk(r.data.data))
-      .catch((err) => {
-        nextErrors.bulk = errorMessage(err, "Failed to load bulk E-Stamp report.");
-        setBulk(null);
-      });
-
-    const providerP = canViewProvider
-      ? apiClient
-          .get("/reports/provider", { params: dateParams })
-          .then((r) => setProvider(r.data.data))
-          .catch((err) => {
-            nextErrors.provider = errorMessage(err, "Failed to load provider report.");
-            setProvider(null);
-          })
-      : Promise.resolve();
-
-    Promise.all([dashboardP, requestsP, ordersP, financialP, organizationsP, bulkP, providerP]).finally(() => {
-      setErrors(nextErrors);
-      setLoading(false);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset, customFrom, customTo, orgFilter, canViewFinancial, canViewGlobal, canViewProvider, canLoadScoped]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Every section loads independently: a failing (or slow, now bounded by
+  // the API client's timeout) section shows its own error and never blocks
+  // the others. useApi aborts the previous batch when filters change, so a
+  // stale response can never overwrite a newer one.
+  const { data, loading, refetch: load } = useApi(
+    async (signal) => {
+      const errors = {};
+      const section = (key, enabled, url, params, fallback) =>
+        enabled
+          ? apiClient
+              .get(url, { params, signal })
+              .then((r) => r.data.data)
+              .catch((err) => {
+                if (signal.aborted) throw err;
+                errors[key] = errorMessage(err, fallback);
+                return null;
+              })
+          : Promise.resolve(null);
+      const [dashboard, requests, orders, financial, organizations, bulk, provider] = await Promise.all([
+        section("dashboard", true, "/reports/dashboard", scopeParams, "Failed to load dashboard summary."),
+        section("requests", true, "/reports/requests", { ...scopeParams, ...dateParams }, "Failed to load request analytics."),
+        section("orders", true, "/reports/orders", { ...scopeParams, ...dateParams }, "Failed to load order analytics."),
+        section("financial", canViewFinancial, "/reports/financial", { ...scopeParams, ...dateParams }, "Failed to load financial report."),
+        section("organizations", canViewGlobal, "/reports/organizations", { limit: 10 }, "Failed to load organizations report."),
+        section("bulk", true, "/reports/bulk", { ...scopeParams, ...dateParams }, "Failed to load bulk E-Stamp report."),
+        section("provider", canViewProvider, "/reports/provider", dateParams, "Failed to load provider report."),
+      ]);
+      return { dashboard, requests, orders, financial, organizations, bulk, provider, errors };
+    },
+    [preset, customFrom, customTo, orgFilter, canViewFinancial, canViewGlobal, canViewProvider],
+    { enabled: canLoadScoped }
+  );
+  const { dashboard = null, requests = null, orders = null, financial = null, organizations = null, bulk = null, provider = null, errors = {} } = data || {};
 
   return (
     <div className="space-y-6">
@@ -168,13 +113,14 @@ export default function ReportsPage() {
         <div className="flex flex-wrap items-center gap-2">
           {internal && (
             <input
+              aria-label="Organization ID"
               placeholder={orgRequired ? "Organization ID (required)" : "Organization ID (optional filter)"}
               value={orgFilter}
               onChange={(e) => setOrgFilter(e.target.value)}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           )}
-          <select value={preset} onChange={(e) => setPreset(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <select aria-label="Date range" value={preset} onChange={(e) => setPreset(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
             {PRESETS.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}
@@ -200,7 +146,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {!orgRequired && loading && <div className="p-8 text-center text-slate-500">Loading reports...</div>}
+      {canLoadScoped && loading && <LoadingState text="Loading reports..." />}
 
       {canLoadScoped && !loading && (
         <>

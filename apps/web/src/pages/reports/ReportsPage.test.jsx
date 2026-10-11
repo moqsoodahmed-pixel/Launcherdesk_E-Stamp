@@ -109,6 +109,7 @@ describe("ReportsPage - dashboard KPIs", () => {
     });
     render(<ReportsPage />);
     expect(screen.getByText("Loading reports...")).toBeInTheDocument();
+    await waitFor(() => expect(resolveDashboard).toBeTypeOf("function"));
     resolveDashboard({ data: { data: dashboardData() } });
   });
 

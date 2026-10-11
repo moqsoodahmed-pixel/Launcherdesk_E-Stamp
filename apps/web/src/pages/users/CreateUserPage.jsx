@@ -1,10 +1,21 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
+import { getErrorMessage } from "../../utils/errors";
+import { useAuth } from "../../context/AuthContext";
+import { creatableRoles, ROLE_LABELS } from "../../utils/roles";
 
 export default function CreateUserPage() {
-  const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "USER" });
+  const { user: me } = useAuth();
+  const [searchParams] = useSearchParams();
+  // Only roles the backend will accept from this actor (strictly lower
+  // authority); ?role= from the list page preselects one of them.
+  const roleOptions = creatableRoles(me?.role);
+  const requestedRole = searchParams.get("role");
+  const initialRole = roleOptions.includes(requestedRole) ? requestedRole : roleOptions.includes("USER") ? "USER" : roleOptions[0] || "USER";
+  const roleLabel = ROLE_LABELS[initialRole] || "User";
+  const backTo = `/users?role=${initialRole}`;
+  const [form, setForm] = useState({ name: "", email: "", phone: "", role: initialRole });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -21,7 +32,7 @@ export default function CreateUserPage() {
       const { data } = await apiClient.post("/users", form);
       setResult(data.data);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to create user.");
+      setError(getErrorMessage(err, "Failed to create user."));
     } finally {
       setBusy(false);
     }
@@ -30,7 +41,7 @@ export default function CreateUserPage() {
   if (result) {
     return (
       <div className="max-w-2xl">
-        <h1 className="text-xl font-semibold text-slate-900 mb-4">Employee created</h1>
+        <h1 className="text-xl font-semibold text-slate-900 mb-4">{ROLE_LABELS[result.user.role] || "User"} created</h1>
         <div className="bg-amber-50 text-amber-800 rounded-2xl border border-amber-200 p-6 space-y-2">
           <p>
             <strong>{result.user.name}</strong> ({result.user.email}) has been created as <strong>{result.user.role}</strong>.
@@ -40,13 +51,13 @@ export default function CreateUserPage() {
           <p className="text-xs text-amber-700">They will be required to change it on first login.</p>
         </div>
         <div className="mt-4 space-x-4">
-          <Link to="/users" className="text-sm text-brand-600 hover:underline">
+          <Link to={backTo} className="text-sm text-brand-600 hover:underline">
             Back to user list
           </Link>
           <button
             onClick={() => {
               setResult(null);
-              setForm({ name: "", email: "", phone: "", role: "USER" });
+              setForm({ name: "", email: "", phone: "", role: initialRole });
             }}
             className="text-sm text-slate-500 hover:underline"
           >
@@ -60,8 +71,8 @@ export default function CreateUserPage() {
   return (
     <div className="max-w-2xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">Add Employee</h1>
-        <Link to="/users" className="text-sm text-slate-500 hover:underline">
+        <h1 className="text-xl font-semibold text-slate-900">Add {roleLabel}</h1>
+        <Link to={backTo} className="text-sm text-slate-500 hover:underline">
           Back to list
         </Link>
       </div>
@@ -94,12 +105,15 @@ export default function CreateUserPage() {
             Role
           </label>
           <select id="create-user-role" value={form.role} onChange={(e) => update("role", e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-            <option value="USER">User</option>
-            <option value="ADMIN">Admin</option>
+            {roleOptions.map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABELS[r]}
+              </option>
+            ))}
           </select>
         </div>
         <button disabled={busy} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-          {busy ? "Creating..." : "Create employee"}
+          {busy ? "Creating..." : `Create ${(ROLE_LABELS[form.role] || "user").toLowerCase()}`}
         </button>
       </form>
     </div>

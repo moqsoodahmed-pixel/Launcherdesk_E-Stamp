@@ -1,18 +1,22 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { getErrorMessage } from "../../utils/errors";
+import { useApi } from "../../hooks/useApi";
+import { hasPermission, PERMISSIONS } from "../../utils/permissions";
+import PageHeader from "../../components/common/PageHeader";
+import ErrorState from "../../components/common/ErrorState";
 
 const RULE_TYPES = ["FIXED", "PERCENTAGE", "SLAB", "CUSTOM"];
 
 export default function ArticlesPage() {
   const { user } = useAuth();
-  const canManage = user?.role === "MASTER_ADMIN" || user?.role === "ASSISTANT_MASTER_ADMIN";
+  // Write endpoints need ARTICLE_MANAGE and only internal roles can hold it.
+  const canManage = (user?.role === "MASTER_ADMIN" || user?.role === "ASSISTANT_MASTER_ADMIN") && hasPermission(user, PERMISSIONS.ARTICLE_MANAGE);
 
-  const [items, setItems] = useState([]);
   const [stateCode, setStateCode] = useState("");
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const [notice, setNotice] = useState(null);
 
   const [showCreate, setShowCreate] = useState(false);
@@ -23,19 +27,26 @@ export default function ArticlesPage() {
   const [versionForm, setVersionForm] = useState({ ruleType: "FIXED", fixedAmount: "", percentage: "", minAmount: "", maxAmount: "", effectiveFrom: "" });
   const [savingVersion, setSavingVersion] = useState(false);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    apiClient
-      .get("/articles", { params: { stateCode: stateCode || undefined, search: search || undefined } })
-      .then((res) => setItems(Array.isArray(res.data.data) ? res.data.data : res.data.data.items))
-      .catch((err) => setError(err?.response?.data?.message || "Failed to load articles."))
-      .finally(() => setLoading(false));
+  // Debounce typed filters so each keystroke doesn't fire a request; useApi
+  // aborts any superseded request so a stale response can't win.
+  const [filters, setFilters] = useState({ stateCode: "", search: "" });
+  useEffect(() => {
+    const t = setTimeout(() => setFilters({ stateCode: stateCode.trim(), search: search.trim() }), 300);
+    return () => clearTimeout(t);
   }, [stateCode, search]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data, loading, error, refetch: load } = useApi(
+    (signal) =>
+      apiClient
+        .get("/articles", { params: { stateCode: filters.stateCode || undefined, search: filters.search || undefined }, signal })
+        .then((res) => {
+          const payload = res.data.data;
+          return Array.isArray(payload) ? payload : payload?.items || [];
+        }),
+    [filters.stateCode, filters.search],
+    { errorMessage: "Failed to load articles." }
+  );
+  const items = data || [];
 
   function buildRule(form) {
     const rule = { type: form.ruleType };
@@ -49,7 +60,7 @@ export default function ArticlesPage() {
   async function handleCreate(e) {
     e.preventDefault();
     setCreating(true);
-    setError(null);
+    setActionError(null);
     try {
       await apiClient.post("/articles", {
         stateCode: createForm.stateCode.toUpperCase(),
@@ -63,7 +74,7 @@ export default function ArticlesPage() {
       setCreateForm({ stateCode: "", articleCode: "", title: "", description: "", ruleType: "FIXED", fixedAmount: "", percentage: "", minAmount: "", maxAmount: "" });
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to create article.");
+      setActionError(getErrorMessage(err, "Failed to create article."));
     } finally {
       setCreating(false);
     }
@@ -77,14 +88,14 @@ export default function ArticlesPage() {
       setNotice(`Article ${next ? "activated" : "deactivated"}.`);
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to change status.");
+      setActionError(getErrorMessage(err, "Failed to change status."));
     }
   }
 
   async function handleAddVersion(e) {
     e.preventDefault();
     setSavingVersion(true);
-    setError(null);
+    setActionError(null);
     try {
       await apiClient.post(`/articles/${versionArticleId}/versions`, {
         calculationRule: buildRule(versionForm),
@@ -94,7 +105,7 @@ export default function ArticlesPage() {
       setVersionArticleId(null);
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to create new version.");
+      setActionError(getErrorMessage(err, "Failed to create new version."));
     } finally {
       setSavingVersion(false);
     }
@@ -102,25 +113,32 @@ export default function ArticlesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">Articles</h1>
-        {canManage && (
-          <button onClick={() => setShowCreate((v) => !v)} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
-            {showCreate ? "Cancel" : "+ New Article"}
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Articles"
+        actions={
+          canManage && (
+            <button onClick={() => setShowCreate((v) => !v)} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
+              {showCreate ? "Cancel" : "+ New Article"}
+            </button>
+          )
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <input placeholder="State code (e.g. KA)" value={stateCode} onChange={(e) => setStateCode(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-brand-500" />
-        <input placeholder="Search by title..." value={search} onChange={(e) => setSearch(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        <input aria-label="State code" placeholder="State code (e.g. KA)" value={stateCode} onChange={(e) => setStateCode(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        <input aria-label="Search articles" placeholder="Search by title..." value={search} onChange={(e) => setSearch(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-brand-500" />
         <button onClick={load} className="text-sm text-slate-500 hover:underline">
           Refresh
         </button>
       </div>
 
       {notice && <div className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{notice}</div>}
-      {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {actionError && <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{actionError}</div>}
+      {error && (
+        <div className="mb-4">
+          <ErrorState message={error} onRetry={load} />
+        </div>
+      )}
 
       {canManage && showCreate && (
         <form onSubmit={handleCreate} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 mb-6">
@@ -141,6 +159,7 @@ export default function ArticlesPage() {
       )}
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
             <tr>
@@ -167,7 +186,7 @@ export default function ArticlesPage() {
                 </td>
               </tr>
             )}
-            {items.map((a) => (
+            {!loading && items.map((a) => (
               <tr key={a._id} className="border-t border-slate-100">
                 <td className="px-4 py-3">{a.stateCode}</td>
                 <td className="px-4 py-3 font-medium text-slate-900">{a.articleCode}</td>
@@ -190,6 +209,7 @@ export default function ArticlesPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {versionArticleId && (
