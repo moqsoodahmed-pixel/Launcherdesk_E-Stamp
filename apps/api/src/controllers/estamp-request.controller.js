@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cancelRequest = exports.modifyRequest = exports.getRequest = exports.listRequests = exports.previewCalculation = exports.createRequest = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
+const dateRange_1 = require("../utils/dateRange");
 const ApiResponse_1 = require("../utils/ApiResponse");
 const models_1 = require("../models");
 const estamp_request_service_1 = require("../services/estamp-request.service");
@@ -73,7 +74,7 @@ exports.listRequests = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         filter.requestNumber = { $regex: escapeRegex(search), $options: "i" };
     if (dateFrom || dateTo) {
         const from = dateFrom ? new Date(dateFrom) : null;
-        const to = dateTo ? new Date(dateTo) : null;
+        const to = dateTo ? (0, dateRange_1.parseDateTo)(dateTo) : null;
         if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
             throw ApiError_1.ApiError.badRequest("Invalid date range", "INVALID_DATE_RANGE");
         }

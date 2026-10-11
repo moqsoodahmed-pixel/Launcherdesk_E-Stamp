@@ -259,3 +259,21 @@ describe("WalletPage - per-section error isolation", () => {
     expect(screen.getByText("Recent payments")).toBeInTheDocument();
   });
 });
+
+describe("WalletPage - Razorpay script load retry (Phase 2)", () => {
+  it("removes a failed checkout script tag so the next attempt loads it again", async () => {
+    const { loadRazorpayScript } = await import("./WalletPage");
+    delete window.Razorpay;
+    const first = loadRazorpayScript();
+    const tag = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    tag.onerror();
+    await expect(first).rejects.toThrow("Failed to load Razorpay checkout");
+    expect(document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')).toBeNull();
+    const second = loadRazorpayScript();
+    const retryTag = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    expect(retryTag).not.toBeNull();
+    retryTag.onload();
+    await expect(second).resolves.toBeUndefined();
+    retryTag.remove();
+  });
+});

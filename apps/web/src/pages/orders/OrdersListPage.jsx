@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
@@ -6,6 +6,8 @@ import StatusBadge from "../../components/estamps/StatusBadge";
 import EmptyState from "../../components/dashboard/EmptyState";
 import { TableSkeleton } from "../../components/dashboard/LoadingSkeleton";
 import { actionErrorMessage, formatCurrency } from "../../utils/format";
+import ErrorState from "../../components/common/ErrorState";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 
 // Values mirror the backend enums (OrderStatus, EStampOrderProcessingStatus).
 const STATUS_OPTIONS = ["ONGOING", "COMPLETED", "CANCELLED", "FAILED"];
@@ -64,7 +66,13 @@ export default function OrdersListPage() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  const debouncedOrgName = useDebouncedValue(organizationName.trim(), 350);
+  // Only the newest load may write state - a slow earlier response must not
+  // overwrite the results of a later filter change.
+  const loadSeq = useRef(0);
+
   const load = useCallback(() => {
+    const seq = ++loadSeq.current;
     const params = {
       page,
       limit,
@@ -72,7 +80,7 @@ export default function OrdersListPage() {
       eStampStatus: failedView ? "FAILED" : eStampStatus || undefined,
       stateCode: stateCode || undefined,
       search: search || undefined,
-      organizationName: isInternal ? organizationName || undefined : undefined,
+      organizationName: isInternal ? debouncedOrgName || undefined : undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       sortBy,
@@ -84,15 +92,21 @@ export default function OrdersListPage() {
     // processing-status filter, so the queue cards always show the real
     // per-status counts for the rest of the filter set.
     const summaryParams = { ...params, page: undefined, limit: undefined, eStampStatus: undefined };
-    Promise.all([apiClient.get("/orders", { params }), apiClient.get("/orders/summary", { params: summaryParams })])
-      .then(([listRes, summaryRes]) => {
-        setItems(listRes.data.data.items);
-        setTotal(listRes.data.data.total);
-        setSummary(summaryRes.data.data);
-      })
-      .catch((err) => setError(actionErrorMessage(err, "Failed to load orders.")))
-      .finally(() => setLoading(false));
-  }, [page, limit, status, eStampStatus, stateCode, search, organizationName, dateFrom, dateTo, sortBy, sortDir, failedView, isInternal]);
+    // Independent: a failing summary hides only the status cards, never the table.
+    Promise.allSettled([apiClient.get("/orders", { params }), apiClient.get("/orders/summary", { params: summaryParams })]).then(([listRes, summaryRes]) => {
+      if (seq !== loadSeq.current) return;
+      if (listRes.status === "fulfilled") {
+        setItems(listRes.value.data.data.items);
+        setTotal(listRes.value.data.data.total);
+      } else {
+        setItems([]);
+        setTotal(0);
+        setError(actionErrorMessage(listRes.reason, "Failed to load orders."));
+      }
+      setSummary(summaryRes.status === "fulfilled" ? summaryRes.value.data.data : null);
+      setLoading(false);
+    });
+  }, [page, limit, status, eStampStatus, stateCode, search, debouncedOrgName, dateFrom, dateTo, sortBy, sortDir, failedView, isInternal]);
 
   useEffect(() => {
     load();
@@ -251,8 +265,8 @@ export default function OrdersListPage() {
       </div>
 
       {error && (
-        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
-          {error}
+        <div className="mb-4">
+          <ErrorState message={error} onRetry={load} />
         </div>
       )}
 

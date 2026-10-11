@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission, PERMISSIONS } from "../../utils/permissions";
+import ErrorState from "../../components/common/ErrorState";
 import StatusBadge from "../../components/estamps/StatusBadge";
 import { actionErrorMessage, formatCurrency } from "../../utils/format";
 
@@ -137,9 +138,7 @@ export default function OrderDetailPage() {
         <Link to="/orders" className="text-sm text-slate-500 hover:underline">
           ← Orders
         </Link>
-        <div role="alert" className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
-          {error}
-        </div>
+        <ErrorState message={error} onRetry={() => load()} />
       </div>
     );
   }

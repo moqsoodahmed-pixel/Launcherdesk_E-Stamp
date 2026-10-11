@@ -8,13 +8,17 @@ import PaymentStatusBadge from "../../components/payments/PaymentStatusBadge";
 import DateRangeFilter, { TREND_PRESETS } from "../../components/dashboard/DateRangeFilter";
 import EmptyState from "../../components/dashboard/EmptyState";
 
-function loadRazorpayScript() {
+export function loadRazorpayScript() {
   return new Promise((resolve, reject) => {
     if (window.Razorpay) return resolve();
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.onload = resolve;
-    script.onerror = () => reject(new Error("Failed to load Razorpay checkout"));
+    script.onerror = () => {
+      // Remove the failed tag so the next "Add money" click retries the load.
+      script.remove();
+      reject(new Error("Failed to load Razorpay checkout"));
+    };
     document.body.appendChild(script);
   });
 }
@@ -87,6 +91,11 @@ export default function WalletPage() {
       const k = keys[i];
       if (r.status === "rejected") {
         errs[k] = actionErrorMessage(r.reason, "Failed to load.");
+        // Never leave the previous organization's figures under a new error.
+        if (k === "balance") setBalance(null);
+        if (k === "transactions") setTransactions([]);
+        if (k === "payments") setPayments([]);
+        if (k === "summary") setSummary(null);
         return;
       }
       const d = r.value?.data?.data;
