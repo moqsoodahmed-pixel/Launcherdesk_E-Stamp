@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "seed": "node src/scripts/seed.js",
     "seed:policies": "node src/scripts/seed-policies.js",
+    "migrate:balance-ledger": "node src/scripts/migrate-balance-ledger.js",
     "test": "vitest run"
   },
   "dependencies": {

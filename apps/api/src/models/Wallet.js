@@ -6,6 +6,10 @@ const shared_1 = require("@launcherdesk/shared");
 const walletSchema = new mongoose_1.Schema({
     organizationId: { type: mongoose_1.Schema.Types.ObjectId, ref: "Organization", required: true, unique: true, index: true },
     balance: { type: Number, required: true, default: 0, min: 0 },
+    // Sum of amounts held for requests still in their modification window.
+    // Available to spend = balance - reservedBalance. Only ever changed by
+    // the atomic conditional updates in wallet.service.js.
+    reservedBalance: { type: Number, default: 0, min: 0 },
     currency: { type: String, default: "INR" },
     version: { type: Number, default: 0 },
 }, { timestamps: true });

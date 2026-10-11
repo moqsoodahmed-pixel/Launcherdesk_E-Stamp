@@ -266,26 +266,16 @@ exports.EStampRequestService = {
             considerationPrice: input.considerationPrice,
             numberOfEStamps: input.numberOfEStamps,
         });
-        // Debit wallet FIRST, atomically and conditionally on sufficient balance -
-        // the backend is authoritative; if this fails, no request/order is created.
-        // Deriving the wallet's own idempotency key from the same client-supplied
-        // key (when present) means a retried request also can't double-debit
-        // even if it raced past the findOne check above.
-        const walletIdempotencyKey = input.idempotencyKey
-            ? `estamp-request:${input.organizationId}:${input.idempotencyKey}`
-            : `estamp-request:${(0, uuid_1.v4)()}`;
-        const debit = await (0, wallet_service_1.debitWalletIfSufficient)({
-            organizationId: input.organizationId,
-            amount,
-            referenceType: "ESTAMP_REQUEST",
-            idempotencyKey: walletIdempotencyKey,
-            description: "E-Stamp request charge",
-            createdBy: input.createdBy,
-        });
-        if (!debit.success) {
+        // RESERVE (not debit) FIRST, atomically and conditionally on the
+        // available balance (balance - reservedBalance) - nothing is spent
+        // until the modification window closes (see chargeRequest). If this
+        // fails, no request/order is created. Every failure path below that
+        // does not end in a created request releases this reservation.
+        const reserve = await (0, wallet_service_1.reserveFunds)({ organizationId: input.organizationId, amount });
+        if (!reserve.success) {
             throw ApiError_1.ApiError.badRequest("Insufficient balance. Please add funds to continue.", "INSUFFICIENT_BALANCE");
         }
-        const requestNumber = await nextSequenceNumber("LDE-REQ");
+        const releaseOurReservation = () => (0, wallet_service_1.releaseReservation)({ organizationId: input.organizationId, amount });
         // Phase 17 - read live from SettingsService (DB override if present
         // and valid, else the registry default which mirrors env.js's
         // current default exactly) rather than the frozen-at-boot env value.
@@ -295,10 +285,11 @@ exports.EStampRequestService = {
         // retroactively alter an already-created request's stored deadline
         // (exactly like changing env.REQUEST_MODIFY_WINDOW_MINUTES today
         // would only affect a fresh process's future requests).
-        const requestModifyWindowMinutes = await settings_service_1.SettingsService.getRequestModifyWindowMinutes();
-        const modificationDeadline = new Date(Date.now() + requestModifyWindowMinutes * 60 * 1000);
         let request;
         try {
+            const requestNumber = await nextSequenceNumber("LDE-REQ");
+            const requestModifyWindowMinutes = await settings_service_1.SettingsService.getRequestModifyWindowMinutes();
+            const modificationDeadline = new Date(Date.now() + requestModifyWindowMinutes * 60 * 1000);
             request = await models_1.EStampRequest.create({
                 requestNumber,
                 organizationId: input.organizationId,
@@ -318,14 +309,19 @@ exports.EStampRequestService = {
                 status: shared_1.EStampRequestStatus.MODIFICATION_WINDOW,
                 modificationDeadline,
                 idempotencyKey: input.idempotencyKey,
+                chargeStatus: "RESERVED",
+                reservedAmount: amount,
             });
         }
         catch (err) {
+            // Whatever went wrong, this call did not create a request, so its
+            // reservation must not stay held.
+            await releaseOurReservation();
             // A concurrent request with the SAME idempotencyKey won this race -
-            // the wallet debit above already protected the money; hand back
-            // the request the winner created instead of surfacing a raw
-            // duplicate-key error for what is, from the caller's point of
-            // view, the exact same double-submitted request.
+            // hand back the request the winner created (which holds its own
+            // reservation) instead of surfacing a raw duplicate-key error for
+            // what is, from the caller's point of view, the exact same
+            // double-submitted request.
             if (err?.code === 11000 && input.idempotencyKey) {
                 const winner = await models_1.EStampRequest.findOne({ organizationId: input.organizationId, idempotencyKey: input.idempotencyKey });
                 if (winner) {
@@ -344,7 +340,7 @@ exports.EStampRequestService = {
             stateCode: request.stateCode,
             articleId: request.articleId,
             amount,
-            paymentStatus: "PAID", // paid via wallet balance
+            paymentStatus: "PENDING", // reserved; becomes PAID when charged at lock
             eStampStatus: request.status,
             status: shared_1.OrderStatus.ONGOING,
         });
@@ -388,6 +384,10 @@ exports.EStampRequestService = {
     // first is the one that wins - there is no window for a lost precondition.
     async modifyRequest(requestId, organizationId, actorId, actorRole, updates, req) {
         const now = new Date();
+        const changesAmount = updates.considerationPrice !== undefined || updates.numberOfEStamps !== undefined;
+        if (changesAmount) {
+            return this._modifyWithReservation(requestId, organizationId, actorId, actorRole, updates, req, now);
+        }
         const updated = await models_1.EStampRequest.findOneAndUpdate({
             _id: requestId,
             organizationId,
@@ -409,6 +409,83 @@ exports.EStampRequestService = {
             entityType: "EStampRequest",
             entityId: updated._id.toString(),
             metadata: { updatedFields: Object.keys(updates) },
+            req,
+        });
+        if (actorRole === shared_2.Role.ASSISTANT_MASTER_ADMIN) {
+            await (0, notification_service_1.notifyAllMasterAdmins)({
+                type: shared_2.NotificationType.ASSISTANT_ADMIN_ACTIVITY,
+                title: "E-Stamp request modified",
+                message: `Assistant Master Admin modified E-Stamp request ${updated.requestNumber}.`,
+                relatedActorId: actorId,
+                organizationId,
+            });
+        }
+        return updated;
+    },
+    // A modify that changes considerationPrice/numberOfEStamps recalculates
+    // the amount and moves the reservation by the difference:
+    //   increase -> reserve the extra first (rejects INSUFFICIENT_BALANCE)
+    //   decrease -> release the difference after the request is updated
+    // The request update is conditional on the window still being open AND
+    // reservedAmount still being the value the delta was computed from, so a
+    // concurrent modify/cancel/lock can never leave the two out of step; on
+    // any miss the extra reservation is given back.
+    async _modifyWithReservation(requestId, organizationId, actorId, actorRole, updates, req, now) {
+        const existing = await models_1.EStampRequest.findOne({ _id: requestId, organizationId });
+        if (!existing)
+            throw ApiError_1.ApiError.notFound("Request not found");
+        if (existing.status !== shared_1.EStampRequestStatus.MODIFICATION_WINDOW || existing.modificationDeadline.getTime() <= now.getTime()) {
+            const { code, message } = conflictCodeForBlockedMutation(existing);
+            throw ApiError_1.ApiError.conflict(message, code);
+        }
+        if (existing.chargeStatus !== "RESERVED") {
+            throw ApiError_1.ApiError.conflict("The amount of this request can no longer be changed", "AMOUNT_LOCKED");
+        }
+        const considerationPrice = updates.considerationPrice ?? existing.considerationPrice;
+        const numberOfEStamps = updates.numberOfEStamps ?? existing.numberOfEStamps;
+        const { amount: newAmount, articleVersionUsed } = await calculation_service_1.CalculationService.calculate({
+            stateCode: existing.stateCode,
+            articleId: existing.articleId.toString(),
+            considerationPrice,
+            numberOfEStamps,
+        });
+        const oldAmount = existing.reservedAmount;
+        const delta = newAmount - oldAmount;
+        if (delta > 0) {
+            const reserve = await (0, wallet_service_1.reserveFunds)({ organizationId: existing.organizationId, amount: delta });
+            if (!reserve.success) {
+                throw ApiError_1.ApiError.badRequest("Insufficient balance for the new amount. Please add funds to continue.", "INSUFFICIENT_BALANCE");
+            }
+        }
+        const updated = await models_1.EStampRequest.findOneAndUpdate({
+            _id: requestId,
+            organizationId,
+            status: shared_1.EStampRequestStatus.MODIFICATION_WINDOW,
+            modificationDeadline: { $gt: now },
+            chargeStatus: "RESERVED",
+            reservedAmount: oldAmount,
+        }, { $set: { ...updates, considerationPrice, numberOfEStamps, calculatedStampDuty: newAmount, reservedAmount: newAmount, articleVersionUsed } }, { new: true });
+        if (!updated) {
+            if (delta > 0)
+                await (0, wallet_service_1.releaseReservation)({ organizationId: existing.organizationId, amount: delta });
+            const current = await models_1.EStampRequest.findOne({ _id: requestId, organizationId });
+            if (current && current.status === shared_1.EStampRequestStatus.MODIFICATION_WINDOW && current.modificationDeadline.getTime() > Date.now()) {
+                throw ApiError_1.ApiError.conflict("Request changed concurrently, please retry", "CONCURRENT_MODIFICATION");
+            }
+            const { code, message } = current ? conflictCodeForBlockedMutation(current) : { code: "INVALID_STATE", message: "Request is not in a modifiable state" };
+            throw ApiError_1.ApiError.conflict(message, code);
+        }
+        if (delta < 0)
+            await (0, wallet_service_1.releaseReservation)({ organizationId: existing.organizationId, amount: -delta });
+        await models_1.EStampOrder.findOneAndUpdate({ requestId: updated._id }, { amount: newAmount });
+        await (0, audit_service_1.recordAudit)({
+            actorId,
+            actorRole: actorRole || "UNKNOWN",
+            organizationId,
+            action: shared_2.AuditAction.ESTAMP_REQUEST_MODIFIED,
+            entityType: "EStampRequest",
+            entityId: updated._id.toString(),
+            metadata: { updatedFields: Object.keys(updates), previousAmount: oldAmount, newAmount },
             req,
         });
         if (actorRole === shared_2.Role.ASSISTANT_MASTER_ADMIN) {
@@ -470,6 +547,8 @@ exports.EStampRequestService = {
             throw ApiError_1.ApiError.conflict(message, code);
         }
         await models_1.EStampOrder.findOneAndUpdate({ requestId: updated._id }, { status: shared_1.OrderStatus.CANCELLED });
+        // Cancelling inside the window costs nothing: give the reservation back.
+        await this._releaseCancelled(updated);
         await (0, audit_service_1.recordAudit)({
             actorId,
             actorRole: actorRole || "UNKNOWN",
@@ -488,12 +567,10 @@ exports.EStampRequestService = {
                 organizationId,
             });
         }
-        // NOTE: Phase 4 does not auto-refund to wallet on cancellation - refund
-        // policy must be confirmed against Terms/No-Refund policy before
-        // implementing automatic reversal. This is a deliberate, documented
-        // business-decision gap, not an oversight - see module 12/19 of the
-        // phase spec. The wallet debit made at creation time is left untouched.
-        return updated;
+        // Nothing was ever debited for a request cancelled inside its window
+        // (its reservation was released above). Legacy requests, debited at
+        // submit before the ledger flow, are still not auto-refunded.
+        return (await models_1.EStampRequest.findById(updated._id)) || updated;
     },
     // Phase 12 hardening: the old version did find() then, per document, a
     // blind `request.status = LOCKED; await request.save()` - itself a
@@ -506,6 +583,100 @@ exports.EStampRequestService = {
     // status+deadline at write time - a candidate that lost the race to a
     // concurrent cancel/modify simply fails to match (locked === null) and is
     // skipped, never overwritten.
+    // Releases a cancelled request's reservation exactly once: chargeStatus
+    // flips RESERVED -> RELEASED first (atomic, so only one caller wins),
+    // then the wallet hold is dropped. A crash in between can only leave too
+    // much held (never too little); the lock-job sweep also retries any
+    // CANCELLED request still marked RESERVED.
+    async _releaseCancelled(request) {
+        const flipped = await models_1.EStampRequest.findOneAndUpdate({ _id: request._id, status: shared_1.EStampRequestStatus.CANCELLED, chargeStatus: "RESERVED" }, { $set: { chargeStatus: "RELEASED" } }, { new: true });
+        if (!flipped)
+            return false;
+        await (0, wallet_service_1.releaseReservation)({ organizationId: flipped.organizationId, amount: flipped.reservedAmount || 0 });
+        return true;
+    },
+    // Converts a LOCKED request's reservation into exactly one DEBIT ledger
+    // entry (idempotency key estamp-charge:<requestId>). Safe to call any
+    // number of times. On insufficient balance the request is marked
+    // SHORTFALL (held from processing) and the assigned assistant - or every
+    // Master Admin if none is assigned - is notified once.
+    async chargeRequest(request) {
+        const result = await (0, wallet_service_1.chargeReservation)({
+            organizationId: request.organizationId,
+            amount: request.reservedAmount || 0,
+            referenceType: "ESTAMP_REQUEST",
+            referenceId: request._id,
+            idempotencyKey: `estamp-charge:${request._id.toString()}`,
+            description: `E-Stamp request ${request.requestNumber}`,
+            createdBy: null,
+        });
+        if (result.success) {
+            const charged = await models_1.EStampRequest.findOneAndUpdate({ _id: request._id, chargeStatus: { $in: ["RESERVED", "SHORTFALL"] } }, { $set: { chargeStatus: "CHARGED", chargedAt: new Date() } }, { new: true });
+            if (charged) {
+                await models_1.EStampOrder.findOneAndUpdate({ requestId: charged._id }, { paymentStatus: "PAID" });
+                await (0, audit_service_1.recordAudit)({
+                    actorId: null,
+                    actorRole: "SYSTEM_CRON",
+                    actorType: "SYSTEM",
+                    organizationId: charged.organizationId,
+                    action: shared_2.AuditAction.BALANCE_CHANGED,
+                    entityType: "EStampRequest",
+                    entityId: charged._id.toString(),
+                    metadata: { type: "DEBIT", amount: charged.reservedAmount, walletTransactionId: result.transaction?._id?.toString() },
+                });
+            }
+            return "CHARGED";
+        }
+        const short = await models_1.EStampRequest.findOneAndUpdate({ _id: request._id, chargeStatus: "RESERVED" }, { $set: { chargeStatus: "SHORTFALL" } }, { new: true });
+        if (short) {
+            await (0, audit_service_1.recordAudit)({
+                actorId: null,
+                actorRole: "SYSTEM_CRON",
+                actorType: "SYSTEM",
+                organizationId: short.organizationId,
+                action: shared_2.AuditAction.ESTAMP_PROCESSING_FAILED,
+                entityType: "EStampRequest",
+                entityId: short._id.toString(),
+                metadata: { stage: "charge", reason: "SHORTFALL", amount: short.reservedAmount },
+            });
+            const org = await models_1.Organization.findById(short.organizationId).select("name assignedAssistantId");
+            const base = {
+                type: shared_2.NotificationType.PAYMENT,
+                title: "E-Stamp charge shortfall",
+                message: `E-Stamp request ${short.requestNumber}${org ? ` (${org.name})` : ""} could not be charged: the balance is lower than the reserved ₹${short.reservedAmount}. It is on hold until the balance is corrected.`,
+                organizationId: short.organizationId.toString(),
+                entityType: "EStampRequest",
+                entityId: short._id,
+                eventKey: `estamp-charge:${short._id.toString()}:shortfall`,
+            };
+            if (org?.assignedAssistantId) {
+                await (0, notification_service_1.notifyUser)({ ...base, recipientId: org.assignedAssistantId.toString(), recipientRole: shared_2.Role.ASSISTANT_MASTER_ADMIN });
+            }
+            else {
+                await (0, notification_service_1.notifyAllMasterAdmins)(base);
+            }
+        }
+        return "SHORTFALL";
+    },
+    // Crash-safety sweep, run on every job tick: charges any request past its
+    // window that still holds a reservation - including SHORTFALL ones, so
+    // they charge automatically once the balance is corrected - and releases
+    // any CANCELLED request still marked RESERVED.
+    async sweepReservations() {
+        const pendingCharge = await models_1.EStampRequest.find({
+            chargeStatus: { $in: ["RESERVED", "SHORTFALL"] },
+            status: { $nin: [shared_1.EStampRequestStatus.MODIFICATION_WINDOW, shared_1.EStampRequestStatus.CANCELLED] },
+        }).limit(500);
+        let charged = 0;
+        for (const request of pendingCharge) {
+            if ((await this.chargeRequest(request)) === "CHARGED")
+                charged += 1;
+        }
+        const cancelledHeld = await models_1.EStampRequest.find({ chargeStatus: "RESERVED", status: shared_1.EStampRequestStatus.CANCELLED }).limit(500);
+        for (const request of cancelledHeld)
+            await this._releaseCancelled(request);
+        return charged;
+    },
     async lockExpiredRequests() {
         const now = new Date();
         const expired = await models_1.EStampRequest.find({
@@ -543,7 +714,11 @@ exports.EStampRequestService = {
                 metadata: { modificationDeadline: locked.modificationDeadline },
             });
             lockedCount += 1;
+            // Window closed: the reservation becomes a real DEBIT now.
+            if (locked.chargeStatus === "RESERVED")
+                await this.chargeRequest(locked);
         }
+        await this.sweepReservations();
         return lockedCount;
     },
     // Submits an order to the E-Stamp provider. Safe under retries, restarts,
@@ -566,6 +741,13 @@ exports.EStampRequestService = {
         }
         if (![shared_1.EStampRequestStatus.LOCKED, shared_1.EStampRequestStatus.PROCESSING].includes(request.status)) {
             throw ApiError_1.ApiError.conflict("Request must be locked (modification window closed) before it can be submitted for processing", "INVALID_STATE_TRANSITION");
+        }
+        // Never submit to the provider before the amount is actually charged
+        // (legacy requests have no chargeStatus - they were debited at submit).
+        if (request.chargeStatus && request.chargeStatus !== "CHARGED") {
+            throw ApiError_1.ApiError.conflict(request.chargeStatus === "SHORTFALL"
+                ? "This request is on hold: the organization balance did not cover the charge"
+                : "This request has not been charged yet", "CHARGE_PENDING");
         }
         // Already submitted (has a provider reference) - do NOT submit again.
         // A retry in this state must go through sync (checkStatus) to

@@ -78,7 +78,7 @@ const TEMPLATES = {
         subject: "Payment successful",
         html: layout(`
       <h2 style="margin-top:0;">Payment successful</h2>
-      <p>Your payment of <b>&#8377;${escapeHtml(data.amount)}</b> was successful and your wallet has been credited.</p>
+      <p>Your payment of <b>&#8377;${escapeHtml(data.amount)}</b> was received. Your balance will be updated once LauncherDesk confirms it.</p>
     `),
     }),
     paymentFailed: (data) => ({

@@ -3,6 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.creditWallet = creditWallet;
 exports.debitWalletIfSufficient = debitWalletIfSufficient;
 exports.getWalletBalance = getWalletBalance;
+exports.getWalletSummary = getWalletSummary;
+exports.reserveFunds = reserveFunds;
+exports.releaseReservation = releaseReservation;
+exports.chargeReservation = chargeReservation;
 const models_1 = require("../models");
 const shared_1 = require("@launcherdesk/shared");
 const ApiError_1 = require("../utils/ApiError");
@@ -89,4 +93,82 @@ async function debitWalletIfSufficient(params) {
 async function getWalletBalance(organizationId) {
     const wallet = await getOrCreateWallet(organizationId);
     return wallet.balance;
+}
+// balance, reservedBalance and availableBalance (= balance - reserved).
+async function getWalletSummary(organizationId) {
+    const wallet = await getOrCreateWallet(organizationId);
+    const reservedBalance = wallet.reservedBalance || 0;
+    return {
+        balance: wallet.balance,
+        reservedBalance,
+        availableBalance: wallet.balance - reservedBalance,
+        currency: wallet.currency,
+    };
+}
+// Available = balance - reservedBalance, computed inside the query so the
+// check and the increment happen in ONE atomic document update. $ifNull
+// covers wallets created before reservedBalance existed.
+function availableAtLeast(amount) {
+    return { $expr: { $gte: [{ $subtract: ["$balance", { $ifNull: ["$reservedBalance", 0] }] }, amount] } };
+}
+// Holds `amount` against the organization's available balance. Succeeds
+// only if available >= amount at write time, so N concurrent submits can
+// never reserve more than the balance covers. No ledger entry: nothing has
+// been spent yet.
+async function reserveFunds(params) {
+    if (!Number.isFinite(params.amount) || params.amount < 0)
+        throw ApiError_1.ApiError.badRequest("Invalid amount", "INVALID_AMOUNT");
+    await getOrCreateWallet(params.organizationId);
+    if (params.amount === 0)
+        return { success: true };
+    const updated = await models_1.Wallet.findOneAndUpdate({ organizationId: params.organizationId, ...availableAtLeast(params.amount) }, { $inc: { reservedBalance: params.amount, version: 1 } }, { new: true });
+    return updated ? { success: true, wallet: updated } : { success: false, reason: "INSUFFICIENT_BALANCE" };
+}
+// Gives back a reservation (cancel, or the downward half of a modify).
+// Conditional on reservedBalance >= amount so it can never go negative.
+async function releaseReservation(params) {
+    if (!params.amount || params.amount <= 0)
+        return { success: true };
+    const updated = await models_1.Wallet.findOneAndUpdate({ organizationId: params.organizationId, reservedBalance: { $gte: params.amount } }, { $inc: { reservedBalance: -params.amount, version: 1 } }, { new: true });
+    return updated ? { success: true, wallet: updated } : { success: false, reason: "RESERVATION_MISMATCH" };
+}
+// Converts a reservation into a real DEBIT: balance and reservedBalance both
+// drop by `amount` in one atomic update, and exactly one ledger entry is
+// written under `idempotencyKey`. A repeat call with the same key is a
+// no-op returning the original transaction. If balance no longer covers the
+// amount (e.g. an admin adjusted it), nothing changes and SHORTFALL is
+// returned - the reservation stays in place.
+async function chargeReservation(params) {
+    const existing = await models_1.WalletTransaction.findOne({ idempotencyKey: params.idempotencyKey });
+    if (existing)
+        return { success: true, transaction: existing, alreadyCharged: true };
+    await getOrCreateWallet(params.organizationId);
+    const before = await models_1.Wallet.findOneAndUpdate({ organizationId: params.organizationId, balance: { $gte: params.amount }, reservedBalance: { $gte: params.amount } }, { $inc: { balance: -params.amount, reservedBalance: -params.amount, version: 1 } }, { new: false });
+    if (!before)
+        return { success: false, reason: "SHORTFALL" };
+    try {
+        const transaction = await models_1.WalletTransaction.create({
+            organizationId: params.organizationId,
+            type: shared_1.WalletTransactionType.DEBIT,
+            amount: params.amount,
+            balanceBefore: before.balance,
+            balanceAfter: before.balance - params.amount,
+            referenceType: params.referenceType,
+            referenceId: params.referenceId,
+            idempotencyKey: params.idempotencyKey,
+            description: params.description,
+            createdBy: params.createdBy ?? null,
+        });
+        return { success: true, transaction };
+    }
+    catch (err) {
+        if (err?.code === 11000) {
+            // A concurrent charge with the same key already recorded it -
+            // undo our decrement so the money moves exactly once.
+            await models_1.Wallet.findOneAndUpdate({ organizationId: params.organizationId }, { $inc: { balance: params.amount, reservedBalance: params.amount } });
+            const transaction = await models_1.WalletTransaction.findOne({ idempotencyKey: params.idempotencyKey });
+            return { success: true, transaction, alreadyCharged: true };
+        }
+        throw err;
+    }
 }

@@ -37,6 +37,14 @@ const eStampRequestSchema = new mongoose_1.Schema({
     // charging the wallet a second time. Optional/sparse so existing
     // records and any caller that omits it are unaffected.
     idempotencyKey: { type: String },
+    // Ledger flow: the amount is RESERVED at submit, CHARGED (one DEBIT
+    // ledger entry) when the window closes, RELEASED on cancel, or
+    // SHORTFALL if the balance could not cover it at charge time. No schema
+    // default on purpose: legacy requests (debited at submit) have no value
+    // and are treated as CHARGED everywhere.
+    chargeStatus: { type: String, enum: ["RESERVED", "CHARGED", "RELEASED", "SHORTFALL"] },
+    reservedAmount: { type: Number, min: 0 },
+    chargedAt: { type: Date },
 }, { timestamps: true });
 eStampRequestSchema.index({ organizationId: 1, createdAt: -1 });
 eStampRequestSchema.index({ organizationId: 1, status: 1 });
@@ -46,4 +54,6 @@ eStampRequestSchema.index({ organizationId: 1, idempotencyKey: 1 }, { unique: tr
 // modificationDeadline} on every invocation - without this index that's a
 // full collection scan as the table grows.
 eStampRequestSchema.index({ status: 1, modificationDeadline: 1 });
+// Charge sweep: LOCKED requests whose reservation is not yet charged.
+eStampRequestSchema.index({ chargeStatus: 1, status: 1 });
 exports.EStampRequest = (0, mongoose_1.model)("EStampRequest", eStampRequestSchema);

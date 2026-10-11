@@ -52,5 +52,10 @@ router.use(authenticate_1.authenticate);
 router.post("/razorpay/order", rateLimiters_1.paymentLimiter, (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_MANAGE), (0, validate_1.validateBody)(validation_1.createRazorpayOrderSchema), ctrl.createRazorpayOrder);
 router.post("/razorpay/verify", rateLimiters_1.paymentLimiter, (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_MANAGE), (0, validate_1.validateBody)(validation_1.verifyRazorpayPaymentSchema), ctrl.verifyRazorpayPayment);
 router.get("/", (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_VIEW), ctrl.listPayments);
+router.get("/credit-summary", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN, shared_1.Role.ASSISTANT_MASTER_ADMIN), (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_VIEW), ctrl.getCreditSummary);
 router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_VIEW), ctrl.getPayment);
+// Ledger flow: confirm a verified payment and add it to the client balance.
+// Internal roles only; the controller further limits an Assistant Master
+// Admin to organizations assigned to them.
+router.post("/:id/credit-balance", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN, shared_1.Role.ASSISTANT_MASTER_ADMIN), (0, authorize_1.requirePermission)(shared_1.Permission.WALLET_MANAGE), ctrl.creditBalance);
 exports.default = router;

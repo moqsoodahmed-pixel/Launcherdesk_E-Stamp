@@ -14,19 +14,49 @@ const notification_service_1 = require("./notification.service");
 // never talks to the Razorpay SDK directly - only through PaymentProvider,
 // so tests never need real credentials and production never silently falls
 // back to a mock.
-async function creditWalletForPayment(payment, initiatedByUserId) {
-    // Idempotency key = the payment's own _id. Whether this is reached via
-    // the checkout verify route or a (possibly retried) webhook delivery,
-    // the SAME key means the wallet is never credited twice for one payment.
-    await (0, wallet_service_1.creditWallet)({
+//
+// Ledger flow: a verified payment is marked SUCCESS + PENDING_CREDIT and
+// does NOT touch the wallet. Real money is already in the company bank
+// account; the organization's balance number only moves when the assigned
+// Assistant Master Admin (or a Master Admin) calls creditPaymentToBalance.
+//
+// Atomic SUCCESS transition shared by checkout-verify and the webhook: only
+// the caller whose conditional update matches gets `won: true`, so the
+// "payment received" notifications fire once however many times either path
+// is retried or raced.
+async function markPaymentSucceeded(paymentId, razorpayPaymentId) {
+    const updated = await models_1.Payment.findOneAndUpdate({ _id: paymentId, status: { $ne: shared_1.PaymentStatus.SUCCESS } }, {
+        $set: {
+            status: shared_1.PaymentStatus.SUCCESS,
+            razorpayPaymentId,
+            verifiedAt: new Date(),
+            balanceStatus: "PENDING_CREDIT",
+        },
+        $unset: { failureReason: "" },
+    }, { new: true });
+    if (updated)
+        return { payment: updated, won: true };
+    return { payment: await models_1.Payment.findById(paymentId), won: false };
+}
+// Tells whoever must credit this payment that it is waiting: the assigned
+// assistant, or every Master Admin if the organization has none.
+async function notifyPendingCredit(payment) {
+    const org = await models_1.Organization.findById(payment.organizationId).select("name assignedAssistantId");
+    const base = {
+        type: shared_1.NotificationType.PAYMENT,
+        title: "Payment waiting to be credited",
+        message: `${org?.name || "A client"} paid ₹${payment.amount} by Razorpay (${payment.razorpayPaymentId}). Credit it to their balance after confirming receipt.`,
         organizationId: payment.organizationId.toString(),
-        amount: payment.amount,
-        referenceType: "PAYMENT",
-        referenceId: payment._id.toString(),
-        idempotencyKey: `payment:${payment._id.toString()}`,
-        description: `Razorpay payment ${payment.razorpayPaymentId}`,
-        createdBy: initiatedByUserId ?? payment.createdBy,
-    });
+        entityType: "Payment",
+        entityId: payment._id,
+        eventKey: `payment:${payment._id.toString()}:pending-credit`,
+    };
+    if (org?.assignedAssistantId) {
+        await (0, notification_service_1.notifyUser)({ ...base, recipientId: org.assignedAssistantId.toString(), recipientRole: shared_1.Role.ASSISTANT_MASTER_ADMIN });
+    }
+    else {
+        await (0, notification_service_1.notifyAllMasterAdmins)(base);
+    }
 }
 // Centralized here (not in the controller) so BOTH the checkout-verify path
 // and the webhook path notify exactly once per payment, regardless of which
@@ -43,7 +73,7 @@ async function notifyPaymentOutcome(payment, outcome) {
         type: shared_1.NotificationType.PAYMENT,
         title: isSuccess ? "Payment successful" : "Payment failed",
         message: isSuccess
-            ? `Your payment of ₹${payment.amount} was successful and your wallet has been credited.`
+            ? `Your payment of ₹${payment.amount} was received. Your balance will be updated once LauncherDesk confirms it.`
             : `Your payment of ₹${payment.amount} could not be completed.`,
         organizationId: payment.organizationId.toString(),
         entityType: "Payment",
@@ -53,6 +83,39 @@ async function notifyPaymentOutcome(payment, outcome) {
     });
 }
 exports.PaymentService = {
+    // Credits a verified payment's exact amount to its organization's
+    // balance. Caller must already be authorized for the organization (see
+    // payment.controller creditBalance). Uses the SAME idempotency key the
+    // old auto-credit used (`payment:<id>`), so a payment can never be
+    // credited twice - not by a retry, a race, or a legacy auto-credit.
+    // Order: ledger credit first (idempotent), then the conditional
+    // PENDING_CREDIT -> CREDITED flip; a crash in between is repaired by
+    // simply calling this again.
+    async creditPaymentToBalance(paymentId, actor) {
+        const payment = await models_1.Payment.findById(paymentId);
+        if (!payment)
+            throw ApiError_1.ApiError.notFound("Payment not found");
+        if (payment.status !== shared_1.PaymentStatus.SUCCESS) {
+            throw ApiError_1.ApiError.conflict("Only a successful payment can be credited", "PAYMENT_NOT_PAID");
+        }
+        if (payment.balanceStatus !== "PENDING_CREDIT") {
+            throw ApiError_1.ApiError.conflict("This payment has already been credited to the balance", "ALREADY_CREDITED");
+        }
+        const transaction = await (0, wallet_service_1.creditWallet)({
+            organizationId: payment.organizationId.toString(),
+            amount: payment.amount,
+            referenceType: "PAYMENT",
+            referenceId: payment._id.toString(),
+            idempotencyKey: `payment:${payment._id.toString()}`,
+            description: `Balance added, payment ${payment.razorpayPaymentId}`,
+            createdBy: actor.id,
+        });
+        const credited = await models_1.Payment.findOneAndUpdate({ _id: payment._id, status: shared_1.PaymentStatus.SUCCESS, balanceStatus: "PENDING_CREDIT" }, { $set: { balanceStatus: "CREDITED", creditedAt: new Date(), creditedBy: actor.id, walletTransactionId: transaction._id } }, { new: true });
+        if (!credited) {
+            throw ApiError_1.ApiError.conflict("This payment has already been credited to the balance", "ALREADY_CREDITED");
+        }
+        return { payment: credited, transaction };
+    },
     async createOrder(params) {
         if (!Number.isFinite(params.amount) || params.amount <= 0) {
             throw ApiError_1.ApiError.badRequest("Invalid payment amount", "INVALID_AMOUNT");
@@ -88,13 +151,12 @@ exports.PaymentService = {
             await notifyPaymentOutcome(payment, "failed");
             throw ApiError_1.ApiError.badRequest("Payment signature verification failed", "PAYMENT_VERIFICATION_FAILED");
         }
-        payment.razorpayPaymentId = params.razorpayPaymentId;
-        payment.status = shared_1.PaymentStatus.SUCCESS;
-        payment.verifiedAt = new Date();
-        await payment.save();
-        await creditWalletForPayment(payment, params.userId);
-        await notifyPaymentOutcome(payment, "success");
-        return payment;
+        const { payment: paid, won } = await markPaymentSucceeded(payment._id, params.razorpayPaymentId);
+        if (won) {
+            await notifyPaymentOutcome(paid, "success");
+            await notifyPendingCredit(paid);
+        }
+        return paid;
     },
     // Processes an inbound Razorpay webhook event. Uses the webhook's own
     // signature scheme (HMAC over the raw body with RAZORPAY_WEBHOOK_SECRET),
@@ -137,12 +199,12 @@ exports.PaymentService = {
             await notifyPaymentOutcome(payment, "failed");
             return { handled: true, paymentId: payment._id, status: payment.status };
         }
-        payment.razorpayPaymentId = razorpayPaymentId;
-        payment.status = shared_1.PaymentStatus.SUCCESS;
-        payment.verifiedAt = new Date();
-        await payment.save();
-        await creditWalletForPayment(payment);
-        await notifyPaymentOutcome(payment, "success");
-        return { handled: true, paymentId: payment._id, status: payment.status };
+        const { payment: paid, won } = await markPaymentSucceeded(payment._id, razorpayPaymentId);
+        if (!won) {
+            return { handled: true, alreadyProcessed: true, paymentId: payment._id };
+        }
+        await notifyPaymentOutcome(paid, "success");
+        await notifyPendingCredit(paid);
+        return { handled: true, paymentId: paid._id, status: paid.status };
     },
 };

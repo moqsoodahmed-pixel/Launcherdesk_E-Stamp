@@ -20,7 +20,7 @@ const fileSignature_1 = require("../utils/fileSignature");
 // creates an EStampRequest/EStampOrder itself. Every actually-charged row
 // goes through EStampRequestService.createRequest() exactly once, with a
 // deterministic idempotencyKey (`bulk:<batchId>:row:<rowNumber>`) - the
-// SAME double-submission-safe, atomically-debited path a single-request
+// SAME double-submission-safe, atomically-reserved path a single-request
 // creation uses. This file only adds: file parsing, per-row validation,
 // duplicate-suspicion flagging, the upfront wallet-sum gate, and batch/item
 // bookkeeping around that one call.
@@ -455,7 +455,10 @@ exports.BulkEStampService = {
             }
         }
         const requiredTotal = recalculated.reduce((sum, r) => sum + r.amount, 0);
-        const currentBalance = await (0, wallet_service_1.getWalletBalance)(claimed.organizationId);
+        // Available = balance - amounts already reserved by requests still in
+        // their window. Each row then reserves its own amount atomically via
+        // createRequest, so this gate is a fast all-or-nothing pre-check only.
+        const currentBalance = (await (0, wallet_service_1.getWalletSummary)(claimed.organizationId)).availableBalance;
         if (recalculated.length > 0 && requiredTotal > currentBalance) {
             // Upfront all-or-nothing gate: the common insufficient-funds case
             // fails cleanly with ZERO side effects on the wallet/requests -

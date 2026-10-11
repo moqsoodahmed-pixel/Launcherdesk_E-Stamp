@@ -9,9 +9,18 @@ const audit_service_1 = require("../services/audit.service");
 const notification_service_1 = require("../services/notification.service");
 const shared_1 = require("@launcherdesk/shared");
 const uuid_1 = require("uuid");
-function resolveOrgId(req) {
+const orgAccess_1 = require("../utils/orgAccess");
+const ApiError_1 = require("../utils/ApiError");
+// Internal actors name the organization in the URL and must be allowed to
+// act on it (Master Admin: any; Assistant: assigned only). Tenant actors
+// always get their own organization.
+async function resolveOrgId(req) {
     const isInternal = req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
-    const orgId = isInternal ? req.params.organizationId : req.user.organizationId;
+    if (isInternal) {
+        await (0, orgAccess_1.assertCanActOnOrganization)(req, req.params.organizationId);
+        return req.params.organizationId;
+    }
+    const orgId = req.user.organizationId;
     // An internal actor has no organization of their own - without an
     // explicit, valid target this must be a 400, never an implicit
     // (auto-creating) wallet lookup against `undefined`.
@@ -21,8 +30,8 @@ function resolveOrgId(req) {
     return orgId;
 }
 exports.getBalance = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const organizationId = resolveOrgId(req);
-    const balance = await (0, wallet_service_1.getWalletBalance)(organizationId);
+    const organizationId = await resolveOrgId(req);
+    const summary = await (0, wallet_service_1.getWalletSummary)(organizationId);
     if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN) {
         await (0, audit_service_1.recordAudit)({
             actorId: req.user.id,
@@ -32,10 +41,17 @@ exports.getBalance = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             req,
         });
     }
-    return (0, ApiResponse_1.ok)(res, { organizationId, balance });
+    // balance = ledger balance; availableBalance = what new requests may
+    // reserve (balance minus amounts held for requests in their window).
+    return (0, ApiResponse_1.ok)(res, {
+        organizationId,
+        balance: summary.balance,
+        reservedBalance: summary.reservedBalance,
+        availableBalance: summary.availableBalance,
+    });
 });
 exports.listTransactions = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const organizationId = resolveOrgId(req);
+    const organizationId = await resolveOrgId(req);
     const { page = "1", limit = "20" } = req.query;
     // Phase 19 - cap client-supplied `limit`, same pattern as the other list
     // endpoints (order/payment/user/notification/audit controllers).
@@ -52,16 +68,22 @@ exports.listTransactions = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
 // balance (e.g. offline payment reconciliation). Distinct from the automated
 // Razorpay flow, but goes through the exact same atomic wallet service.
 exports.manualCredit = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    await (0, orgAccess_1.assertCanActOnOrganization)(req, req.params.organizationId);
     const organizationId = req.params.organizationId;
-    const { amount, description } = req.body;
-    if (!amount || amount <= 0)
-        throw require("../utils/ApiError").ApiError.badRequest("amount must be positive");
+    const { amount } = req.body;
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0)
+        throw ApiError_1.ApiError.badRequest("amount must be positive", "INVALID_AMOUNT");
+    // A manual credit (offline transfer, correction) must say why.
+    const description = typeof req.body.description === "string" ? req.body.description.trim() : "";
+    if (description.length < 3 || description.length > 500) {
+        throw ApiError_1.ApiError.badRequest("A description/reference (3-500 characters) is required for a manual credit", "DESCRIPTION_REQUIRED");
+    }
     const transaction = await (0, wallet_service_1.creditWallet)({
         organizationId,
         amount,
         referenceType: "MANUAL_ADJUSTMENT",
         idempotencyKey: `manual:${(0, uuid_1.v4)()}`,
-        description: description || "Manual balance credit by admin",
+        description,
         createdBy: req.user.id,
     });
     const wallet = await models_1.Wallet.findOne({ organizationId });
@@ -70,7 +92,7 @@ exports.manualCredit = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         actorRole: req.user.role,
         organizationId,
         action: shared_1.AuditAction.BALANCE_CHANGED,
-        metadata: { amount },
+        metadata: { type: "CREDIT", source: "manual", amount, walletTransactionId: transaction?._id?.toString() },
         req,
     });
     if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN) {
