@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPassword = exports.forgotPassword = exports.me = exports.logout = exports.refreshToken = exports.verifyLoginOtp = exports.login = void 0;
+exports.changePassword = exports.resetPassword = exports.forgotPassword = exports.me = exports.logout = exports.refreshToken = exports.verifyLoginOtp = exports.login = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const ApiResponse_1 = require("../utils/ApiResponse");
 const auth_service_1 = require("../services/auth.service");
@@ -70,4 +70,26 @@ exports.resetPassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     await auth_service_1.AuthService.invalidateAllSessions(user._id.toString());
     await (0, audit_service_1.recordAudit)({ actorId: user._id.toString(), actorRole: user.role, action: shared_1.AuditAction.PASSWORD_RESET_COMPLETED, req });
     return (0, ApiResponse_1.ok)(res, { message: "Password reset successful. Please log in again." });
+});
+// Logged-in password change (also how a mustChangePassword user replaces a
+// temporary password). Every OTHER session is ended (tokenVersion bump +
+// all refresh tokens revoked); the caller gets a fresh token pair so this
+// tab stays signed in. A wrong current password is a 400, never a 401, so
+// the frontend doesn't mistake it for an expired session.
+exports.changePassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const user = await models_1.User.findById(req.user.id).select("+passwordHash");
+    if (!user)
+        throw ApiError_1.ApiError.unauthorized();
+    const valid = await auth_service_1.AuthService.verifyPassword(user.passwordHash, currentPassword);
+    if (!valid)
+        throw ApiError_1.ApiError.badRequest("Current password is incorrect");
+    user.passwordHash = await auth_service_1.AuthService.hashPassword(newPassword);
+    user.mustChangePassword = false;
+    await user.save();
+    await auth_service_1.AuthService.invalidateAllSessions(user._id.toString());
+    await (0, audit_service_1.recordAudit)({ actorId: user._id.toString(), actorRole: user.role, organizationId: user.organizationId, action: shared_1.AuditAction.PASSWORD_CHANGED, req });
+    const fresh = await models_1.User.findById(user._id);
+    const tokens = await auth_service_1.AuthService.issueTokens(fresh, req);
+    return (0, ApiResponse_1.ok)(res, { ...tokens, message: "Password changed." });
 });

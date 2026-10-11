@@ -34,6 +34,7 @@ import SystemSettingsPage from "./pages/settings/SystemSettingsPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RequireAccess from "./routes/RequireAccess";
 import NotFoundPage from "./pages/NotFoundPage";
+import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
 import { PERMISSIONS as P } from "./utils/permissions";
 
 const INTERNAL = ["MASTER_ADMIN", "ASSISTANT_MASTER_ADMIN"];
@@ -46,6 +47,8 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />}/>
 
       <Route element={<ProtectedRoute />}>
+        {/* Outside DashboardLayout: a forced password change shows no app navigation. */}
+        <Route path="/change-password" element={<ChangePasswordPage />}/>
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<DashboardPage />}/>
 

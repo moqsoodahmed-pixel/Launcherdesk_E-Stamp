@@ -64,6 +64,62 @@ describe("routing", () => {
   });
 });
 
+describe("forced password change (mustChangePassword)", () => {
+  it("sends every app URL to /change-password, with no app navigation shown", () => {
+    mockAuth.user = { ...mockAuth.user, mustChangePassword: true };
+    renderAt("/orders");
+    expect(screen.getByRole("heading", { name: "Change password" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Main navigation" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+  });
+
+  it("does not loop: /change-password itself renders", () => {
+    mockAuth.user = { ...mockAuth.user, mustChangePassword: true };
+    renderAt("/change-password");
+    expect(screen.getByRole("heading", { name: "Change password" })).toBeInTheDocument();
+  });
+
+  it("after changing the password the user lands on the page they first asked for", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    mockAuth.user = { ...mockAuth.user, mustChangePassword: true };
+    mockAuth.changePassword = vi.fn(async () => {
+      mockAuth.user = { ...mockAuth.user, mustChangePassword: false };
+    });
+    renderAt("/users?role=ADMIN");
+    await u.type(screen.getByLabelText("Current password"), "Temp-pass-1");
+    await u.type(screen.getByLabelText("New password"), "BrandNew!Pass9");
+    await u.type(screen.getByLabelText("Confirm new password"), "BrandNew!Pass9");
+    await u.click(screen.getByRole("button", { name: "Change password" }));
+    expect(mockAuth.changePassword).toHaveBeenCalledWith("Temp-pass-1", "BrandNew!Pass9");
+    expect(await screen.findByRole("heading", { name: "Admins" })).toBeInTheDocument();
+  });
+
+  it("validates mismatched and short passwords before calling the API, and shows server errors", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    mockAuth.user = { ...mockAuth.user, mustChangePassword: true };
+    mockAuth.changePassword = vi.fn().mockRejectedValue({ response: { status: 400, data: { message: "Current password is incorrect" } } });
+    renderAt("/change-password");
+    await u.type(screen.getByLabelText("Current password"), "Temp-pass-1");
+    await u.type(screen.getByLabelText("New password"), "short");
+    await u.type(screen.getByLabelText("Confirm new password"), "short");
+    await u.click(screen.getByRole("button", { name: "Change password" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("at least 8 characters");
+    await u.clear(screen.getByLabelText("New password"));
+    await u.type(screen.getByLabelText("New password"), "BrandNew!Pass9");
+    await u.clear(screen.getByLabelText("Confirm new password"));
+    await u.type(screen.getByLabelText("Confirm new password"), "Different!Pass9");
+    await u.click(screen.getByRole("button", { name: "Change password" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("do not match");
+    expect(mockAuth.changePassword).not.toHaveBeenCalled();
+    await u.clear(screen.getByLabelText("Confirm new password"));
+    await u.type(screen.getByLabelText("Confirm new password"), "BrandNew!Pass9");
+    await u.click(screen.getByRole("button", { name: "Change password" }));
+    expect(await screen.findByText("Current password is incorrect")).toBeInTheDocument();
+  });
+});
+
 describe("safeNextPath", () => {
   it("allows in-app paths and rejects open redirects and /login", () => {
     expect(safeNextPath("/users?role=ADMIN")).toBe("/users?role=ADMIN");

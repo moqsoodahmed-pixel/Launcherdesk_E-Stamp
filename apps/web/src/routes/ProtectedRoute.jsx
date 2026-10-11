@@ -11,5 +11,10 @@ export default function ProtectedRoute() {
     if (!user)
         // Remember where the user was going; LoginPage sends them back there.
         return <Navigate to="/login" replace state={{ from: { pathname: location.pathname, search: location.search } }}/>;
+    // A temporary password must be replaced before anything else: the only
+    // reachable screen is /change-password (which also offers logout). The
+    // attempted URL is kept so the user lands there afterwards.
+    if (user.mustChangePassword && location.pathname !== "/change-password")
+        return <Navigate to="/change-password" replace state={{ from: { pathname: location.pathname, search: location.search } }}/>;
     return <Outlet />;
 }

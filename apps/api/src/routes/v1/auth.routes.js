@@ -45,6 +45,7 @@ router.post("/login/verify-otp", rateLimiters_1.otpVerifyLimiter, (0, validate_1
 router.post("/refresh", rateLimiters_1.refreshLimiter, ctrl.refreshToken);
 router.post("/logout", authenticate_1.authenticate, ctrl.logout);
 router.get("/me", authenticate_1.authenticate, ctrl.me);
+router.post("/change-password", authenticate_1.authenticate, rateLimiters_1.passwordChangeLimiter, (0, validate_1.validateBody)(validation_1.changePasswordSchema), ctrl.changePassword);
 router.post("/forgot-password", rateLimiters_1.passwordResetLimiter, (0, validate_1.validateBody)(validation_1.forgotPasswordSchema), ctrl.forgotPassword);
 router.post("/reset-password", rateLimiters_1.passwordResetLimiter, (0, validate_1.validateBody)(validation_1.resetPasswordSchema), ctrl.resetPassword);
 exports.default = router;

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyRazorpayPaymentSchema = exports.createRazorpayOrderSchema = exports.createEStampRequestSchema = exports.updateAssistantAdminPermissionsSchema = exports.createAssistantAdminSchema = exports.createUserSchema = exports.createOrganizationSchema = exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.verifyOtpSchema = exports.loginSchema = void 0;
+exports.verifyRazorpayPaymentSchema = exports.createRazorpayOrderSchema = exports.createEStampRequestSchema = exports.updateAssistantAdminPermissionsSchema = exports.createAssistantAdminSchema = exports.createUserSchema = exports.createOrganizationSchema = exports.changePasswordSchema = exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.verifyOtpSchema = exports.loginSchema = void 0;
 const zod_1 = require("zod");
 const shared_1 = require("@launcherdesk/shared");
 exports.loginSchema = zod_1.z.object({
@@ -19,6 +19,13 @@ exports.resetPasswordSchema = zod_1.z.object({
     code: zod_1.z.string().length(6),
     newPassword: zod_1.z.string().min(8),
 });
+// Logged-in password change. Same strength rule as resetPasswordSchema.
+exports.changePasswordSchema = zod_1.z
+    .object({
+    currentPassword: zod_1.z.string().min(1, "Current password is required"),
+    newPassword: zod_1.z.string().min(8, "New password must be at least 8 characters"),
+})
+    .refine((d) => d.newPassword !== d.currentPassword, { message: "New password must be different from the current password", path: ["newPassword"] });
 exports.createOrganizationSchema = zod_1.z.object({
     name: zod_1.z.string().min(2).max(200),
     contactEmail: zod_1.z.string().email(),

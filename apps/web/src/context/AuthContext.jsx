@@ -39,6 +39,13 @@ export function AuthProvider({ children }) {
         const { data } = await apiClient.post("/auth/reset-password", { resetToken, code, newPassword });
         return data.data;
     }
+    // Logged-in password change; the API ends every other session and returns
+    // a fresh token pair for this one (with mustChangePassword now false).
+    async function changePassword(currentPassword, newPassword) {
+        const { data } = await apiClient.post("/auth/change-password", { currentPassword, newPassword });
+        persistSession(data.data);
+        return data.data;
+    }
     function persistSession(payload) {
         localStorage.setItem("ld_access_token", payload.accessToken);
         localStorage.setItem("ld_refresh_token", payload.refreshToken);
@@ -55,7 +62,7 @@ export function AuthProvider({ children }) {
             setUser(null);
         }
     }
-    return (<AuthContext.Provider value={{ user, loading, loginStep1, verifyOtp, logout, forgotPassword, resetPassword }}>{children}</AuthContext.Provider>);
+    return (<AuthContext.Provider value={{ user, loading, loginStep1, verifyOtp, logout, forgotPassword, resetPassword, changePassword }}>{children}</AuthContext.Provider>);
 }
 export function useAuth() {
     const ctx = useContext(AuthContext);

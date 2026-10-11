@@ -13,6 +13,7 @@ Base URL: `/api/v1`. All endpoints except `/auth/login`, `/auth/login/verify-otp
 | GET | `/me` | Current authenticated user |
 | POST | `/forgot-password` | Does not reveal whether the email exists |
 | POST | `/reset-password` | `{ resetToken, code, newPassword }`; invalidates all existing sessions |
+| POST | `/change-password` | Authenticated. `{ currentPassword, newPassword }` (min 8 chars, must differ). Wrong current password → 400. Clears `mustChangePassword`, ends all other sessions (tokenVersion bump + refresh tokens revoked), returns a fresh token pair. Rate-limited 5 / 15 min per user. Audit: `PASSWORD_CHANGED`. |
 
 ## Organizations — `/organizations` (Master/Assistant Master Admin only)
 `POST /` create · `GET /` list · `GET /:id` detail · `PATCH /:id/status` (Master Admin only) ·
