@@ -10,10 +10,20 @@ export default function AssignedAssistantSelect({ value, onChange, disabled, lab
   const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
-    apiClient
-      .get("/users", { params: { role: "ASSISTANT_MASTER_ADMIN", status: "active", limit: 100 } })
-      .then((res) => setAssistants(res.data.data.items || []))
-      .catch(() => setLoadError("Could not load assistants."));
+    let active = true;
+    // Promise.resolve().then(...) turns any synchronous failure into a handled
+    // rejection; `active` drops results that arrive after unmount.
+    Promise.resolve()
+      .then(() => apiClient.get("/users", { params: { role: "ASSISTANT_MASTER_ADMIN", status: "active", limit: 100 } }))
+      .then((res) => {
+        if (active) setAssistants(res?.data?.data?.items || []);
+      })
+      .catch(() => {
+        if (active) setLoadError("Could not load assistants.");
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (

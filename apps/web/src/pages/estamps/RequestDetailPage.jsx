@@ -5,6 +5,7 @@ import { formatCurrency, errorMessage } from "../../utils/format";
 import StatusBadge from "../../components/estamps/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission, PERMISSIONS } from "../../utils/permissions";
+import { isManualFulfilment } from "../../utils/fulfilment";
 
 function formatCountdown(totalSeconds) {
   const s = Math.max(0, totalSeconds || 0);
@@ -252,7 +253,7 @@ export default function RequestDetailPage() {
 
       {/* Lifecycle timeline */}
       <Section title="Lifecycle">
-        <RequestTimeline request={request} order={order} />
+        <RequestTimeline request={request} order={order} manual={isManualFulfilment(user)} />
         {request.status === "MODIFICATION_WINDOW" && (
           <div className="mt-4 pt-4 border-t border-slate-100">
             <p className="text-sm text-slate-600 mb-3">
@@ -312,7 +313,27 @@ export default function RequestDetailPage() {
 // Only renders stages that have actually happened or are the request's real
 // current state - never a future stage marked as completed. Branches for
 // CANCELLED/FAILED paths rather than forcing them onto the "happy path".
-function RequestTimeline({ request, order }) {
+// Manual fulfilment: Submitted, Window ends, Queued, In progress, then
+// Issued (Download) or Failed - plain wording, real timestamps only.
+function manualSteps(request, order) {
+  const o = order?.order;
+  const steps = [{ label: "Submitted", at: request.createdAt, done: true }];
+  if (request.status === "CANCELLED") {
+    steps.push({ label: "Cancelled", at: request.cancelledAt || request.updatedAt, done: true, tone: "red" });
+    return steps;
+  }
+  const inWindow = request.status === "MODIFICATION_WINDOW";
+  steps.push({ label: "Window ends", at: request.modificationDeadline, done: !inWindow, pending: inWindow });
+  if (!inWindow) steps.push({ label: "Queued", at: request.lockedAt, done: true });
+  if (o?.startedAt) steps.push({ label: "In progress", at: o.startedAt, done: true });
+  if (o?.eStampStatus === "ISSUED") steps.push({ label: "Issued (Download)", at: o.issuedAt, done: true });
+  else if (request.status === "FAILED" || o?.eStampStatus === "FAILED") steps.push({ label: "Failed", at: o?.updatedAt, done: true, tone: "red", note: o?.failureReason });
+  else if (!inWindow) steps.push({ label: "Being prepared by LauncherDesk", at: null, done: false, pending: true });
+  return steps;
+}
+
+function RequestTimeline({ request, order, manual }) {
+  if (manual) return <TimelineList steps={manualSteps(request, order)} />;
   const steps = [];
   steps.push({ label: "Request created", at: request.createdAt, done: true });
 
@@ -335,7 +356,10 @@ function RequestTimeline({ request, order }) {
       steps.push({ label: "Processing", at: order?.order?.updatedAt, done: true });
     if (order?.order?.issuedAt) steps.push({ label: "Certificate issued", at: order.order.issuedAt, done: true });
   }
+  return <TimelineList steps={steps} />;
+}
 
+function TimelineList({ steps }) {
   return (
     <ol className="space-y-2 text-sm">
       {steps.map((s, i) => (

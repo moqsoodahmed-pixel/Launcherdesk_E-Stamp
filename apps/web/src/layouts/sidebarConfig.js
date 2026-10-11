@@ -25,9 +25,10 @@ const MASTER_ADMIN_SECTIONS = [
   section("OPERATIONS", [
     { to: "/estamps/requests", label: "E-Stamp Requests", permission: PERMISSIONS.ESTAMP_VIEW },
     { to: "/estamps/bulk", label: "Bulk Requests", permission: PERMISSIONS.ESTAMP_BULK_CREATE },
+    { to: "/orders/fulfil", label: "Orders to fulfil", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
     { to: "/orders", label: "Orders", permission: PERMISSIONS.ORDER_VIEW },
     { to: "/estamps", label: "E-Stamps", permission: PERMISSIONS.ESTAMP_VIEW },
-    { to: "/estamp-provider", label: "E-Stamp Provider", permission: PERMISSIONS.ESTAMP_PROVIDER_VIEW },
+    { to: "/estamp-provider", label: "E-Stamp Provider", permission: PERMISSIONS.ESTAMP_PROVIDER_VIEW, mode: "provider" },
   ]),
   section("FINANCE", [
     { to: "/payments/credit-queue", label: "Payments to credit", permission: PERMISSIONS.WALLET_MANAGE },
@@ -61,6 +62,7 @@ const ASSISTANT_MASTER_ADMIN_SECTIONS = [
   ]),
   section("OPERATIONS", [
     { to: "/estamps/requests", label: "E-Stamp Requests", permission: PERMISSIONS.ESTAMP_VIEW },
+    { to: "/orders/fulfil", label: "Orders to fulfil", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
     { to: "/orders", label: "Orders", permission: PERMISSIONS.ORDER_VIEW },
     { to: "/estamps", label: "E-Stamps", permission: PERMISSIONS.ESTAMP_VIEW },
   ]),
@@ -173,13 +175,15 @@ function sectionsFor(role) {
 // `permissions`: the user's EFFECTIVE permission set (see utils/permissions.js's
 // header note) - `undefined`/non-array fails OPEN (shows everything for the
 // role), so a stale cached session never loses navigation it used to have.
-export function getSidebarSections(role, permissions) {
+// `fulfilmentMode` ("manual" default | "provider") hides items tagged with
+// the other `mode` (Orders to fulfil vs. E-Stamp Provider).
+export function getSidebarSections(role, permissions, fulfilmentMode = "manual") {
   const hasPerm = (permission) => {
     if (!permission) return true;
     if (!Array.isArray(permissions)) return true;
     return permissions.includes(permission);
   };
-  const filtered = sectionsFor(role).map((sec) => ({ heading: sec.heading, items: sec.items.filter((item) => hasPerm(item.permission)) }));
+  const filtered = sectionsFor(role).map((sec) => ({ heading: sec.heading, items: sec.items.filter((item) => hasPerm(item.permission) && (!item.mode || item.mode === fulfilmentMode)) }));
   // Several roles legitimately declare the same heading twice in the raw
   // config above (e.g. "ACCOUNT" for Dashboard up top and Profile at the
   // bottom) - merge same-heading sections into one so React never renders
@@ -199,8 +203,8 @@ export function getSidebarSections(role, permissions) {
 
 // Kept for any other consumer that only wants a flat list (e.g. active-link
 // "longest prefix" matching across every visible item regardless of section).
-export function getFlatSidebarItems(role, permissions) {
-  return getSidebarSections(role, permissions).flatMap((sec) => sec.items);
+export function getFlatSidebarItems(role, permissions, fulfilmentMode) {
+  return getSidebarSections(role, permissions, fulfilmentMode).flatMap((sec) => sec.items);
 }
 
 // Backward-compatible flat-array export (unchanged pre-Phase-21 behavior for

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { isManualFulfilment } from "../../utils/fulfilment";
 import StatusBadge from "../../components/estamps/StatusBadge";
 import EmptyState from "../../components/dashboard/EmptyState";
 import { TableSkeleton } from "../../components/dashboard/LoadingSkeleton";
@@ -23,6 +24,8 @@ function fmt(date) {
 
 export default function OrdersListPage() {
   const { user } = useAuth();
+  const manual = isManualFulfilment(user);
+  const refLabel = manual ? "Stamp reference" : "Provider reference";
   const isInternal = user?.role === "MASTER_ADMIN" || user?.role === "ASSISTANT_MASTER_ADMIN";
 
   const [items, setItems] = useState([]);
@@ -182,7 +185,7 @@ export default function OrdersListPage() {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input
           aria-label="Search orders"
-          placeholder="Search order # or provider reference"
+          placeholder={`Search order # or ${refLabel.toLowerCase()}`}
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           className={`${inputClass} w-full sm:w-72`}
@@ -286,7 +289,7 @@ export default function OrdersListPage() {
               {isInternal && <th className="text-left px-4 py-3">Organization</th>}
               <th className="text-left px-4 py-3">Status</th>
               <th className="text-left px-4 py-3">Processing</th>
-              <th className="text-left px-4 py-3">Provider reference</th>
+              <th className="text-left px-4 py-3">{refLabel}</th>
               {failedView && <th className="text-left px-4 py-3">Failure reason</th>}
               <th className="text-right px-4 py-3">Amount</th>
               <th className="text-left px-4 py-3">Created</th>
@@ -375,7 +378,7 @@ export default function OrdersListPage() {
                 )}
                 <dt>Amount</dt>
                 <dd className="text-right text-slate-700">{formatCurrency(o.amount)}</dd>
-                <dt>Provider ref</dt>
+                <dt>{manual ? "Stamp ref" : "Provider ref"}</dt>
                 <dd className="text-right text-slate-700 break-all">{o.providerReference || "Not available"}</dd>
                 {failedView && (
                   <>

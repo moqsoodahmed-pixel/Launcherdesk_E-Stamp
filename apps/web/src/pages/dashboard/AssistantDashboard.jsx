@@ -6,6 +6,8 @@ import { PERMISSIONS, hasPermission } from "../../utils/permissions";
 import { formatCurrency, errorMessage } from "../../utils/format";
 import KpiCard from "../../components/dashboard/KpiCard";
 import PaymentCreditsCard from "../../components/dashboard/PaymentCreditsCard";
+import FulfilmentSummaryCard from "../../components/dashboard/FulfilmentSummaryCard";
+import { isManualFulfilment } from "../../utils/fulfilment";
 import { KpiSkeleton } from "../../components/dashboard/LoadingSkeleton";
 import ChartCard from "../../components/dashboard/ChartCard";
 import DateRangeFilter from "../../components/dashboard/DateRangeFilter";
@@ -27,7 +29,8 @@ export default function AssistantDashboard() {
   const canReport = hasPermission(user, PERMISSIONS.REPORT_VIEW);
   const canGlobal = hasPermission(user, PERMISSIONS.REPORT_GLOBAL_VIEW);
   const canFinancial = hasPermission(user, PERMISSIONS.REPORT_FINANCIAL_VIEW);
-  const canProvider = hasPermission(user, PERMISSIONS.ESTAMP_PROVIDER_VIEW);
+  // No provider account exists in manual fulfilment mode.
+  const canProvider = hasPermission(user, PERMISSIONS.ESTAMP_PROVIDER_VIEW) && !isManualFulfilment(user);
   const canSettings = hasPermission(user, PERMISSIONS.SETTINGS_VIEW);
   const canEstampView = hasPermission(user, PERMISSIONS.ESTAMP_VIEW);
   const canOrderView = hasPermission(user, PERMISSIONS.ORDER_VIEW);
@@ -136,6 +139,7 @@ export default function AssistantDashboard() {
         {canReport && <QuickActionButton to="/reports" label="Full Reports" icon="📊" />}
       </div>
 
+      {isManualFulfilment(user) && hasPermission(user, PERMISSIONS.ORDER_MANAGE) && <FulfilmentSummaryCard />}
       {hasPermission(user, PERMISSIONS.WALLET_MANAGE) && hasPermission(user, PERMISSIONS.PAYMENT_VIEW) && <PaymentCreditsCard variant="assistant" />}
 
       {!canReport && (

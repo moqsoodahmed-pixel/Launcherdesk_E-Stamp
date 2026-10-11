@@ -183,8 +183,17 @@ describe("ReportsPage - provider section: gate-then-fetch", () => {
     expect(screen.queryByText("E-Stamp Provider")).not.toBeInTheDocument();
   });
 
+  it("hides the provider section and never calls /reports/provider in manual fulfilment mode", async () => {
+    useAuth.mockReturnValue({ user: { ...masterAdmin(), fulfilmentMode: "manual" } });
+    mockRoutes(defaultRoutes());
+    render(<ReportsPage />);
+    await screen.findAllByText("Total requests");
+    expect(apiClient.get).not.toHaveBeenCalledWith("/reports/provider", expect.anything());
+    expect(screen.queryByText("E-Stamp Provider")).not.toBeInTheDocument();
+  });
+
   it("renders the honest not-configured state rather than fabricating a balance", async () => {
-    useAuth.mockReturnValue({ user: masterAdmin() });
+    useAuth.mockReturnValue({ user: { ...masterAdmin(), fulfilmentMode: "provider" } });
     mockRoutes(
       defaultRoutes({
         provider: [/\/reports\/provider/, { ok: true, data: { current: { status: "NOT_CONFIGURED", available: null, fetchedAt: null }, history: [] } }],
@@ -196,7 +205,7 @@ describe("ReportsPage - provider section: gate-then-fetch", () => {
   });
 
   it("renders real mock-labeled balance data when available", async () => {
-    useAuth.mockReturnValue({ user: masterAdmin() });
+    useAuth.mockReturnValue({ user: { ...masterAdmin(), fulfilmentMode: "provider" } });
     mockRoutes(
       defaultRoutes({
         provider: [

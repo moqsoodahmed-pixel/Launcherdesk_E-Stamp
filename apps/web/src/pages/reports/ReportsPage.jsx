@@ -6,6 +6,7 @@ import { getErrorMessage } from "../../utils/errors";
 import { useApi } from "../../hooks/useApi";
 import LoadingState from "../../components/common/LoadingState";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { isManualFulfilment } from "../../utils/fulfilment";
 
 // @launcherdesk/shared is a CommonJS package built around a runtime
 // `__exportStar` re-export loop (see packages/shared/src/index.js) that
@@ -60,7 +61,8 @@ export default function ReportsPage() {
   const { user } = useAuth();
   const canViewFinancial = hasEffectivePermission(user, REPORT_FINANCIAL_VIEW);
   const canViewGlobal = hasEffectivePermission(user, REPORT_GLOBAL_VIEW);
-  const canViewProvider = hasEffectivePermission(user, ESTAMP_PROVIDER_VIEW);
+  // There is no provider report in manual fulfilment mode.
+  const canViewProvider = hasEffectivePermission(user, ESTAMP_PROVIDER_VIEW) && !isManualFulfilment(user);
   const internal = isInternalRole(user?.role);
   const orgRequired = internal && !canViewGlobal;
 

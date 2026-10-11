@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getSidebarSections, getFlatSidebarItems, getActiveItem } from "./sidebarConfig";
+import { fulfilmentModeOf } from "../utils/fulfilment";
 import ErrorBoundary from "../components/common/ErrorBoundary";
 import NotificationBell from "../components/NotificationBell";
 import GlobalSearch from "../components/GlobalSearch";
@@ -38,8 +39,8 @@ export default function DashboardLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const sections = getSidebarSections(user?.role || "USER", user?.permissions);
-  const allItems = getFlatSidebarItems(user?.role || "USER", user?.permissions);
+  const sections = getSidebarSections(user?.role || "USER", user?.permissions, fulfilmentModeOf(user));
+  const allItems = getFlatSidebarItems(user?.role || "USER", user?.permissions, fulfilmentModeOf(user));
 
   // Close the mobile drawer on every navigation, and on Escape for keyboard
   // users - a drawer left open after navigating (or with no keyboard escape

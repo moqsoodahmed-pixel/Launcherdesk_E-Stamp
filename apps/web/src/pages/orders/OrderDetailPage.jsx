@@ -6,6 +6,7 @@ import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 import ErrorState from "../../components/common/ErrorState";
 import StatusBadge from "../../components/estamps/StatusBadge";
 import { actionErrorMessage, formatCurrency } from "../../utils/format";
+import FulfilmentPanel from "../../components/orders/FulfilmentPanel";
 
 // Non-terminal processing statuses - the only states worth polling while
 // this page is open. No fake progress: just a periodic re-fetch of the real
@@ -145,13 +146,17 @@ export default function OrderDetailPage() {
   if (!data) return null;
 
   const { order, request, certificateAvailable, document: certificateDocument, timeline, history, availableActions = {} } = data;
+  // Manual fulfilment: LauncherDesk staff stamp outside the app - plain
+  // wording for clients, a Fulfilment panel for permitted staff.
+  const manual = data.fulfilmentMode === "manual";
+  const showFulfilment = manual && (availableActions.start || availableActions.fulfil || availableActions.fail);
   const isIssued = order.eStampStatus === "ISSUED";
   const isFailed = order.eStampStatus === "FAILED";
   const certificateReady = isIssued && certificateAvailable && certificateDocument?.downloadAvailable !== false;
   const inFlight = NON_TERMINAL_STATUSES.includes(order.eStampStatus);
   // SUBMITTING with no provider reference = the provider call's outcome is
   // unknown. Shown honestly; never "fixed" by resubmitting.
-  const ambiguousSubmit = order.eStampStatus === "SUBMITTING" && !order.providerReference;
+  const ambiguousSubmit = !manual && order.eStampStatus === "SUBMITTING" && !order.providerReference;
   const canProcess = !!availableActions.process;
   const canSync = !!availableActions.sync;
 
@@ -209,6 +214,19 @@ export default function OrderDetailPage() {
         </div>
       )}
 
+      {showFulfilment && (
+        <FulfilmentPanel
+          order={order}
+          request={request}
+          articleTitle={request?.articleTitle}
+          actions={availableActions}
+          onDone={(message) => {
+            setNotice(message);
+            load(true);
+          }}
+        />
+      )}
+
       {/* Current status: E-Stamp vs Certificate are deliberately separate */}
       <Card title="Current status">
         <div className="grid sm:grid-cols-3 gap-4 text-sm">
@@ -218,7 +236,7 @@ export default function OrderDetailPage() {
           </div>
           <div>
             <p className="text-xs text-slate-500 mb-1">E-Stamp</p>
-            <p className="font-medium text-slate-900">{isIssued ? "Issued" : isFailed ? "Failed" : "Not issued yet"}</p>
+            <p className="font-medium text-slate-900">{isIssued ? "Issued" : isFailed ? "Failed" : manual ? "Being prepared by LauncherDesk" : "Not issued yet"}</p>
           </div>
           <div>
             <p className="text-xs text-slate-500 mb-1">Certificate</p>
@@ -274,7 +292,11 @@ export default function OrderDetailPage() {
               <li key={`${step.label}-${step.at}`} className="ml-4">
                 <span className={`absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full ${step.label === "Failed" ? "bg-red-500" : "bg-brand-600"}`} />
                 <div className="flex flex-wrap justify-between gap-x-4 text-sm">
-                  <span className="text-slate-800">{step.label}</span>
+                  <span className="text-slate-800">
+                    {step.label}
+                    {step.upcoming && <span className="text-amber-600"> (upcoming)</span>}
+                    {step.downloadable && <span className="text-slate-500"> (Download below)</span>}
+                  </span>
                   <span className="text-slate-400">{fmt(step.at)}</span>
                 </div>
                 {step.reason && <p className="text-xs text-red-700 break-words">{step.reason}</p>}
@@ -316,6 +338,15 @@ export default function OrderDetailPage() {
         </Card>
       )}
 
+      {manual ? (
+        <Card title="Stamp details">
+          <div className="space-y-3 text-sm">
+            <Row label="Stamp reference" value={order.providerReference || "Not issued yet"} />
+            <Row label="Work started" value={fmt(order.startedAt)} />
+            <Row label="Issued at" value={fmt(order.issuedAt)} />
+          </div>
+        </Card>
+      ) : (
       <Card title="Provider information">
         <div className="space-y-3 text-sm">
           <Row label="Provider reference" value={order.providerReference || "Not available"} />
@@ -326,6 +357,7 @@ export default function OrderDetailPage() {
           <Row label="Retry count" value={order.retryCount ?? 0} />
         </div>
       </Card>
+      )}
 
       <Card title="Certificate">
         <div className="text-sm space-y-2">

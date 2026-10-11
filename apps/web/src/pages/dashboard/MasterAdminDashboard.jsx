@@ -5,6 +5,8 @@ import { PERMISSIONS, hasPermission } from "../../utils/permissions";
 import { formatCurrency, errorMessage } from "../../utils/format";
 import KpiCard from "../../components/dashboard/KpiCard";
 import PaymentCreditsCard from "../../components/dashboard/PaymentCreditsCard";
+import FulfilmentSummaryCard from "../../components/dashboard/FulfilmentSummaryCard";
+import { isManualFulfilment } from "../../utils/fulfilment";
 import { KpiSkeleton } from "../../components/dashboard/LoadingSkeleton";
 import ChartCard from "../../components/dashboard/ChartCard";
 import DateRangeFilter from "../../components/dashboard/DateRangeFilter";
@@ -23,7 +25,8 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 export default function MasterAdminDashboard() {
   const { user } = useAuth();
   const canFinancial = hasPermission(user, PERMISSIONS.REPORT_FINANCIAL_VIEW);
-  const canProvider = hasPermission(user, PERMISSIONS.ESTAMP_PROVIDER_VIEW);
+  // No provider account exists in manual fulfilment mode.
+  const canProvider = hasPermission(user, PERMISSIONS.ESTAMP_PROVIDER_VIEW) && !isManualFulfilment(user);
   const canSettings = hasPermission(user, PERMISSIONS.SETTINGS_VIEW);
 
   const [preset, setPreset] = useState("last30days");
@@ -256,6 +259,7 @@ export default function MasterAdminDashboard() {
 
       <AttentionPanel alerts={alerts} loading={summaryLoading} />
 
+      {isManualFulfilment(user) && <FulfilmentSummaryCard showFulfilledToday />}
       <PaymentCreditsCard variant="master" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

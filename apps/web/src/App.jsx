@@ -17,6 +17,8 @@ import ArticlesPage from "./pages/articles/ArticlesPage";
 import WalletPage from "./pages/wallet/WalletPage";
 import OrdersListPage from "./pages/orders/OrdersListPage";
 import OrderDetailPage from "./pages/orders/OrderDetailPage";
+import FulfilQueuePage from "./pages/orders/FulfilQueuePage";
+import ProviderOnly from "./routes/ProviderOnly";
 import EStampProviderPage from "./pages/provider/EStampProviderPage";
 import PaymentsListPage from "./pages/wallet/PaymentsListPage";
 import PaymentDetailPage from "./pages/wallet/PaymentDetailPage";
@@ -76,8 +78,9 @@ export default function App() {
           <Route path="/users/new" element={guard(<CreateUserPage />, P.USER_CREATE)}/>
           <Route path="/users/:id" element={guard(<EditUserPage />, P.USER_VIEW)}/>
           <Route path="/orders" element={guard(<OrdersListPage />, P.ORDER_VIEW)}/>
+          <Route path="/orders/fulfil" element={guard(<FulfilQueuePage />, P.ORDER_MANAGE, INTERNAL)}/>
           <Route path="/orders/:id" element={guard(<OrderDetailPage />, P.ORDER_VIEW)}/>
-          <Route path="/estamp-provider" element={guard(<EStampProviderPage />, P.ESTAMP_PROVIDER_VIEW)}/>
+          <Route path="/estamp-provider" element={guard(<ProviderOnly><EStampProviderPage /></ProviderOnly>, P.ESTAMP_PROVIDER_VIEW)}/>
           <Route path="/articles" element={guard(<ArticlesPage />, P.ARTICLE_VIEW)}/>
           <Route path="/payments" element={guard(<PaymentsListPage />, P.PAYMENT_VIEW)}/>
           <Route path="/payments/credit-queue" element={guard(<CreditQueuePage />, P.WALLET_MANAGE, INTERNAL)}/>

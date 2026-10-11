@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { isManualFulfilment } from "../../utils/fulfilment";
 import { useApi } from "../../hooks/useApi";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { hasPermission, PERMISSIONS } from "../../utils/permissions";
@@ -107,7 +108,7 @@ export default function EStampsPage() {
           <label htmlFor="estamps-search" className="block text-xs font-medium text-slate-600 mb-1">
             Search
           </label>
-          <input id="estamps-search" placeholder="Order # or provider reference" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className={`${inputClass} w-full sm:w-72`} />
+          <input id="estamps-search" placeholder={isManualFulfilment(user) ? "Order # or stamp reference" : "Order # or provider reference"} value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className={`${inputClass} w-full sm:w-72`} />
         </div>
         <div>
           <label htmlFor="estamps-state" className="block text-xs font-medium text-slate-600 mb-1">
