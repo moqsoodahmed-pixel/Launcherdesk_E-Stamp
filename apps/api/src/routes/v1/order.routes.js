@@ -62,6 +62,7 @@ router.get("/", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIE
 router.get("/summary", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getOrderSummary);
 router.get("/fulfilment-summary", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getFulfilmentSummary);
 router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getOrder);
+router.post("/:id/verify-documents", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.verifyDocuments);
 // Operational processing actions - permission-gated (ORDER_MANAGE), not
 // role-only. Master Admin has it implicitly (all permissions); an Assistant
 // Master Admin only if Master Admin explicitly grants it; no client role

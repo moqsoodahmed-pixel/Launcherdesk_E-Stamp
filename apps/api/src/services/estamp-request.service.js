@@ -322,6 +322,8 @@ exports.EStampRequestService = {
             entityId: request._id.toString(),
             req: input.req,
         });
+        const buyer = await models_1.User.findById(input.createdBy);
+
         if (input.actorRole === shared_2.Role.ASSISTANT_MASTER_ADMIN) {
             await (0, notification_service_1.notifyAllMasterAdmins)({
                 type: shared_2.NotificationType.ASSISTANT_ADMIN_ACTIVITY,
@@ -331,6 +333,44 @@ exports.EStampRequestService = {
                 organizationId: input.organizationId,
             });
         }
+
+        // Real-time notification to all Master Admins about what was ordered
+        await (0, notification_service_1.notifyAllMasterAdmins)({
+            type: shared_2.NotificationType.ESTAMP_STATUS,
+            title: `New E-Stamp Order Placed: ${orderNumber}`,
+            message: `${org?.name || "Client"} (${buyer?.fullName || buyer?.email || "Super Admin"}) placed E-Stamp request ${request.requestNumber} (Order ${orderNumber}) for ₹${amount}. Parties: ${request.firstParty} & ${request.secondParty}.`,
+            relatedActorId: input.createdBy,
+            organizationId: input.organizationId,
+            metadata: {
+                requestId: request._id,
+                orderId: order._id,
+                orderNumber,
+                requestNumber: request.requestNumber,
+                amount,
+                organizationName: org?.name,
+                buyerName: buyer?.fullName || buyer?.email,
+                firstParty: request.firstParty,
+                secondParty: request.secondParty,
+                stateCode: request.stateCode,
+            },
+        });
+
+        // Real-time notification to Organization Admins about what was ordered
+        await (0, notification_service_1.notifyOrgAdmins)(input.organizationId, {
+            type: shared_2.NotificationType.ESTAMP_STATUS,
+            title: `New E-Stamp Order Placed: ${orderNumber}`,
+            message: `E-Stamp request ${request.requestNumber} (Order ${orderNumber}) for ₹${amount} has been placed. Parties: ${request.firstParty} & ${request.secondParty}. Verification & modification window: 20 minutes.`,
+            relatedActorId: input.createdBy,
+            organizationId: input.organizationId,
+            metadata: {
+                requestId: request._id,
+                orderId: order._id,
+                orderNumber,
+                requestNumber: request.requestNumber,
+                amount,
+            },
+        });
+
         return { request, order };
     },
     // Modification is limited to non-financial descriptive fields (see
@@ -388,6 +428,49 @@ exports.EStampRequestService = {
             });
         }
         return updated;
+    },
+    async verifyDocuments(requestId, organizationId, actorId, actorRole, notes, req) {
+        const query = organizationId ? { _id: requestId, organizationId } : { _id: requestId };
+        const request = await models_1.EStampRequest.findOne(query);
+        if (!request) {
+            throw ApiError_1.ApiError.notFound("E-Stamp request not found");
+        }
+        request.documentsVerified = true;
+        request.verifiedBy = actorId;
+        request.verifiedAt = new Date();
+        if (notes) request.verificationNotes = String(notes).slice(0, 1000);
+        await request.save();
+
+        if (request.orderId) {
+            await models_1.EStampOrder.findByIdAndUpdate(request.orderId, {
+                documentsVerified: true,
+                verifiedBy: actorId,
+                verifiedAt: new Date(),
+                verificationNotes: notes ? String(notes).slice(0, 1000) : undefined,
+            });
+        }
+
+        await (0, audit_service_1.recordAudit)({
+            actorId,
+            actorRole: actorRole || "UNKNOWN",
+            organizationId: request.organizationId,
+            action: shared_2.AuditAction.ORDER_MODIFIED,
+            entityType: "EStampRequest",
+            entityId: request._id.toString(),
+            metadata: { stage: "document_verification", documentsVerified: true, notes },
+            req,
+        });
+
+        // Notify client / super admin that documents have been verified
+        await (0, notification_service_1.notifyOrgAdmins)(request.organizationId, {
+            type: shared_2.NotificationType.ESTAMP_STATUS,
+            title: `Documents Verified: ${request.requestNumber}`,
+            message: `Documents for E-Stamp request ${request.requestNumber} have been reviewed and confirmed correct by the administrative team.`,
+            organizationId: request.organizationId,
+            metadata: { requestId: request._id, orderId: request.orderId },
+        });
+
+        return request;
     },
     // A modify that changes considerationPrice/numberOfEStamps recalculates
     // the amount and moves the reservation by the difference:
@@ -595,6 +678,13 @@ exports.EStampRequestService = {
                     entityType: "EStampRequest",
                     entityId: charged._id.toString(),
                     metadata: { type: "DEBIT", amount: charged.reservedAmount, walletTransactionId: result.transaction?._id?.toString() },
+                });
+                await (0, notification_service_1.notifyOrgAdmins)(charged.organizationId, {
+                    type: shared_2.NotificationType.PAYMENT,
+                    title: "E-Stamp Wallet Amount Charged",
+                    message: `20-minute window completed. ₹${charged.reservedAmount} has been deducted from your wallet for E-Stamp request ${charged.requestNumber}.`,
+                    organizationId: charged.organizationId,
+                    metadata: { requestId: charged._id, amount: charged.reservedAmount },
                 });
             }
             return "CHARGED";

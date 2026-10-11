@@ -39,10 +39,28 @@ export default function RequestDetailPage() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyNotes, setVerifyNotes] = useState("");
   // Only drives the initial-load empty/error state (never re-enters true once
   // the first successful load has happened - a later reload() failure during
   // save/cancel is already surfaced via `error` without hiding the page).
   const [initialLoading, setInitialLoading] = useState(true);
+
+  async function handleVerifyDocuments() {
+    setVerifying(true);
+    setError(null);
+    try {
+      await apiClient.post(`/estamps/${id}/verify-documents`, { notes: verifyNotes });
+      setNotice("Documents verified and confirmed as correct.");
+      setShowVerifyModal(false);
+      await reload();
+    } catch (err) {
+      setError(describeError(err, "Unable to verify documents"));
+    } finally {
+      setVerifying(false);
+    }
+  }
 
   // ---- Data loading (unchanged authority: the server's canModify/canCancel/
   // windowExpiresAt/windowRemainingSeconds are always trusted as-is, never
@@ -251,6 +269,33 @@ export default function RequestDetailPage() {
         <Row label="Stamp Duty Paid By" value={request.stampDutyPaidBy} />
       </Section>
 
+      {/* Document Review & Verification */}
+      <Section title="Document Verification">
+        <div className="space-y-3 text-sm">
+          <Row
+            label="Verification status"
+            value={
+              request.documentsVerified
+                ? "✓ Documents Verified & Confirmed"
+                : "Awaiting Admin Review"
+            }
+          />
+          {request.verifiedAt && <Row label="Verified at" value={new Date(request.verifiedAt).toLocaleString()} />}
+          {request.verificationNotes && <Row label="Notes" value={request.verificationNotes} />}
+          {!request.documentsVerified && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowVerifyModal(true)}
+                className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+              >
+                Confirm Documents Correct
+              </button>
+            </div>
+          )}
+        </div>
+      </Section>
+
       {/* Lifecycle timeline */}
       <Section title="Lifecycle">
         <RequestTimeline request={request} order={order} manual={isManualFulfilment(user)} />
@@ -305,6 +350,45 @@ export default function RequestDetailPage() {
             </div>
           )}
         </Section>
+      )}
+
+      {showVerifyModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Confirm Document Verification</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Please verify that party names ({request?.firstParty} & {request?.secondParty}), consideration value, and attached document descriptions are correct.
+            </p>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-slate-700 mb-1">Verification Notes (Optional)</label>
+              <textarea
+                value={verifyNotes}
+                onChange={(e) => setVerifyNotes(e.target.value)}
+                rows={3}
+                placeholder="e.g. Identity and agreement documents verified against registry..."
+                className="w-full text-sm rounded-lg border border-slate-300 p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowVerifyModal(false)}
+                disabled={verifying}
+                className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleVerifyDocuments}
+                disabled={verifying}
+                className="rounded-lg px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50"
+              >
+                {verifying ? "Confirming..." : "Confirm & Mark Verified"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

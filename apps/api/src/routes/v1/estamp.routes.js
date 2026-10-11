@@ -50,4 +50,5 @@ router.get("/", (0, authorize_1.requirePermission)(shared_1.Permission.ESTAMP_VI
 router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.ESTAMP_VIEW), ctrl.getRequest);
 router.patch("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.ESTAMP_MODIFY), (0, validate_1.validateBody)(validation_1.updateEStampRequestSchema), ctrl.modifyRequest);
 router.post("/:id/cancel", (0, authorize_1.requirePermission)(shared_1.Permission.ESTAMP_CANCEL), ctrl.cancelRequest);
+router.post("/:id/verify-documents", (0, authorize_1.requirePermission)(shared_1.Permission.ESTAMP_VIEW), ctrl.verifyDocuments);
 exports.default = router;

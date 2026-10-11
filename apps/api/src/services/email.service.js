@@ -55,7 +55,7 @@ async function dispatch(to, templateName, data, eventKey) {
         }
         catch (err) {
             log.status = "FAILED";
-            log.errorMessage = err?.message ? String(err.message).slice(0, 300) : "Unknown email provider error";
+            log.errorMessage = err?.message ? String(err.message).slice(0, 1000) : "Unknown email provider error";
             await log.save().catch(() => { });
             logger_1.logger.error("[email.service] Failed to send email", { template: templateName, error: log.errorMessage });
         }
@@ -73,8 +73,12 @@ exports.EmailService = {
     async sendPasswordResetOTP(to, code) {
         await dispatch(to, "otp", { code, purpose: "password reset" });
     },
-    async sendRequestCreatedEmail(to, requestNumber) {
-        await dispatch(to, "requestCreated", { requestNumber });
+    async sendRequestCreatedEmail(to, payloadOrRequestNumber) {
+        const data = typeof payloadOrRequestNumber === "object" ? payloadOrRequestNumber : { requestNumber: payloadOrRequestNumber };
+        await dispatch(to, "requestCreated", data);
+    },
+    async sendOrderPlacedEmail(to, orderData, eventKey) {
+        await dispatch(to, "orderPlaced", orderData, eventKey);
     },
     async sendPaymentSuccessEmail(to, payloadOrAmount, eventKey) {
         const data = typeof payloadOrAmount === "object" ? payloadOrAmount : { amount: payloadOrAmount };

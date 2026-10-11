@@ -14,13 +14,19 @@ class BrevoEmailProvider {
         const client = SibApiV3Sdk.ApiClient.instance;
         client.authentications["api-key"].apiKey = env_1.env.BREVO_API_KEY;
         const api = new SibApiV3Sdk.TransactionalEmailsApi();
-        const result = await api.sendTransacEmail({
-            sender: { email: env_1.env.EMAIL_FROM || env_1.env.BREVO_SENDER_EMAIL, name: env_1.env.EMAIL_FROM_NAME || env_1.env.BREVO_SENDER_NAME },
-            to: [{ email: params.to }],
-            subject: params.subject,
-            htmlContent: params.html,
-        });
-        return { status: "SENT", providerMessageId: result?.messageId || null, source: "brevo" };
+        try {
+            const result = await api.sendTransacEmail({
+                sender: { email: env_1.env.EMAIL_FROM || env_1.env.BREVO_SENDER_EMAIL, name: env_1.env.EMAIL_FROM_NAME || env_1.env.BREVO_SENDER_NAME },
+                to: [{ email: params.to }],
+                subject: params.subject,
+                htmlContent: params.html,
+            });
+            return { status: "SENT", providerMessageId: result?.messageId || null, source: "brevo" };
+        } catch (err) {
+            const responseText = err.response?.text || (err.response?.body && (typeof err.response.body === "string" ? err.response.body : JSON.stringify(err.response.body))) || "";
+            const detail = responseText || err.message || "Unknown error";
+            throw new Error(`Brevo API Error: ${detail}`);
+        }
     }
 }
 exports.BrevoEmailProvider = BrevoEmailProvider;

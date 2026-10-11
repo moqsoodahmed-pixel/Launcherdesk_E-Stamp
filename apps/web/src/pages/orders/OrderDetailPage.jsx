@@ -33,6 +33,9 @@ export default function OrderDetailPage() {
   const [confirming, setConfirming] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyNotes, setVerifyNotes] = useState("");
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [pollStopped, setPollStopped] = useState(false);
   const pollRef = useRef(null);
 
@@ -129,6 +132,21 @@ export default function OrderDetailPage() {
       setDownloadError(actionErrorMessage(err, "Certificate download failed. Please try again."));
     } finally {
       setDownloading(false);
+    }
+  }
+
+  async function handleVerifyDocuments() {
+    setVerifying(true);
+    setError(null);
+    try {
+      await apiClient.post(`/orders/${id}/verify-documents`, { notes: verifyNotes });
+      setNotice("Documents verified and confirmed as correct.");
+      setShowVerifyModal(false);
+      await load(true);
+    } catch (err) {
+      setError(actionErrorMessage(err, "Failed to verify documents."));
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -338,6 +356,73 @@ export default function OrderDetailPage() {
         </Card>
       )}
 
+      {/* Document Review & Verification */}
+      <Card
+        title="Document Verification"
+        action={
+          order.documentsVerified || request?.documentsVerified ? (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+              ✓ Documents Verified
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+              Pending Review
+            </span>
+          )
+        }
+      >
+        <div className="space-y-4 text-sm">
+          <p className="text-slate-600">
+            Admins and Master Admins can review all party details, agreement descriptions, and uploaded document attachments to confirm everything is accurate before the 20-minute window closes.
+          </p>
+
+          <Row
+            label="Verification status"
+            value={
+              order.documentsVerified || request?.documentsVerified
+                ? "Verified & Confirmed"
+                : "Awaiting Admin Review"
+            }
+          />
+          {(order.verifiedAt || request?.verifiedAt) && (
+            <Row label="Verified at" value={fmt(order.verifiedAt || request?.verifiedAt)} />
+          )}
+          {(order.verificationNotes || request?.verificationNotes) && (
+            <Row label="Notes" value={order.verificationNotes || request?.verificationNotes} />
+          )}
+
+          {Array.isArray(data?.supportingDocuments) && data.supportingDocuments.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Uploaded Documents ({data.supportingDocuments.length})</h4>
+              <ul className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                {data.supportingDocuments.map((doc) => (
+                  <li key={doc._id} className="p-3 flex items-center justify-between text-sm">
+                    <div>
+                      <p className="font-medium text-slate-800">{doc.originalFileName}</p>
+                      <p className="text-xs text-slate-400">
+                        {doc.fileType} • {doc.sizeBytes ? `${(doc.sizeBytes / 1024).toFixed(1)} KB` : ""} • {fmt(doc.createdAt)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {!(order.documentsVerified || request?.documentsVerified) && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowVerifyModal(true)}
+                className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+              >
+                Confirm Documents Correct
+              </button>
+            </div>
+          )}
+        </div>
+      </Card>
+
       {manual ? (
         <Card title="Stamp details">
           <div className="space-y-3 text-sm">
@@ -413,6 +498,45 @@ export default function OrderDetailPage() {
             </ol>
           )}
         </Card>
+      )}
+
+      {showVerifyModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Confirm Document Verification</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Please verify that party names ({request?.firstParty} & {request?.secondParty}), consideration value, and attached document descriptions are correct.
+            </p>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-slate-700 mb-1">Verification Notes (Optional)</label>
+              <textarea
+                value={verifyNotes}
+                onChange={(e) => setVerifyNotes(e.target.value)}
+                rows={3}
+                placeholder="e.g. Identity and agreement documents verified against registry..."
+                className="w-full text-sm rounded-lg border border-slate-300 p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowVerifyModal(false)}
+                disabled={verifying}
+                className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleVerifyDocuments}
+                disabled={verifying}
+                className="rounded-lg px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50"
+              >
+                {verifying ? "Confirming..." : "Confirm & Mark Verified"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

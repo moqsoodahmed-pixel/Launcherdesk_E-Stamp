@@ -51,6 +51,14 @@ exports.env = {
     BREVO_API_KEY: process.env.BREVO_API_KEY || "",
     BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL || "no-reply@launcherdesk.com",
     BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME || "LauncherDesk E-Stamping",
+    // Standard SMTP / Gmail credentials for direct and reliable mail delivery:
+    SMTP_HOST: process.env.SMTP_HOST || "",
+    SMTP_PORT: parseInt(process.env.SMTP_PORT || "587", 10),
+    SMTP_SECURE: process.env.SMTP_SECURE === "true",
+    SMTP_USER: process.env.SMTP_USER || "",
+    SMTP_PASS: process.env.SMTP_PASS || "",
+    GMAIL_USER: process.env.GMAIL_USER || "",
+    GMAIL_APP_PASSWORD: process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || "",
     // EMAIL_FROM/EMAIL_FROM_NAME take precedence over BREVO_SENDER_EMAIL/NAME
     // when set, so the "from" identity isn't tied to the Brevo-specific name.
     EMAIL_FROM: process.env.EMAIL_FROM || "",

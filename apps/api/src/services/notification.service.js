@@ -71,3 +71,18 @@ async function notifyAllMasterAdmins(params) {
         eventKey: params.eventKey ? `${params.eventKey}:${admin._id.toString()}` : undefined,
     })));
 }
+// Fans a notification out to all active Admins/Super Admins in a specific organization.
+async function notifyOrgAdmins(organizationId, params) {
+    const orgAdmins = await models_1.User.find({
+        organizationId,
+        role: { $in: [shared_1.Role.SUPER_ADMIN, shared_1.Role.ADMIN] },
+        isActive: true,
+    }).select("_id role");
+    await Promise.all(orgAdmins.map((admin) => notify({
+        recipientId: admin._id.toString(),
+        recipientRole: admin.role,
+        ...params,
+        eventKey: params.eventKey ? `${params.eventKey}:${admin._id.toString()}` : undefined,
+    })));
+}
+exports.notifyOrgAdmins = notifyOrgAdmins;

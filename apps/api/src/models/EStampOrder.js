@@ -36,6 +36,11 @@ const eStampOrderSchema = new mongoose_1.Schema({
     startedAt: { type: Date },
     fulfilmentNotes: { type: String, maxlength: 1000 },
     failedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User" },
+    // Document review and verification by admin / staff
+    documentsVerified: { type: Boolean, default: false },
+    verifiedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User" },
+    verifiedAt: { type: Date },
+    verificationNotes: { type: String, maxlength: 1000 },
 }, { timestamps: true });
 eStampOrderSchema.index({ organizationId: 1, status: 1 });
 eStampOrderSchema.index({ organizationId: 1, createdAt: -1 });

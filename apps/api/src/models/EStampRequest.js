@@ -48,6 +48,11 @@ const eStampRequestSchema = new mongoose_1.Schema({
     // Set when a failed manual fulfilment reversed the charge (one CREDIT,
     // idempotency key estamp-refund:<requestId>).
     refundedAt: { type: Date },
+    // Document review and verification by admin / staff
+    documentsVerified: { type: Boolean, default: false },
+    verifiedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User" },
+    verifiedAt: { type: Date },
+    verificationNotes: { type: String, maxlength: 1000 },
 }, { timestamps: true });
 eStampRequestSchema.index({ organizationId: 1, createdAt: -1 });
 eStampRequestSchema.index({ organizationId: 1, status: 1 });

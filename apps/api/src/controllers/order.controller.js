@@ -304,6 +304,10 @@ exports.getOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             articleTitle: article ? article.title : null,
             lockedAt: request.lockedAt,
             modificationDeadline: request.modificationDeadline,
+            documentsVerified: !!request.documentsVerified,
+            verifiedBy: request.verifiedBy,
+            verifiedAt: request.verifiedAt,
+            verificationNotes: request.verificationNotes,
         } : null,
         // certificateAvailable stays a plain boolean for backward
         // compatibility (existing frontend usage / Phase 13 tests); `document`
@@ -319,6 +323,10 @@ exports.getOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             createdAt: document.createdAt,
             downloadAvailable: order.downloadStatus === "AVAILABLE" || order.downloadStatus === "DOWNLOADED",
         } : null,
+        supportingDocuments: await models_1.FileAsset.find({
+            $or: [{ orderId: order._id }, ...(request ? [{ requestId: request._id }] : [])],
+            fileType: { $ne: "ESTAMP_DOCUMENT" },
+        }).select("_id originalFileName mimeType sizeBytes createdAt fileType"),
         timeline,
         availableActions: fulfilmentMode === "manual" ? await computeManualActions(req, order, request) : computeAvailableActions(req, order, request),
         fulfilmentMode,
@@ -398,4 +406,23 @@ exports.getFulfilmentSummary = (0, asyncHandler_1.asyncHandler)(async (req, res)
     const ids = await (0, orgAccess_1.getAccessibleOrganizationIds)(req);
     const summary = await fulfilment_service_1.FulfilmentService.summary(ids === null ? undefined : { $in: ids });
     return (0, ApiResponse_1.ok)(res, summary);
+});
+exports.verifyDocuments = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const order = await models_1.EStampOrder.findById(req.params.id);
+    if (!order || (!isInternalActor(req) && order.organizationId.toString() !== req.user.organizationId)
+        || (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN && !(await (0, orgAccess_1.canAccessOrganization)(req, order.organizationId)))) {
+        throw ApiError_1.ApiError.notFound("Order not found");
+    }
+    const isInternal = isInternalActor(req);
+    const organizationId = isInternal ? undefined : order.organizationId;
+    const request = await estamp_request_service_1.EStampRequestService.verifyDocuments(
+        order.requestId,
+        organizationId,
+        req.user.id,
+        req.user.role,
+        req.body?.notes,
+        req
+    );
+    const updatedOrder = await models_1.EStampOrder.findById(order._id);
+    return (0, ApiResponse_1.ok)(res, { order: updatedOrder, request });
 });

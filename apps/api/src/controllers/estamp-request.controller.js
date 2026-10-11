@@ -34,8 +34,27 @@ exports.createRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         req,
     });
     const user = await models_1.User.findById(req.user.id);
-    if (user)
-        await email_service_1.EmailService.sendRequestCreatedEmail(user.email, request.requestNumber);
+    const org = await models_1.Organization.findById(organizationId);
+    const orderData = {
+        requestNumber: request.requestNumber,
+        orderNumber: order.orderNumber,
+        organizationName: org?.name || "Client Organization",
+        buyerName: user?.fullName || user?.email || "Super Admin",
+        firstParty: request.firstParty,
+        secondParty: request.secondParty,
+        amount: order.amount,
+        stateCode: request.stateCode,
+        descriptionOfDocument: request.descriptionOfDocument,
+    };
+    if (user?.email) {
+        await email_service_1.EmailService.sendRequestCreatedEmail(user.email, orderData);
+    }
+    const masterAdmins = await models_1.User.find({ role: shared_1.Role.MASTER_ADMIN, isActive: true }).select("email");
+    for (const ma of masterAdmins) {
+        if (ma.email && ma.email !== user?.email) {
+            await email_service_1.EmailService.sendOrderPlacedEmail(ma.email, orderData);
+        }
+    }
     return (0, ApiResponse_1.created)(res, { request, order });
 });
 // Informational only - runs the SAME CalculationService the real request
@@ -142,5 +161,18 @@ exports.cancelRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if ((0, orgAccess_1.isInternalRole)(req.user.role))
         await (0, orgAccess_1.assertCanActOnOrganization)(req, organizationId);
     const request = await estamp_request_service_1.EStampRequestService.cancelRequest(req.params.id, organizationId, req.user.id, req.user.role, req);
+    return (0, ApiResponse_1.ok)(res, request);
+});
+exports.verifyDocuments = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const isInternal = (0, orgAccess_1.isInternalRole)(req.user.role);
+    const organizationId = isInternal ? undefined : req.user.organizationId;
+    const request = await estamp_request_service_1.EStampRequestService.verifyDocuments(
+        req.params.id,
+        organizationId,
+        req.user.id,
+        req.user.role,
+        req.body?.notes,
+        req
+    );
     return (0, ApiResponse_1.ok)(res, request);
 });
