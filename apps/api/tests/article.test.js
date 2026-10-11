@@ -148,6 +148,13 @@ describe("Client read access", () => {
     expect(error).toBeNull();
     expect(res.body.data.find((a) => a._id.toString() === article._id.toString())).toBeUndefined();
   });
+
+  it("treats regex metacharacters in the title search literally instead of failing", async () => {
+    await makeArticleWithVersion({ stateCode: "KA" });
+    const { res, error } = await runController(articleController.listArticles, clientReq(Role.USER, { query: { search: "(unclosed" } }), makeRes());
+    expect(error).toBeNull();
+    expect(res.body.data).toEqual([]);
+  });
 });
 
 describe("Phase 22: GET /articles/states", () => {

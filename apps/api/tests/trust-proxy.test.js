@@ -34,3 +34,21 @@ describe("trust proxy", () => {
     expect(createApp().get("trust proxy")).toBe(1);
   });
 });
+
+describe("CORS origin", () => {
+  it("matches the frontend origin even when FRONTEND_URL has a trailing slash", async () => {
+    const { env } = await import("../src/config/env.js");
+    const previous = env.FRONTEND_URL;
+    env.FRONTEND_URL = "https://launcherdesk-e-stamp.pages.dev/";
+    try {
+      const app = createApp();
+      const server = app.listen(0);
+      const { port } = server.address();
+      const res = await fetch(`http://127.0.0.1:${port}/health`, { headers: { Origin: "https://launcherdesk-e-stamp.pages.dev" } });
+      server.close();
+      expect(res.headers.get("access-control-allow-origin")).toBe("https://launcherdesk-e-stamp.pages.dev");
+    } finally {
+      env.FRONTEND_URL = previous;
+    }
+  });
+});

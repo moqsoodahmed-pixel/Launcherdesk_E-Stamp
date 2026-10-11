@@ -55,7 +55,9 @@ exports.listArticles = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (stateCode)
         filter.stateCode = stateCode.toUpperCase();
     if (search)
-        filter.title = { $regex: search, $options: "i" };
+        // Escaped so a metacharacter (e.g. "(") matches literally instead of
+        // throwing a 500 - same escape as user.controller.js's search.
+        filter.title = { $regex: String(search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
     if (internal && (req.query.page || req.query.limit)) {
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));

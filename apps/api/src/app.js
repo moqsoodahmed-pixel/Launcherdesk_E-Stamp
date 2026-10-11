@@ -28,7 +28,9 @@ function createApp() {
     app.set("trust proxy", Number.isInteger(trustProxyHops) && trustProxyHops >= 0 ? trustProxyHops : 1);
     app.use((0, helmet_1.default)());
     app.use((0, cors_1.default)({
-        origin: env_1.env.FRONTEND_URL,
+        // Browsers send Origin without a trailing slash; strip one from the
+        // configured value so "https://x.pages.dev/" still matches exactly.
+        origin: String(env_1.env.FRONTEND_URL).replace(/\/+$/, ""),
         credentials: true,
     }));
     // Captures the exact raw request bytes alongside the parsed JSON body.
