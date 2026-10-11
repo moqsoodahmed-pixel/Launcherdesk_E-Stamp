@@ -52,6 +52,7 @@ export default function AssistantDashboard() {
   const load = useCallback(() => {
     if (!canReport || !scopeReady) return;
     setSummaryLoading(true);
+    setSummaryErr(null);
     apiClient
       .get("/reports/dashboard", { params: scopeParams })
       .then((r) => setSummary(r.data.data))
@@ -59,6 +60,7 @@ export default function AssistantDashboard() {
       .finally(() => setSummaryLoading(false));
 
     setRequestsLoading(true);
+    setRequestsErr(null);
     apiClient
       .get("/reports/requests", { params: { ...scopeParams, preset } })
       .then((r) => setRequests(r.data.data))
@@ -66,6 +68,7 @@ export default function AssistantDashboard() {
       .finally(() => setRequestsLoading(false));
 
     setActivityLoading(true);
+    setActivityErr(null);
     apiClient
       .get("/reports/recent-activity", { params: { ...scopeParams, limit: 5 } })
       .then((r) => setActivity(r.data.data))
@@ -74,6 +77,7 @@ export default function AssistantDashboard() {
 
     if (canFinancial) {
       setFinancialLoading(true);
+      setFinancialErr(null);
       apiClient
         .get("/reports/financial", { params: { ...scopeParams, preset } })
         .then((r) => setFinancial(r.data.data))

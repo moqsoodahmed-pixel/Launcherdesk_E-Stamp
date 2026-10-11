@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { getErrorMessage } from "../../utils/errors";
 
 // Phase 16 - user-facing Terms/Privacy/Refund policy view + explicit
 // acceptance. This is a SOFTWARE MECHANISM only: no approved legal content
@@ -31,7 +32,7 @@ export default function PolicyPage() {
       .get(`/policies/${type}/current`)
       .then((res) => setCurrent(res.data.data))
       .catch((err) => {
-        setError(err?.response?.data?.message || "Failed to load this policy.");
+        setError(getErrorMessage(err, "Failed to load this policy."));
         setCurrent(null);
       });
     if (user) {
@@ -58,7 +59,7 @@ export default function PolicyPage() {
       setNotice(`You have accepted ${current.title} v${current.version}.`);
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to record your acceptance.");
+      setError(getErrorMessage(err, "Failed to record your acceptance."));
     } finally {
       setSubmitting(false);
     }

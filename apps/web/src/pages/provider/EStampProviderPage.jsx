@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { formatCurrency } from "../../utils/format";
+import { getErrorMessage } from "../../utils/errors";
 
 const STATUS_LABEL = {
   AVAILABLE: { text: "Available", className: "bg-green-100 text-green-700" },
@@ -25,7 +26,7 @@ export default function EStampProviderPage() {
         setBalance(balanceRes.data.data);
         setUsage(usageRes.data.data);
       })
-      .catch((err) => setError(err?.response?.data?.message || "Failed to load E-Stamp provider information."))
+      .catch((err) => setError(getErrorMessage(err, "Failed to load E-Stamp provider information.")))
       .finally(() => setLoading(false));
   }, [groupBy]);
 
@@ -40,7 +41,7 @@ export default function EStampProviderPage() {
       const { data } = await apiClient.post("/estamp-provider/balance/refresh");
       setBalance(data.data);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to refresh balance.");
+      setError(getErrorMessage(err, "Failed to refresh balance."));
     } finally {
       setRefreshing(false);
     }

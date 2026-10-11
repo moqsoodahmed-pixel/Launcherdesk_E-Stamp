@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { getErrorMessage } from "../../utils/errors";
 
 // Phase 17 - Advanced System Settings & Configuration Management. Replaces
 // the previous PlaceholderPage at /settings. This page ONLY ever talks to
@@ -86,7 +87,7 @@ export default function SystemSettingsPage() {
       .get("/settings")
       .then((res) => setSettings(res.data.data))
       .catch((err) => {
-        setError(err?.response?.status === 403 ? "You do not have permission to view system settings." : err?.response?.data?.message || "Failed to load settings.");
+        setError(err?.response?.status === 403 ? "You do not have permission to view system settings." : getErrorMessage(err, "Failed to load settings."));
         setSettings([]);
       })
       .finally(() => setLoading(false));
@@ -139,7 +140,7 @@ export default function SystemSettingsPage() {
         await load();
         setError("This setting was changed by someone else. The latest value has been reloaded - please try again.");
       } else {
-        setError(err?.response?.data?.message || `Failed to update ${entry.key}.`);
+        setError(getErrorMessage(err, `Failed to update ${entry.key}.`));
       }
     } finally {
       setSavingKey(null);

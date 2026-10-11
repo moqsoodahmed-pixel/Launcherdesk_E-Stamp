@@ -46,6 +46,7 @@ export default function MasterAdminDashboard() {
 
   const loadSummary = useCallback(() => {
     setSummaryLoading(true);
+    setSummaryErr(null);
     apiClient
       .get("/reports/dashboard")
       .then((r) => setSummary(r.data.data))
@@ -55,6 +56,7 @@ export default function MasterAdminDashboard() {
 
   const loadRequests = useCallback(() => {
     setRequestsLoading(true);
+    setRequestsErr(null);
     apiClient
       .get("/reports/requests", { params: { preset } })
       .then((r) => setRequests(r.data.data))
@@ -65,6 +67,7 @@ export default function MasterAdminDashboard() {
   const loadFinancial = useCallback(() => {
     if (!canFinancial) return;
     setFinancialLoading(true);
+    setFinancialErr(null);
     apiClient
       .get("/reports/financial", { params: { preset } })
       .then((r) => setFinancial(r.data.data))
@@ -74,6 +77,7 @@ export default function MasterAdminDashboard() {
 
   const loadActivity = useCallback(() => {
     setActivityLoading(true);
+    setActivityErr(null);
     apiClient
       .get("/reports/recent-activity", { params: { limit: 5 } })
       .then((r) => setActivity(r.data.data))

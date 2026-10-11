@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getErrorMessage } from "../../utils/errors";
 
 export default function ForgotPasswordPage() {
   const { forgotPassword } = useAuth();
@@ -22,7 +23,7 @@ export default function ForgotPasswordPage() {
       // registered accounts.
       setChallengeToken(result.challengeToken);
     } catch (err) {
-      setError(err?.response?.data?.message || "Something went wrong. Please try again.");
+      setError(getErrorMessage(err, "Something went wrong. Please try again."));
     } finally {
       setBusy(false);
     }

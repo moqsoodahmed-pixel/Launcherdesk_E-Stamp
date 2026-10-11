@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { formatCurrency } from "../../utils/format";
+import { getErrorMessage } from "../../utils/errors";
 
 const STATUS_OPTIONS = ["ACTIVE", "PENDING_APPROVAL", "RESTRICTED", "SUSPENDED", "DEACTIVATED"];
 
@@ -39,7 +40,7 @@ export default function OrganizationDetailPage() {
           address: res.data.data.organization.address || "",
         });
       })
-      .catch((err) => setError(err?.response?.data?.message || "Failed to load organization."))
+      .catch((err) => setError(getErrorMessage(err, "Failed to load organization.")))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -57,7 +58,7 @@ export default function OrganizationDetailPage() {
       setNotice("Organization updated.");
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to update organization.");
+      setError(getErrorMessage(err, "Failed to update organization."));
     } finally {
       setSavingEdit(false);
     }
@@ -74,7 +75,7 @@ export default function OrganizationDetailPage() {
       setNotice(`Status changed to ${newStatus.replace(/_/g, " ")}.`);
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to change status.");
+      setError(getErrorMessage(err, "Failed to change status."));
     } finally {
       setStatusBusy(false);
     }
@@ -89,7 +90,7 @@ export default function OrganizationDetailPage() {
       setProvisionResult(result.data);
       load();
     } catch (err) {
-      setProvisionError(err?.response?.data?.message || "Failed to provision Super Admin.");
+      setProvisionError(getErrorMessage(err, "Failed to provision Super Admin."));
     } finally {
       setProvisionBusy(false);
     }

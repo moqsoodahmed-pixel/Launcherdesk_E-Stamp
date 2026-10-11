@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
+import { getErrorMessage } from "../../utils/errors";
 
 export default function CreateOrganizationPage() {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ export default function CreateOrganizationPage() {
         const firstField = Object.keys(flat.fieldErrors)[0];
         setError(`${firstField}: ${flat.fieldErrors[firstField][0]}`);
       } else {
-        setError(err?.response?.data?.message || "Failed to create organization.");
+        setError(getErrorMessage(err, "Failed to create organization."));
       }
     } finally {
       setBusy(false);

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { getErrorMessage } from "../../utils/errors";
 
 // Phase 16 - internal policy management: create a new DRAFT version, publish
 // it, and browse version history. A PUBLISHED/SUPERSEDED version is NEVER
@@ -63,7 +64,7 @@ export default function PolicyAdminPage() {
       .get(`/policies/${type}/history`)
       .then((res) => setItems(res.data.data.items))
       .catch((err) => {
-        setError(err?.response?.status === 403 ? "You do not have permission to view policy history." : err?.response?.data?.message || "Failed to load policy history.");
+        setError(err?.response?.status === 403 ? "You do not have permission to view policy history." : getErrorMessage(err, "Failed to load policy history."));
         setItems([]);
       })
       .finally(() => setLoading(false));
@@ -84,7 +85,7 @@ export default function PolicyAdminPage() {
       setForm({ version: "", title: "", content: "" });
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to create draft.");
+      setError(getErrorMessage(err, "Failed to create draft."));
     } finally {
       setCreating(false);
     }
@@ -99,7 +100,7 @@ export default function PolicyAdminPage() {
       setNotice(`Version ${item.version} published.`);
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to publish this version.");
+      setError(getErrorMessage(err, "Failed to publish this version."));
     } finally {
       setPublishingId(null);
     }

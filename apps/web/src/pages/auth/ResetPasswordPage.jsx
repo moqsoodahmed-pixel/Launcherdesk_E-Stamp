@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getErrorMessage } from "../../utils/errors";
 
 export default function ResetPasswordPage() {
   const { resetPassword } = useAuth();
@@ -38,7 +39,7 @@ export default function ResetPasswordPage() {
       } else if (status === 429) {
         setError("Too many attempts. Please wait before trying again.");
       } else {
-        setError(err?.response?.data?.message || "Password reset failed.");
+        setError(getErrorMessage(err, "Password reset failed."));
       }
     } finally {
       setBusy(false);

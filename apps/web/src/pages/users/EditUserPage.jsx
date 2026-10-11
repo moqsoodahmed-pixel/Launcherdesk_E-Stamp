@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { apiClient } from "../../api/client";
+import { getErrorMessage } from "../../utils/errors";
 
 export default function EditUserPage() {
   const { id } = useParams();
@@ -22,7 +23,7 @@ export default function EditUserPage() {
         setUser(res.data.data);
         setForm({ name: res.data.data.name, email: res.data.data.email, phone: res.data.data.phone || "" });
       })
-      .catch((err) => setError(err?.response?.data?.message || "Failed to load user."))
+      .catch((err) => setError(getErrorMessage(err, "Failed to load user.")))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -39,7 +40,7 @@ export default function EditUserPage() {
       setNotice("Employee updated.");
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to update employee.");
+      setError(getErrorMessage(err, "Failed to update employee."));
     } finally {
       setSaving(false);
     }
@@ -54,7 +55,7 @@ export default function EditUserPage() {
       setNotice(`Role changed to ${newRole}.`);
       load();
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to change role.");
+      setError(getErrorMessage(err, "Failed to change role."));
     } finally {
       setRoleBusy(false);
     }

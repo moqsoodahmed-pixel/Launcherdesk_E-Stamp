@@ -36,6 +36,7 @@ export default function AdminDashboard() {
 
   const loadSummary = useCallback(() => {
     setSummaryLoading(true);
+    setSummaryErr(null);
     apiClient
       .get("/reports/dashboard")
       .then((r) => setSummary(r.data.data))
@@ -45,6 +46,7 @@ export default function AdminDashboard() {
 
   const loadRequests = useCallback(() => {
     setRequestsLoading(true);
+    setRequestsErr(null);
     apiClient
       .get("/reports/requests", { params: { preset } })
       .then((r) => setRequests(r.data.data))
@@ -54,6 +56,7 @@ export default function AdminDashboard() {
 
   const loadActivity = useCallback(() => {
     setActivityLoading(true);
+    setActivityErr(null);
     apiClient
       .get("/reports/recent-activity", { params: { limit: 5 } })
       .then((r) => setActivity(r.data.data))

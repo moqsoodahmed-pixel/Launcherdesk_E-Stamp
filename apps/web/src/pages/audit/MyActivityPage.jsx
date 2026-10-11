@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
+import { getErrorMessage } from "../../utils/errors";
 
 // Simpler than AuditLogsPage.jsx by design - hard-scoped server-side to the
 // caller's own actorId, so there is nothing to filter by organization or
@@ -21,7 +22,7 @@ export default function MyActivityPage() {
         setItems(r.data.data.items);
         setTotal(r.data.data.total);
       })
-      .catch((err) => setError(err?.response?.data?.message || "Failed to load your activity."))
+      .catch((err) => setError(getErrorMessage(err, "Failed to load your activity.")))
       .finally(() => setLoading(false));
   }, [page, limit]);
 

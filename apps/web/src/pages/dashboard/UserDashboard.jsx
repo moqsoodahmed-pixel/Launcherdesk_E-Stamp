@@ -33,6 +33,7 @@ export default function UserDashboard() {
   const loadRequests = useCallback(() => {
     if (!canViewRequests) return;
     setRequestsLoading(true);
+    setRequestsErr(null);
     apiClient
       .get("/estamps", { params: { limit: 5 } })
       .then((r) => setRequests(r.data.data))
@@ -43,6 +44,7 @@ export default function UserDashboard() {
   const loadOrders = useCallback(() => {
     if (!canViewOrders) return;
     setOrdersLoading(true);
+    setOrdersErr(null);
     apiClient
       .get("/orders", { params: { limit: 5 } })
       .then((r) => setOrders(r.data.data))

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { getErrorMessage } from "../../utils/errors";
 
 // @launcherdesk/shared is a CommonJS package Rollup's production build
 // cannot statically analyze for named imports (see ReportsPage.jsx's
@@ -133,7 +134,7 @@ export default function AuditLogsPage() {
         setTotal(r.data.data.total);
       })
       .catch((err) => {
-        setError(err?.response?.status === 403 ? "You do not have permission to view audit logs." : err?.response?.data?.message || "Failed to load audit logs.");
+        setError(err?.response?.status === 403 ? "You do not have permission to view audit logs." : getErrorMessage(err, "Failed to load audit logs."));
         setItems([]);
         setTotal(0);
       })

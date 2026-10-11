@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
+import { getErrorMessage } from "../../utils/errors";
 
 const STATUS_OPTIONS = ["PENDING_APPROVAL", "ACTIVE", "RESTRICTED", "SUSPENDED", "DEACTIVATED"];
 
@@ -39,7 +40,7 @@ export default function OrganizationsListPage() {
         setItems(res.data.data.items);
         setTotal(res.data.data.total);
       })
-      .catch((err) => setError(err?.response?.data?.message || "Failed to load organizations."))
+      .catch((err) => setError(getErrorMessage(err, "Failed to load organizations.")))
       .finally(() => setLoading(false));
   }, [page, limit, search, status]);
 

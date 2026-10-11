@@ -1,3 +1,4 @@
+import { getErrorMessage } from "./errors";
 export function formatCurrency(amount) {
   if (amount === null || amount === undefined) return "N/A";
   return `₹${Number(amount).toLocaleString("en-IN")}`;
@@ -10,7 +11,7 @@ export function formatRate(rate) {
 
 export function errorMessage(err, fallback) {
   if (err?.response?.status === 403) return "You do not have permission to view this.";
-  return err?.response?.data?.message || fallback;
+  return getErrorMessage(err, fallback);
 }
 
 // Status-aware message for operational actions (process/sync/download) and
