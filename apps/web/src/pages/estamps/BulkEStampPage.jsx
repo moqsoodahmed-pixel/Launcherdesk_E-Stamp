@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { errorMessage, formatCurrency } from "../../utils/format";
 import StatusBadge from "../../components/estamps/StatusBadge";
 import EmptyState from "../../components/dashboard/EmptyState";
 import { TableSkeleton } from "../../components/dashboard/LoadingSkeleton";
+import ErrorState from "../../components/common/ErrorState";
+import { useApi } from "../../hooks/useApi";
+import { useAuth } from "../../context/AuthContext";
+import { downloadFile } from "../../api/download";
 
 // Phase 23 - restructured into the LANDING/LIST page for Bulk E-Stamp
 // (Phase 11's backend, Phase 21/22's shell + patterns). Upload/preview/
@@ -15,29 +19,29 @@ import { TableSkeleton } from "../../components/dashboard/LoadingSkeleton";
 // exact template-download link the single-page version used.
 export default function BulkEStampPage() {
   const navigate = useNavigate();
-  const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
+  const { user } = useAuth();
+  // Upload/confirm act on the caller's own organization; internal roles have
+  // none (the API answers 400), so they can only browse batches here.
+  const isInternal = user?.role === "MASTER_ADMIN" || user?.role === "ASSISTANT_MASTER_ADMIN";
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [templateError, setTemplateError] = useState(null);
+  const { data, loading, error, refetch } = useApi(
+    (signal) => apiClient.get("/bulk-estamps", { params: { page, limit }, signal }).then((res) => res.data.data),
+    [page, limit],
+    { errorMessage: "Unable to load bulk batches." }
+  );
+  const items = data?.items || [];
+  const total = data?.total || 0;
 
-  const load = useCallback((pageNum) => {
-    setLoading(true);
-    setError(null);
-    apiClient
-      .get("/bulk-estamps", { params: { page: pageNum, limit } })
-      .then((res) => {
-        setItems(res.data.data.items);
-        setTotal(res.data.data.total);
-      })
-      .catch((err) => setError(errorMessage(err, "Unable to load bulk batches.")))
-      .finally(() => setLoading(false));
-  }, [limit]);
-
-  useEffect(() => {
-    load(page);
-  }, [load, page]);
+  async function handleTemplateDownload() {
+    setTemplateError(null);
+    try {
+      await downloadFile("/bulk-estamps/template", "bulk-estamp-template.csv");
+    } catch (err) {
+      setTemplateError(errorMessage(err, "Could not download the template."));
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -49,9 +53,10 @@ export default function BulkEStampPage() {
           <p className="text-sm text-slate-500 mt-1">Upload a CSV/XLSX to create many E-Stamp requests at once.</p>
         </div>
         <div className="flex items-center gap-3">
-          <a href={`${apiClient.defaults.baseURL}/bulk-estamps/template`} className="text-sm text-brand-600 hover:underline">
+          <button type="button" onClick={handleTemplateDownload} className="text-sm text-brand-600 hover:underline">
             Download CSV template
-          </a>
+          </button>
+          {!isInternal && (
           <button
             type="button"
             onClick={() => navigate("/estamps/bulk/new")}
@@ -59,11 +64,19 @@ export default function BulkEStampPage() {
           >
             Create Bulk Request
           </button>
+          )}
         </div>
       </div>
 
-      {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {templateError && (
+        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+          {templateError}
+        </div>
+      )}
 
+      {error ? (
+        <ErrorState message={error} onRetry={refetch} />
+      ) : (
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 text-sm font-medium text-slate-700">Batches</div>
         {loading ? (
@@ -128,6 +141,7 @@ export default function BulkEStampPage() {
           </>
         )}
       </div>
+      )}
     </div>
   );
 }

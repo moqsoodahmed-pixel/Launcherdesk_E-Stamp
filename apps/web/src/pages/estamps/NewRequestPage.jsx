@@ -5,7 +5,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { createEStampRequestSchema } from "../../schemas/estampRequest.schema";
 import { apiClient } from "../../api/client";
 import { formatCurrency, errorMessage } from "../../utils/format";
-import StatusBadge from "../../components/estamps/StatusBadge";
+import { useAuth } from "../../context/AuthContext";
+import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 
 const STEPS = ["Basic Details", "State & Article", "Financial Details", "Calculation", "Review & Submit"];
 
@@ -31,13 +32,16 @@ function calcKey({ stateCode, articleId, considerationPrice, numberOfEStamps }) 
 
 export default function NewRequestPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // /wallet is only reachable with WALLET_VIEW (Super Admin); others are told who can add funds.
+  const canOpenWallet = hasPermission(user, PERMISSIONS.WALLET_VIEW);
   const [step, setStep] = useState(0);
+  const [lookupError, setLookupError] = useState(null);
   const [states, setStates] = useState([]);
   const [articles, setArticles] = useState([]);
   const [balance, setBalance] = useState(null);
   const [serverError, setServerError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState(null); // success screen data
 
   const [calculation, setCalculation] = useState(null);
   const [calculatedForKey, setCalculatedForKey] = useState(null);
@@ -68,7 +72,13 @@ export default function NewRequestPage() {
 
   useEffect(() => {
     apiClient.get("/wallet/balance").then((res) => setBalance(res.data.data.balance)).catch(() => setBalance(null));
-    apiClient.get("/articles/states").then((res) => setStates(res.data.data)).catch(() => setStates([]));
+    apiClient
+      .get("/articles/states")
+      .then((res) => setStates(res.data.data))
+      .catch((err) => {
+        setStates([]);
+        setLookupError(errorMessage(err, "Could not load states. Refresh the page to try again."));
+      });
   }, []);
 
   useEffect(() => {
@@ -76,7 +86,16 @@ export default function NewRequestPage() {
       setArticles([]);
       return;
     }
-    apiClient.get(`/articles?stateCode=${values.stateCode}`).then((res) => setArticles(res.data.data)).catch(() => setArticles([]));
+    apiClient
+      .get("/articles", { params: { stateCode: values.stateCode } })
+      .then((res) => {
+        const payload = res.data.data;
+        setArticles(Array.isArray(payload) ? payload : payload?.items || []);
+      })
+      .catch((err) => {
+        setArticles([]);
+        setLookupError(errorMessage(err, "Could not load articles for this state."));
+      });
   }, [values.stateCode]);
 
   async function goNext() {
@@ -123,16 +142,16 @@ export default function NewRequestPage() {
     setSubmitting(true);
     try {
       const { data } = await apiClient.post("/estamps", { ...formValues, idempotencyKey });
-      setResult(data.data);
+      const { request } = data.data;
+      navigate(`/estamps/requests/${request._id}`, {
+        replace: true,
+        state: { notice: `Request ${request.requestNumber} created. ${formatCurrency(request.calculatedStampDuty)} debited from your organization's wallet.` },
+      });
     } catch (err) {
       setServerError(errorMessage(err, "Failed to create request"));
     } finally {
       setSubmitting(false);
     }
-  }
-
-  if (result) {
-    return <SuccessScreen result={result} navigate={navigate} />;
   }
 
   return (
@@ -157,9 +176,14 @@ export default function NewRequestPage() {
       <Stepper step={step} />
 
       {serverError && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{serverError}</div>}
+      {lookupError && (
+        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+          {lookupError}
+        </div>
+      )}
       {balance === 0 && !serverError && (
         <div className="mb-4 rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">
-          Your organization's wallet balance is ₹0. This request will be rejected unless funds are added first.
+          Your organization's wallet balance is ₹0. This request will be rejected unless funds are added first. <AddFundsHint canOpenWallet={canOpenWallet} />
         </div>
       )}
 
@@ -254,7 +278,7 @@ export default function NewRequestPage() {
         )}
 
         {step === 4 && (
-          <ReviewStep values={values} calculation={isFresh ? calculation : null} balance={balance} />
+          <ReviewStep values={values} calculation={isFresh ? calculation : null} balance={balance} canOpenWallet={canOpenWallet} />
         )}
 
         <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between">
@@ -283,7 +307,7 @@ export default function NewRequestPage() {
             <button
               key="submit-btn"
               type="submit"
-              disabled={submitting || !isFresh}
+              disabled={submitting || !isFresh || (typeof balance === "number" && calculation && balance < calculation.amount)}
               className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {submitting ? "Submitting..." : "Create Request"}
@@ -312,7 +336,17 @@ function Stepper({ step }) {
   );
 }
 
-function ReviewStep({ values, calculation, balance }) {
+function AddFundsHint({ canOpenWallet }) {
+  return canOpenWallet ? (
+    <Link to="/wallet" className="font-medium underline">
+      Add money to the wallet
+    </Link>
+  ) : (
+    <span>Ask your Super Admin to add funds.</span>
+  );
+}
+
+function ReviewStep({ values, calculation, balance, canOpenWallet }) {
   const insufficientBalance = calculation && typeof balance === "number" && balance < calculation.amount;
   return (
     <div className="space-y-4 text-sm">
@@ -340,49 +374,10 @@ function ReviewStep({ values, calculation, balance }) {
 
       {insufficientBalance && (
         <div className="rounded-lg bg-red-50 text-red-700 px-3 py-2">
-          Insufficient wallet balance. This request will be rejected by the backend unless funds are added to your organization's
-          wallet first.
+          Insufficient balance: this request needs {formatCurrency(calculation.amount)} but the wallet has {formatCurrency(balance)}.{" "}
+          <AddFundsHint canOpenWallet={canOpenWallet} />
         </div>
       )}
-    </div>
-  );
-}
-
-function SuccessScreen({ result, navigate }) {
-  const { request, order } = result;
-  const nextSteps = {
-    MODIFICATION_WINDOW: "You can still edit non-financial details or cancel this request during its modification window.",
-    REQUEST_CREATED: "Your request has been created and is awaiting further processing.",
-    LOCKED: "Your request is locked and will move to processing shortly.",
-    PROCESSING: "Your request is being processed with the E-Stamp provider.",
-  }[request.status] || "You can track this request's progress on its detail page.";
-
-  return (
-    <div className="max-w-2xl">
-      <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
-        <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-2xl">✓</div>
-        <h1 className="text-xl font-semibold text-slate-900 mb-1">Request Created</h1>
-        <p className="text-slate-500 mb-4">{request.requestNumber}</p>
-        <div className="inline-block mb-4">
-          <StatusBadge status={request.status} />
-        </div>
-        <p className="text-2xl font-semibold text-slate-900 mb-1">{formatCurrency(request.calculatedStampDuty)}</p>
-        <p className="text-sm text-slate-500 mb-6">debited from your organization's wallet</p>
-        <p className="text-sm text-slate-600 mb-6">{nextSteps}</p>
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <button onClick={() => navigate(`/estamps/requests/${request._id}`)} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
-            View Request
-          </button>
-          {order && (
-            <button onClick={() => navigate(`/orders/${order._id}`)} className="text-sm text-slate-600 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-50">
-              View Order
-            </button>
-          )}
-          <button onClick={() => navigate(0)} className="text-sm text-slate-500 hover:underline">
-            Create Another Request
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { errorMessage, formatCurrency } from "../../utils/format";
 import StatusBadge from "../../components/estamps/StatusBadge";
 import EmptyState from "../../components/dashboard/EmptyState";
 import { TableSkeleton } from "../../components/dashboard/LoadingSkeleton";
+import ErrorState from "../../components/common/ErrorState";
 
 // Phase 23 - dedicated batch detail page (/estamps/bulk/:batchId). Reached
 // from the list page's "View" link, or from BulkUploadWizard right after a
@@ -41,13 +42,20 @@ export default function BulkBatchDetailPage() {
     [batchId, limit]
   );
 
-  useEffect(() => {
+  // Initial load: a 404 means "no such batch"; anything else (network, 500)
+  // is a load failure the user can retry - never shown as "not found".
+  const [loadFailure, setLoadFailure] = useState(null);
+  const initialLoad = useCallback(() => {
     setLoading(true);
     setError(null);
+    setLoadFailure(null);
     loadBatch(1)
-      .catch((err) => setError(errorMessage(err, "Unable to load this batch.")))
+      .catch((err) => setLoadFailure({ notFound: err?.response?.status === 404, message: errorMessage(err, "Unable to load this batch.") }))
       .finally(() => setLoading(false));
   }, [loadBatch]);
+  useEffect(() => {
+    initialLoad();
+  }, [initialLoad]);
 
   // Poll only while PROCESSING - stops the moment a terminal status is
   // reported by the server, never a client-guessed progress bar. Resumes
@@ -119,8 +127,11 @@ export default function BulkBatchDetailPage() {
   if (!batch) {
     return (
       <div className="max-w-5xl">
-        {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
-        <EmptyState text="This batch could not be found." />
+        {loadFailure && !loadFailure.notFound ? (
+          <ErrorState message={loadFailure.message} onRetry={initialLoad} />
+        ) : (
+          <EmptyState text="This batch could not be found." />
+        )}
       </div>
     );
   }

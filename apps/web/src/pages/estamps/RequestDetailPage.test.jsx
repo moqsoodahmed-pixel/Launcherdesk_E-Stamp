@@ -7,6 +7,8 @@ import { apiClient } from "../../api/client";
 vi.mock("../../api/client", () => ({
   apiClient: { get: vi.fn(), patch: vi.fn(), post: vi.fn() },
 }));
+let mockUser = { role: "SUPER_ADMIN", permissions: ["estamp.view", "estamp.modify", "estamp.cancel"] };
+vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ user: mockUser }) }));
 
 function renderAt(id = "r1") {
   return render(
@@ -80,5 +82,46 @@ describe("RequestDetailPage - initial load failure (Phase 38 fix)", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByText("REQ-0001")).toBeInTheDocument();
+  });
+});
+
+describe("RequestDetailPage - modification window and permissions", () => {
+  const open = (seconds) => request({ status: "MODIFICATION_WINDOW", canModify: true, canCancel: true, windowRemainingSeconds: seconds });
+  afterEach(() => {
+    vi.useRealTimers();
+    mockUser = { role: "SUPER_ADMIN", permissions: ["estamp.view", "estamp.modify", "estamp.cancel"] };
+  });
+
+  it("shows the countdown as m:ss", async () => {
+    apiClient.get.mockResolvedValue({ data: { data: open(1199) } });
+    renderAt();
+    expect(await screen.findByText("19:59")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel Request" })).toBeEnabled();
+  });
+
+  it("closes Edit and Cancel when the countdown reaches zero", async () => {
+    apiClient.get.mockResolvedValue({ data: { data: open(1) } });
+    renderAt();
+    expect(await screen.findByRole("button", { name: "Edit details" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Modification window has closed.")).toBeInTheDocument(), { timeout: 2500 });
+    expect(screen.queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel Request" })).toBeDisabled();
+  });
+
+  it("hides Edit and Cancel from a USER who lacks estamp.modify / estamp.cancel", async () => {
+    mockUser = { role: "USER", permissions: ["estamp.view"] };
+    apiClient.get.mockResolvedValue({ data: { data: open(600) } });
+    renderAt();
+    await screen.findByText("REQ-0001");
+    expect(screen.queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel Request" })).not.toBeInTheDocument();
+  });
+
+  it("an ADMIN (modify, no cancel) can edit but sees no Cancel button", async () => {
+    mockUser = { role: "ADMIN", permissions: ["estamp.view", "estamp.modify"] };
+    apiClient.get.mockResolvedValue({ data: { data: open(600) } });
+    renderAt();
+    expect(await screen.findByRole("button", { name: "Edit details" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel Request" })).not.toBeInTheDocument();
   });
 });

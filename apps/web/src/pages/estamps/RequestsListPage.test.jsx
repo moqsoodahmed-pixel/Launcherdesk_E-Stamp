@@ -57,3 +57,34 @@ describe("RequestsListPage - mobile responsiveness (Phase 38)", () => {
     expect(table.parentElement).toHaveClass("overflow-x-auto");
   });
 });
+
+describe("RequestsListPage - search debounce and retry (Phase 2)", () => {
+  const listCalls = () => apiClient.get.mock.calls.filter(([url]) => url === "/estamps");
+
+  it("sends one request after typing stops, not one per keystroke", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    renderPage();
+    await screen.findByText("No requests yet.");
+    await u.type(screen.getByLabelText("Search requests"), "REQ-12");
+    await waitFor(() => expect(listCalls().at(-1)[1].params.search).toBe("REQ-12"));
+    expect(listCalls()).toHaveLength(2);
+  });
+
+  it("shows the error with a Retry button that reloads", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    let fail = true;
+    apiClient.get.mockImplementation((url) => {
+      if (url === "/articles/states") return Promise.resolve({ data: { data: [] } });
+      if (fail) return Promise.reject({ response: { status: 500, data: { message: "Server down" } } });
+      return Promise.resolve({ data: { data: { items: [], total: 0 } } });
+    });
+    renderPage();
+    expect(await screen.findByText("Server down")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    fail = false;
+    await u.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("No requests yet.")).toBeInTheDocument();
+  });
+});

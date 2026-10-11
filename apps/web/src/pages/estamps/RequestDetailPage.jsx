@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { formatCurrency, errorMessage } from "../../utils/format";
 import StatusBadge from "../../components/estamps/StatusBadge";
+import { useAuth } from "../../context/AuthContext";
+import { hasPermission, PERMISSIONS } from "../../utils/permissions";
+
+function formatCountdown(totalSeconds) {
+  const s = Math.max(0, totalSeconds || 0);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
 
 // Backend distinguishes WINDOW_EXPIRED / INVALID_STATE / ALREADY_CANCELLED via
 // ApiError's `code` (see estamp-request.service.js) - show a clear message per
@@ -20,11 +27,14 @@ function describeError(err, fallback) {
 
 export default function RequestDetailPage() {
   const { id } = useParams();
+  const { user } = useAuth();
   const [request, setRequest] = useState(null);
   const [order, setOrder] = useState(null);
   const [secondsLeft, setSecondsLeft] = useState(null);
   const [error, setError] = useState(null);
-  const [notice, setNotice] = useState(null);
+  // e.g. "Request REQ-0001 created..." handed over by the New Request wizard.
+  const location = useLocation();
+  const [notice, setNotice] = useState(location.state?.notice || null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -137,8 +147,16 @@ export default function RequestDetailPage() {
     );
   }
 
-  const canModify = !!request.canModify;
-  const canCancel = !!request.canCancel;
+  // The server's canModify/canCancel are the authority, but they are a
+  // snapshot: once the displayed countdown reaches 0 the window is treated as
+  // closed (the server would answer 409 WINDOW_EXPIRED). They are also not
+  // permission-aware, so the user's own ESTAMP_MODIFY/ESTAMP_CANCEL is
+  // checked too (USER has neither, ADMIN has no cancel).
+  const windowOpen = secondsLeft === null || secondsLeft > 0;
+  const canModify = !!request.canModify && windowOpen && hasPermission(user, PERMISSIONS.ESTAMP_MODIFY);
+  const mayCancel = hasPermission(user, PERMISSIONS.ESTAMP_CANCEL);
+  const canCancel = !!request.canCancel && windowOpen && mayCancel;
+  const windowStillOpen = (!!request.canModify || !!request.canCancel) && windowOpen;
 
   return (
     <div className="max-w-3xl space-y-6 pb-10">
@@ -223,13 +241,19 @@ export default function RequestDetailPage() {
         {request.status === "MODIFICATION_WINDOW" && (
           <div className="mt-4 pt-4 border-t border-slate-100">
             <p className="text-sm text-slate-600 mb-3">
-              {canCancel
-                ? `Modification/cancellation window closes in ${secondsLeft ?? 0}s (server-enforced).`
-                : "Modification window has closed."}
+              {windowStillOpen ? (
+                <>
+                  Modification/cancellation window closes in <span className="font-medium tabular-nums">{formatCountdown(secondsLeft)}</span>.
+                </>
+              ) : (
+                "Modification window has closed."
+              )}
             </p>
-            <button onClick={handleCancel} disabled={!canCancel} className="text-sm text-red-600 border border-red-200 rounded-lg px-4 py-2 disabled:opacity-40">
-              Cancel Request
-            </button>
+            {mayCancel && (
+              <button onClick={handleCancel} disabled={!canCancel} className="text-sm text-red-600 border border-red-200 rounded-lg px-4 py-2 disabled:opacity-40">
+                Cancel Request
+              </button>
+            )}
           </div>
         )}
       </Section>

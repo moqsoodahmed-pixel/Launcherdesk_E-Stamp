@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { errorMessage, formatCurrency } from "../../utils/format";
 import StatusBadge from "../../components/estamps/StatusBadge";
+import { downloadFile } from "../../api/download";
 
 const STEPS = ["Upload", "Validation & Preview", "Financial Review", "Confirm"];
 
@@ -39,7 +40,15 @@ export default function BulkUploadWizard() {
         setItems(res.data.data.items);
         setItemsTotal(res.data.data.itemsTotal);
       })
-      .catch(() => {});
+      .catch((err) => setError(errorMessage(err, "Could not load the uploaded rows. Open the batch from the Bulk list to see them.")));
+  }
+
+  async function handleTemplateDownload() {
+    try {
+      await downloadFile("/bulk-estamps/template", "bulk-estamp-template.csv");
+    } catch (err) {
+      setError(errorMessage(err, "Could not download the template."));
+    }
   }
 
   async function handleUpload(e) {
@@ -119,9 +128,9 @@ export default function BulkUploadWizard() {
     <div className="max-w-4xl pb-24">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-xl font-semibold text-slate-900">Create Bulk E-Stamp Request</h1>
-        <a href={`${apiClient.defaults.baseURL}/bulk-estamps/template`} className="text-sm text-brand-600 hover:underline">
+        <button type="button" onClick={handleTemplateDownload} className="text-sm text-brand-600 hover:underline">
           Download CSV template
-        </a>
+        </button>
       </div>
 
       <Stepper step={step} />

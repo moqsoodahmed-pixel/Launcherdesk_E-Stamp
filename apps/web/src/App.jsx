@@ -38,6 +38,9 @@ import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
 import { PERMISSIONS as P } from "./utils/permissions";
 
 const INTERNAL = ["MASTER_ADMIN", "ASSISTANT_MASTER_ADMIN"];
+// Creating requests/batches charges the caller's own organization wallet;
+// internal roles have no organization, so the API rejects them.
+const TENANT = ["SUPER_ADMIN", "ADMIN", "USER"];
 // Wrap a page in the same permission/role check its sidebar link uses.
 const guard = (element, permission, roles) => <RequireAccess permission={permission} roles={roles}>{element}</RequireAccess>;
 export default function App() {
@@ -53,10 +56,10 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />}/>
 
           <Route path="/estamps/requests" element={guard(<RequestsListPage />, P.ESTAMP_VIEW)}/>
-          <Route path="/estamps/requests/new" element={guard(<NewRequestPage />, P.ESTAMP_CREATE)}/>
+          <Route path="/estamps/requests/new" element={guard(<NewRequestPage />, P.ESTAMP_CREATE, TENANT)}/>
           <Route path="/estamps/requests/:id" element={guard(<RequestDetailPage />, P.ESTAMP_VIEW)}/>
           <Route path="/estamps/bulk" element={guard(<BulkEStampPage />, P.ESTAMP_BULK_CREATE)}/>
-          <Route path="/estamps/bulk/new" element={guard(<BulkUploadWizard />, P.ESTAMP_BULK_CREATE)}/>
+          <Route path="/estamps/bulk/new" element={guard(<BulkUploadWizard />, P.ESTAMP_BULK_CREATE, TENANT)}/>
           <Route path="/estamps/bulk/:batchId" element={guard(<BulkBatchDetailPage />, P.ESTAMP_BULK_CREATE)}/>
           <Route path="/estamps" element={guard(<PlaceholderPage title="E-Stamps"/>, P.ESTAMP_VIEW)}/>
 
