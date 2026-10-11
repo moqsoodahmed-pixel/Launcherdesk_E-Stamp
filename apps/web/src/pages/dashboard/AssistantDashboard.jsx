@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useAuth } from "../../context/AuthContext";
 import { PERMISSIONS, hasPermission } from "../../utils/permissions";
 import { formatCurrency, errorMessage } from "../../utils/format";
@@ -9,6 +10,7 @@ import ChartCard from "../../components/dashboard/ChartCard";
 import DateRangeFilter from "../../components/dashboard/DateRangeFilter";
 import RecentActivityTable from "../../components/dashboard/RecentActivityTable";
 import AttentionPanel from "../../components/dashboard/AttentionPanel";
+import ErrorState from "../../components/common/ErrorState";
 import QuickActionButton from "../../components/dashboard/QuickActionButton";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -31,8 +33,13 @@ export default function AssistantDashboard() {
 
   const [orgFilter, setOrgFilter] = useState("");
   const orgRequired = canReport && !canGlobal;
-  const scopeReady = !orgRequired || !!orgFilter.trim();
-  const scopeParams = orgFilter.trim() ? { organizationId: orgFilter.trim() } : {};
+  // Requests only go out once a complete organization id (24-hex ObjectId)
+  // has been typed and left alone briefly - never per keystroke with a
+  // partial id that the API would reject.
+  const debouncedOrg = useDebouncedValue(orgFilter.trim(), 400);
+  const appliedOrg = /^[a-f0-9]{24}$/i.test(debouncedOrg) ? debouncedOrg : "";
+  const scopeReady = !orgRequired || !!appliedOrg;
+  const scopeParams = appliedOrg ? { organizationId: appliedOrg } : {};
 
   const [preset, setPreset] = useState("last30days");
   const [summary, setSummary] = useState(null);
@@ -75,6 +82,8 @@ export default function AssistantDashboard() {
       .catch((err) => setActivityErr(errorMessage(err, "Failed to load recent activity.")))
       .finally(() => setActivityLoading(false));
 
+    // Cleared unconditionally so a previous organization's error never lingers.
+    setFinancialErr(null);
     if (canFinancial) {
       setFinancialLoading(true);
       setFinancialErr(null);
@@ -95,7 +104,7 @@ export default function AssistantDashboard() {
         .catch(() => setProviderLow(null));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canReport, scopeReady, orgFilter, preset, canFinancial, canProvider, canSettings]);
+  }, [canReport, scopeReady, appliedOrg, preset, canFinancial, canProvider, canSettings]);
 
   useEffect(() => {
     load();
@@ -132,15 +141,17 @@ export default function AssistantDashboard() {
         </div>
       )}
 
-      {canReport && orgRequired && !orgFilter.trim() && (
+      {canReport && orgRequired && !appliedOrg && (
         <div className="rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2 flex flex-wrap items-center gap-2">
           You do not hold platform-wide report access - enter a specific organization&apos;s ID to view its dashboard.
           <input
             value={orgFilter}
             onChange={(e) => setOrgFilter(e.target.value)}
             placeholder="Organization ID"
+            aria-label="Organization ID"
             className="rounded-lg border border-amber-300 px-2 py-1 text-sm w-64"
           />
+          {orgFilter.trim() && debouncedOrg === orgFilter.trim() && !appliedOrg && <span>Enter the full 24-character organization ID.</span>}
         </div>
       )}
 
@@ -152,12 +163,13 @@ export default function AssistantDashboard() {
                 value={orgFilter}
                 onChange={(e) => setOrgFilter(e.target.value)}
                 placeholder="Organization ID"
+                aria-label="Organization ID"
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-72"
               />
             </div>
           )}
 
-          {summaryErr && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{summaryErr}</div>}
+          {summaryErr && <ErrorState message={summaryErr} onRetry={load} />}
           {summaryLoading && <KpiSkeleton count={4} />}
           {!summaryLoading && summary && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -174,7 +186,7 @@ export default function AssistantDashboard() {
               title="Requests over time"
               action={<DateRangeFilter value={preset} onChange={setPreset} />}
               loading={requestsLoading}
-              error={requestsErr}
+              error={requestsErr} onRetry={load}
               empty={!requests?.dailyTrend?.length}
               emptyText="No requests in this range."
             >
@@ -189,7 +201,7 @@ export default function AssistantDashboard() {
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Request status distribution" loading={requestsLoading} error={requestsErr} empty={!requests?.statusDistribution?.length} emptyText="No requests in this range.">
+            <ChartCard title="Request status distribution" loading={requestsLoading} error={requestsErr} onRetry={load} empty={!requests?.statusDistribution?.length} emptyText="No requests in this range.">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={requests?.statusDistribution || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -208,7 +220,7 @@ export default function AssistantDashboard() {
             <RecentActivityTable
               title="Recent requests"
               loading={activityLoading}
-              error={activityErr}
+              error={activityErr} onRetry={load}
               rows={activity?.requests}
               rowLinkPrefix="/estamps/requests"
               columns={[
@@ -221,7 +233,7 @@ export default function AssistantDashboard() {
             <RecentActivityTable
               title="Recent orders"
               loading={activityLoading}
-              error={activityErr}
+              error={activityErr} onRetry={load}
               rows={activity?.orders}
               rowLinkPrefix="/orders"
               columns={[

@@ -80,7 +80,7 @@ export default function UserDashboard() {
         <RecentActivityTable
           title="My recent requests"
           loading={requestsLoading}
-          error={requestsErr}
+          error={requestsErr} onRetry={loadRequests}
           rows={requests?.items}
           rowLinkPrefix="/estamps/requests"
           emptyText="You haven't created any E-Stamp requests yet."
@@ -97,7 +97,7 @@ export default function UserDashboard() {
         <RecentActivityTable
           title="Recent orders"
           loading={ordersLoading}
-          error={ordersErr}
+          error={ordersErr} onRetry={loadOrders}
           rows={orders?.items}
           rowLinkPrefix="/orders"
           emptyText="No orders yet."

@@ -7,6 +7,9 @@ import { apiClient } from "../../api/client";
 vi.mock("../../api/client", () => ({
   apiClient: { get: vi.fn(), patch: vi.fn() },
 }));
+const SUPER_ADMIN = { role: "SUPER_ADMIN", permissions: ["user.view", "user.create", "user.manage"] };
+let mockMe = SUPER_ADMIN;
+vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ user: mockMe }) }));
 
 function renderAt(user) {
   apiClient.get.mockResolvedValue({ data: { data: user } });
@@ -25,6 +28,7 @@ function makeUser(overrides = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockMe = SUPER_ADMIN;
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -86,8 +90,8 @@ describe("EditUserPage - profile editing", () => {
     renderAt(makeUser());
     await screen.findByText("Alice");
 
-    await u.clear(screen.getByLabelText("Phone"));
-    await u.type(screen.getByLabelText("Phone"), "9111111111");
+    await u.clear(screen.getByLabelText("Phone (optional)"));
+    await u.type(screen.getByLabelText("Phone (optional)"), "9111111111");
     await u.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => expect(apiClient.patch).toHaveBeenCalledWith("/users/u1", expect.objectContaining({ phone: "9111111111" })));
@@ -119,5 +123,54 @@ describe("EditUserPage - error handling", () => {
       </MemoryRouter>
     );
     expect(await screen.findByText("User not found")).toBeInTheDocument();
+  });
+});
+
+describe("EditUserPage - Phase 2 fixes", () => {
+  it("omits an empty phone instead of sending \"\" (the API rejects it)", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    apiClient.patch.mockResolvedValue({ data: { data: {} } });
+    renderAt(makeUser({ phone: "" }));
+    await screen.findByText("Alice");
+    await u.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(apiClient.patch.mock.calls[0][1]).not.toHaveProperty("phone");
+  });
+
+  it("keeps the form on screen after saving (no Loading flash) and shows the notice", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    apiClient.patch.mockResolvedValue({ data: { data: {} } });
+    renderAt(makeUser());
+    await screen.findByText("Alice");
+    await u.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText("User updated.")).toBeInTheDocument();
+    expect(screen.queryByText("Loading user...")).not.toBeInTheDocument();
+  });
+
+  it("is read-only for an ADMIN (user.view without user.manage)", async () => {
+    mockMe = { role: "ADMIN", permissions: ["user.view"] };
+    renderAt(makeUser());
+    await screen.findByText("Alice");
+    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Change to Admin")).not.toBeInTheDocument();
+    expect(screen.getByText("You can view this user but not change them.")).toBeInTheDocument();
+  });
+
+  it("offers Retry when the user fails to load", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    apiClient.get.mockRejectedValueOnce({ response: { status: 500, data: { message: "Oops" } } }).mockResolvedValue({ data: { data: makeUser() } });
+    render(
+      <MemoryRouter initialEntries={["/users/u1"]}>
+        <Routes>
+          <Route path="/users/:id" element={<EditUserPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByText("Oops")).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Alice")).toBeInTheDocument();
   });
 });

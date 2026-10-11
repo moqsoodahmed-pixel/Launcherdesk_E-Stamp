@@ -8,7 +8,7 @@ import { TableSkeleton } from "./LoadingSkeleton";
 // dumb/presentational - every dashboard supplies its own real, already-
 // tenant-scoped rows fetched from an existing (or the new bounded
 // recent-activity) report endpoint; this component fabricates nothing.
-export default function RecentActivityTable({ title, columns, rows, loading, error, emptyText = "Nothing here yet.", rowLinkPrefix }) {
+export default function RecentActivityTable({ title, columns, rows, loading, error, onRetry, emptyText = "Nothing here yet.", rowLinkPrefix }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100">
@@ -16,7 +16,16 @@ export default function RecentActivityTable({ title, columns, rows, loading, err
       </div>
       <div className="p-4">
         {loading && <TableSkeleton />}
-        {!loading && error && <div className="text-sm text-red-600 py-4 text-center">{error}</div>}
+        {!loading && error && (
+          <div role="alert" className="text-sm text-red-600 py-4 text-center">
+            {error}
+            {onRetry && (
+              <button type="button" onClick={onRetry} className="ml-2 underline font-medium">
+                Retry
+              </button>
+            )}
+          </div>
+        )}
         {!loading && !error && (!rows || rows.length === 0) && <EmptyState text={emptyText} />}
         {!loading && !error && rows && rows.length > 0 && (
           <table className="w-full text-sm">

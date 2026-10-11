@@ -1,11 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { getErrorMessage } from "../../utils/errors";
+import { useAuth } from "../../context/AuthContext";
+import { hasPermission, PERMISSIONS } from "../../utils/permissions";
+import { manageableRoles, ROLE_LABELS } from "../../utils/roles";
+import LoadingState from "../../components/common/LoadingState";
+import ErrorState from "../../components/common/ErrorState";
 
 export default function EditUserPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
+  const { user: me } = useAuth();
   const [user, setUser] = useState(null);
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,8 +19,10 @@ export default function EditUserPage() {
   const [saving, setSaving] = useState(false);
   const [roleBusy, setRoleBusy] = useState(false);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  // `silent` reloads after a save keep the form on screen instead of
+  // flashing back to "Loading...".
+  const load = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     apiClient
       .get(`/users/${id}`)
@@ -35,12 +42,16 @@ export default function EditUserPage() {
     e.preventDefault();
     setSaving(true);
     setError(null);
+    setNotice(null);
     try {
-      await apiClient.patch(`/users/${id}`, form);
-      setNotice("Employee updated.");
-      load();
+      // Phone is optional but must be >= 6 chars when sent - an empty box is omitted.
+      const body = { name: form.name.trim(), email: form.email.trim() };
+      if (form.phone.trim()) body.phone = form.phone.trim();
+      await apiClient.patch(`/users/${id}`, body);
+      setNotice("User updated.");
+      load(true);
     } catch (err) {
-      setError(getErrorMessage(err, "Failed to update employee."));
+      setError(getErrorMessage(err, "Failed to update user."));
     } finally {
       setSaving(false);
     }
@@ -50,10 +61,11 @@ export default function EditUserPage() {
     if (!window.confirm(`Change ${user.name}'s role to ${newRole}?`)) return;
     setRoleBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await apiClient.patch(`/users/${id}/role`, { role: newRole });
-      setNotice(`Role changed to ${newRole}.`);
-      load();
+      setNotice(`Role changed to ${ROLE_LABELS[newRole] || newRole}.`);
+      load(true);
     } catch (err) {
       setError(getErrorMessage(err, "Failed to change role."));
     } finally {
@@ -61,15 +73,19 @@ export default function EditUserPage() {
     }
   }
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Loading...</div>;
-  if (error && !user) return <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>;
+  if (loading) return <LoadingState text="Loading user..." />;
+  if (error && !user) return <ErrorState message={error} onRetry={() => load()} />;
   if (!user) return null;
+
+  // USER_MANAGE (Super Admin) is needed to edit, and only for strictly lower
+  // roles - same rule as user.controller.js. ADMIN (view only) gets a read-only page.
+  const canEdit = hasPermission(me, PERMISSIONS.USER_MANAGE) && manageableRoles(me?.role).includes(user.role);
 
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">{user.name}</h1>
-        <Link to="/users" className="text-sm text-slate-500 hover:underline">
+        <Link to={`/users?role=${user.role}`} className="text-sm text-slate-500 hover:underline">
           Back to list
         </Link>
       </div>
@@ -77,6 +93,26 @@ export default function EditUserPage() {
       {notice && <div className="rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{notice}</div>}
       {error && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
 
+      {!canEdit && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-2 text-sm">
+          <h2 className="font-medium text-slate-900 mb-2">Profile</h2>
+          <p>
+            <span className="text-slate-500">Email:</span> {user.email}
+          </p>
+          <p>
+            <span className="text-slate-500">Phone:</span> {user.phone?.trim() ? user.phone : "-"}
+          </p>
+          <p>
+            <span className="text-slate-500">Role:</span> {ROLE_LABELS[user.role] || user.role}
+          </p>
+          <p>
+            <span className="text-slate-500">Status:</span> {user.isActive ? "Active" : "Inactive"}
+          </p>
+          <p className="text-xs text-slate-400 pt-2">You can view this user but not change them.</p>
+        </div>
+      )}
+
+      {canEdit && (
       <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
         <h2 className="font-medium text-slate-900">Profile</h2>
         <div>
@@ -93,7 +129,7 @@ export default function EditUserPage() {
         </div>
         <div>
           <label htmlFor="edit-user-phone" className="block text-sm font-medium text-slate-700 mb-1">
-            Phone
+            Phone (optional)
           </label>
           <input id="edit-user-phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
         </div>
@@ -101,8 +137,9 @@ export default function EditUserPage() {
           {saving ? "Saving..." : "Save changes"}
         </button>
       </form>
+      )}
 
-      {(user.role === "ADMIN" || user.role === "USER") && (
+      {canEdit && (user.role === "ADMIN" || user.role === "USER") && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="font-medium text-slate-900 mb-3">Role</h2>
           <p className="text-sm text-slate-500 mb-3">

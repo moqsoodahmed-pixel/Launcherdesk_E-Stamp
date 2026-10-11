@@ -9,6 +9,7 @@ import ChartCard from "../../components/dashboard/ChartCard";
 import DateRangeFilter from "../../components/dashboard/DateRangeFilter";
 import RecentActivityTable from "../../components/dashboard/RecentActivityTable";
 import AttentionPanel from "../../components/dashboard/AttentionPanel";
+import ErrorState from "../../components/common/ErrorState";
 import QuickActionButton from "../../components/dashboard/QuickActionButton";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -142,7 +143,7 @@ export default function MasterAdminDashboard() {
         <QuickActionButton to="/settings" label="Settings" icon="⚙️" />
       </div>
 
-      {summaryErr && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{summaryErr}</div>}
+      {summaryErr && <ErrorState message={summaryErr} onRetry={loadSummary} />}
       {summaryLoading && <KpiSkeleton count={8} />}
       {!summaryLoading && summary && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -170,7 +171,7 @@ export default function MasterAdminDashboard() {
           title="Requests over time"
           action={<DateRangeFilter value={preset} onChange={setPreset} />}
           loading={requestsLoading}
-          error={requestsErr}
+          error={requestsErr} onRetry={loadRequests}
           empty={!requests?.dailyTrend?.length}
           emptyText="No requests in this range."
         >
@@ -185,7 +186,7 @@ export default function MasterAdminDashboard() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Request status distribution" loading={requestsLoading} error={requestsErr} empty={!requests?.statusDistribution?.length} emptyText="No requests in this range.">
+        <ChartCard title="Request status distribution" loading={requestsLoading} error={requestsErr} onRetry={loadRequests} empty={!requests?.statusDistribution?.length} emptyText="No requests in this range.">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={requests?.statusDistribution || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -199,7 +200,7 @@ export default function MasterAdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard title="Order status" loading={summaryLoading} error={summaryErr} empty={!summary || summary.orders.total === 0} emptyText="No orders yet.">
+        <ChartCard title="Order status" loading={summaryLoading} error={summaryErr} onRetry={loadSummary} empty={!summary || summary.orders.total === 0} emptyText="No orders yet.">
           <ResponsiveContainer width="100%" height={200}>
             <BarChart
               data={
@@ -226,7 +227,7 @@ export default function MasterAdminDashboard() {
             title="Payment activity"
             action={<DateRangeFilter value={preset} onChange={setPreset} />}
             loading={financialLoading}
-            error={financialErr}
+            error={financialErr} onRetry={loadFinancial}
             empty={!financial || financial.payments.successfulCount + financial.payments.failedCount === 0}
             emptyText="No payments in this range."
           >
@@ -258,7 +259,7 @@ export default function MasterAdminDashboard() {
         <RecentActivityTable
           title="Recent requests (all organizations)"
           loading={activityLoading}
-          error={activityErr}
+          error={activityErr} onRetry={loadActivity}
           rows={activity?.requests}
           rowLinkPrefix="/estamps/requests"
           columns={[
@@ -271,7 +272,7 @@ export default function MasterAdminDashboard() {
         <RecentActivityTable
           title="Recent orders (all organizations)"
           loading={activityLoading}
-          error={activityErr}
+          error={activityErr} onRetry={loadActivity}
           rows={activity?.orders}
           rowLinkPrefix="/orders"
           columns={[
