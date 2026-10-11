@@ -15,6 +15,8 @@ export function safeRouteFor(notification) {
       return `/orders/${notification.entityId}`;
     case "Payment":
       return `/payments/${notification.entityId}`;
+    case "BulkEStampBatch":
+      return `/estamps/bulk/${notification.entityId}`;
     default:
       return null;
   }

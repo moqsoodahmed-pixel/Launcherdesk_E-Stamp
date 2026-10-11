@@ -58,3 +58,17 @@ describe("ArticlesPage", () => {
     expect(screen.queryByRole("button", { name: "Deactivate" })).not.toBeInTheDocument();
   });
 });
+
+describe("ArticlesPage - management form (Phase 2)", () => {
+  it("only offers rule types the form can fully configure, and requires the amount", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    mockUser = { role: "MASTER_ADMIN", permissions: ["article.view", "article.manage"] };
+    apiClient.get.mockResolvedValue({ data: { data: [] } });
+    render(<ArticlesPage />);
+    await u.click(await screen.findByRole("button", { name: "+ New Article" }));
+    const select = screen.getByRole("combobox");
+    expect(Array.from(select.querySelectorAll("option")).map((o) => o.value)).toEqual(["FIXED", "PERCENTAGE"]);
+    expect(screen.getByLabelText("Fixed amount (₹)")).toBeRequired();
+  });
+});

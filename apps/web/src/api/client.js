@@ -56,7 +56,9 @@ function endSession() {
     localStorage.removeItem("ld_access_token");
     localStorage.removeItem("ld_refresh_token");
     const { pathname, search } = window.location;
-    if (!pathname.startsWith("/login")) {
+    // Public auth pages work without a session - never bounce them to login.
+    const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password"];
+    if (!PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
         const next = encodeURIComponent(`${pathname}${search}`);
         window.location.href = `/login?sessionExpired=1&next=${next}`;
     }

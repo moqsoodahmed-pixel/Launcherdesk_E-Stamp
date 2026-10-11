@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { getErrorMessage } from "../../utils/errors";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import ErrorState from "../../components/common/ErrorState";
 
 // @launcherdesk/shared is a CommonJS package Rollup's production build
 // cannot statically analyze for named imports (see ReportsPage.jsx's
@@ -41,10 +43,14 @@ const ACTION_OPTIONS = [
   "USER_CREATED",
   "USER_MODIFIED",
   "USER_DEACTIVATED",
+  "PERMISSION_CHANGED",
   "ORG_CREATED",
+  "ORG_VIEWED",
   "ORG_MODIFIED",
   "ORG_STATUS_CHANGED",
+  "BALANCE_VIEWED",
   "BALANCE_CHANGED",
+  "PAYMENT_VIEWED",
   "PAYMENT_VERIFIED",
   "ESTAMP_REQUEST_CREATED",
   "ESTAMP_REQUEST_MODIFIED",
@@ -54,11 +60,23 @@ const ACTION_OPTIONS = [
   "ESTAMP_DOWNLOADED",
   "ESTAMP_ISSUED",
   "ESTAMP_PROCESSING_FAILED",
+  "ARTICLE_MANAGED",
+  "ARTICLE_ACCESSED",
   "ORDER_MODIFIED",
   "ORDER_VIEWED",
   "SETTINGS_CHANGED",
+  "ESTAMP_PROVIDER_BALANCE_VIEWED",
+  "ESTAMP_PROVIDER_BALANCE_REFRESHED",
+  "ESTAMP_PROVIDER_USAGE_VIEWED",
+  "BULK_BATCH_UPLOADED",
+  "BULK_BATCH_VALIDATED",
   "BULK_BATCH_CONFIRMED",
   "BULK_BATCH_COMPLETED",
+  "BULK_BATCH_FAILED",
+  "BULK_BATCH_CANCELLED",
+  "POLICY_CREATED",
+  "POLICY_PUBLISHED",
+  "POLICY_ACKNOWLEDGED",
 ];
 
 const DATE_PRESETS = [
@@ -110,7 +128,10 @@ export default function AuditLogsPage() {
   const [error, setError] = useState(null);
 
   const dateRange = preset === "custom" ? { dateFrom: customFrom || undefined, dateTo: customTo || undefined } : presetToRange(preset);
-  const canLoad = !orgRequiredForInternal || !!organizationId.trim();
+  // Free-text filters are applied once typing pauses, not per keystroke.
+  const debouncedEntityType = useDebouncedValue(entityType.trim(), 350);
+  const debouncedOrgId = useDebouncedValue(organizationId.trim(), 350);
+  const canLoad = !orgRequiredForInternal || !!debouncedOrgId;
 
   const load = useCallback(() => {
     if (!canView || !canLoad) {
@@ -125,8 +146,8 @@ export default function AuditLogsPage() {
           page,
           limit,
           action: action || undefined,
-          entityType: entityType || undefined,
-          organizationId: isInternal ? organizationId.trim() || undefined : undefined,
+          entityType: debouncedEntityType || undefined,
+          organizationId: isInternal ? debouncedOrgId || undefined : undefined,
           ...dateRange,
         },
       })
@@ -141,7 +162,7 @@ export default function AuditLogsPage() {
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, limit, action, entityType, organizationId, preset, customFrom, customTo, canView, canLoad]);
+  }, [page, limit, action, debouncedEntityType, debouncedOrgId, preset, customFrom, customTo, canView, canLoad]);
 
   useEffect(() => {
     load();
@@ -217,7 +238,11 @@ export default function AuditLogsPage() {
         </div>
       )}
 
-      {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {error && (
+        <div className="mb-4">
+          <ErrorState message={error} onRetry={load} />
+        </div>
+      )}
 
       {canLoad && (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -291,11 +316,22 @@ export default function AuditLogsPage() {
   );
 }
 
+// Defence in depth: never display anything that looks like a credential,
+// even if a future audit call mistakenly records one.
+const SECRET_KEY = /token|password|passwd|secret|otp|hash|api[_-]?key|authorization|signature/i;
+export function redactSecrets(value) {
+  if (Array.isArray(value)) return value.map(redactSecrets);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, SECRET_KEY.test(k) ? "[redacted]" : redactSecrets(v)]));
+  }
+  return value;
+}
+
 // The backend is the actual security boundary (metadata never contains
 // secrets - see the Phase 15 secret-leakage sweep test) - this is a plain
 // key:value rendering, not a redaction layer.
 function AuditDetailModal({ entry, onClose }) {
-  const metadataEntries = entry.metadata && typeof entry.metadata === "object" ? Object.entries(entry.metadata) : [];
+  const metadataEntries = entry.metadata && typeof entry.metadata === "object" ? Object.entries(redactSecrets(entry.metadata)) : [];
   return (
     <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-50" onClick={onClose}>
       <div className="bg-white rounded-2xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>

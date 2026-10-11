@@ -71,6 +71,14 @@ describe("apiClient - single-flight token refresh", () => {
     expect(refreshCalls).toBe(0);
   });
 
+  it("does not bounce a public auth page (reset password) to login when a stale session fails to refresh", async () => {
+    window.location = { pathname: "/reset-password", search: "?token=t", href: "" };
+    refreshResult = () => Promise.reject(new axios.AxiosError("bad", "ERR", {}, null, { status: 401, data: {} }));
+    await expect(apiClient.get("/a")).rejects.toBeTruthy();
+    expect(window.location.href).toBe("");
+    expect(localStorage.getItem("ld_access_token")).toBeNull();
+  });
+
   it("has a request timeout", () => {
     expect(apiClient.defaults.timeout).toBeGreaterThan(0);
   });

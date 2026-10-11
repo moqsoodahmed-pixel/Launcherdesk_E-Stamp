@@ -126,18 +126,52 @@ describe("AuditLogsPage - filters sent to the real backend contract", () => {
     render(<AuditLogsPage />);
     await screen.findByText("No audit entries match these filters.");
     const REAL_ACTIONS = new Set([
-      "LOGIN", "LOGOUT", "LOGIN_FAILED", "OTP_SENT", "OTP_VERIFIED", "OTP_FAILED",
-      "PASSWORD_RESET_REQUESTED", "PASSWORD_RESET_COMPLETED", "PASSWORD_CHANGED", "USER_CREATED", "USER_MODIFIED",
-      "USER_DEACTIVATED", "ORG_CREATED", "ORG_VIEWED", "ORG_MODIFIED", "ORG_STATUS_CHANGED",
-      "BALANCE_VIEWED", "BALANCE_CHANGED", "PAYMENT_VIEWED", "PAYMENT_VERIFIED",
-      "ESTAMP_REQUEST_CREATED", "ESTAMP_REQUEST_MODIFIED", "ESTAMP_REQUEST_CANCELLED",
-      "ESTAMP_UPLOADED", "ESTAMP_DOWNLOADED", "ARTICLE_MANAGED", "ARTICLE_ACCESSED",
-      "ORDER_MODIFIED", "ORDER_VIEWED", "ESTAMP_ISSUED", "ESTAMP_PROCESSING_FAILED",
-      "PERMISSION_CHANGED", "SETTINGS_CHANGED", "ESTAMP_PROVIDER_BALANCE_VIEWED",
-      "ESTAMP_PROVIDER_BALANCE_REFRESHED", "ESTAMP_PROVIDER_USAGE_VIEWED",
-      "BULK_BATCH_UPLOADED", "BULK_BATCH_VALIDATED", "BULK_BATCH_CONFIRMED",
-      "BULK_BATCH_COMPLETED", "BULK_BATCH_FAILED", "BULK_BATCH_CANCELLED",
-      "ESTAMP_REQUEST_LOCKED", "POLICY_CREATED", "POLICY_PUBLISHED", "POLICY_ACKNOWLEDGED",
+      "LOGIN",
+      "LOGOUT",
+      "LOGIN_FAILED",
+      "OTP_SENT",
+      "OTP_VERIFIED",
+      "OTP_FAILED",
+      "PASSWORD_RESET_REQUESTED",
+      "PASSWORD_RESET_COMPLETED",
+      "PASSWORD_CHANGED",
+      "USER_CREATED",
+      "USER_MODIFIED",
+      "USER_DEACTIVATED",
+      "PERMISSION_CHANGED",
+      "ORG_CREATED",
+      "ORG_VIEWED",
+      "ORG_MODIFIED",
+      "ORG_STATUS_CHANGED",
+      "BALANCE_VIEWED",
+      "BALANCE_CHANGED",
+      "PAYMENT_VIEWED",
+      "PAYMENT_VERIFIED",
+      "ESTAMP_REQUEST_CREATED",
+      "ESTAMP_REQUEST_MODIFIED",
+      "ESTAMP_REQUEST_CANCELLED",
+      "ESTAMP_REQUEST_LOCKED",
+      "ESTAMP_UPLOADED",
+      "ESTAMP_DOWNLOADED",
+      "ESTAMP_ISSUED",
+      "ESTAMP_PROCESSING_FAILED",
+      "ARTICLE_MANAGED",
+      "ARTICLE_ACCESSED",
+      "ORDER_MODIFIED",
+      "ORDER_VIEWED",
+      "SETTINGS_CHANGED",
+      "ESTAMP_PROVIDER_BALANCE_VIEWED",
+      "ESTAMP_PROVIDER_BALANCE_REFRESHED",
+      "ESTAMP_PROVIDER_USAGE_VIEWED",
+      "BULK_BATCH_UPLOADED",
+      "BULK_BATCH_VALIDATED",
+      "BULK_BATCH_CONFIRMED",
+      "BULK_BATCH_COMPLETED",
+      "BULK_BATCH_FAILED",
+      "BULK_BATCH_CANCELLED",
+      "POLICY_CREATED",
+      "POLICY_PUBLISHED",
+      "POLICY_ACKNOWLEDGED",
     ]);
     const selects = screen.getAllByRole("combobox");
     const actionSelect = selects.find((s) => Array.from(s.querySelectorAll("option")).some((o) => o.value === "LOGIN"));
@@ -276,5 +310,17 @@ describe("AuditLogsPage - detail view and immutability", () => {
     for (const forbidden of ["Edit", "Delete", "Export", "Remove", "Clear logs"]) {
       expect(screen.queryByRole("button", { name: forbidden })).not.toBeInTheDocument();
     }
+  });
+});
+
+describe("AuditLogsPage - redaction (Phase 2)", () => {
+  it("redacts credential-looking metadata keys at any depth", async () => {
+    const { redactSecrets } = await import("./AuditLogsPage");
+    expect(redactSecrets({ reason: "x", refreshToken: "abc", nested: { password: "p", ok: 1 }, list: [{ otpCode: "1" }] })).toEqual({
+      reason: "x",
+      refreshToken: "[redacted]",
+      nested: { password: "[redacted]", ok: 1 },
+      list: [{ otpCode: "[redacted]" }],
+    });
   });
 });

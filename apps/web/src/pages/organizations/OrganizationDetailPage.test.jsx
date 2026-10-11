@@ -7,6 +7,8 @@ import { apiClient } from "../../api/client";
 vi.mock("../../api/client", () => ({
   apiClient: { get: vi.fn(), patch: vi.fn(), post: vi.fn() },
 }));
+let mockUser = { role: "MASTER_ADMIN" };
+vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ user: mockUser }) }));
 
 function renderAt(detail) {
   apiClient.get.mockResolvedValue({ data: { data: detail } });
@@ -134,5 +136,32 @@ describe("OrganizationDetailPage - error handling", () => {
       </MemoryRouter>
     );
     expect(await screen.findByText("You do not have permission to access this organization.")).toBeInTheDocument();
+  });
+});
+
+describe("OrganizationDetailPage - Phase 2 fixes", () => {
+  afterEach(() => {
+    mockUser = { role: "MASTER_ADMIN" };
+  });
+
+  it("hides Status Management from an Assistant Master Admin (the API is Master-Admin-only)", async () => {
+    mockUser = { role: "ASSISTANT_MASTER_ADMIN", permissions: ["client.view", "client.manage"] };
+    renderAt(baseDetail());
+    await screen.findAllByText("Acme Corp");
+    expect(screen.queryByText("Status Management")).not.toBeInTheDocument();
+  });
+
+  it("omits an empty phone when provisioning a Super Admin", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    apiClient.post.mockResolvedValue({ data: { data: { tempPassword: "Temp!23456" } } });
+    renderAt(baseDetail({ superAdmin: null }));
+    await screen.findByText("No Super Admin has been provisioned yet.");
+    await u.click(screen.getByText("Provision initial Super Admin"));
+    await u.type(screen.getByLabelText("Name"), "New Admin");
+    await u.type(screen.getByLabelText("Email"), "new@acme.test");
+    await u.click(screen.getByRole("button", { name: "Provision Super Admin" }));
+    await screen.findByText("Temp!23456");
+    expect(apiClient.post.mock.calls.at(-1)[1]).toEqual({ name: "New Admin", email: "new@acme.test" });
   });
 });

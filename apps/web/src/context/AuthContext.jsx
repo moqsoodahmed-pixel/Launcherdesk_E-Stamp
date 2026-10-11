@@ -13,9 +13,14 @@ export function AuthProvider({ children }) {
         apiClient
             .get("/auth/me")
             .then(({ data }) => setUser(data.data))
-            .catch(() => {
-            localStorage.removeItem("ld_access_token");
-            localStorage.removeItem("ld_refresh_token");
+            .catch((err) => {
+            // Only a real "not signed in" answer ends the session. A network
+            // blip or 5xx must not log the user out of a valid session.
+            const status = err?.response?.status;
+            if (status === 401 || status === 403) {
+                localStorage.removeItem("ld_access_token");
+                localStorage.removeItem("ld_refresh_token");
+            }
         })
             .finally(() => setLoading(false));
     }, []);

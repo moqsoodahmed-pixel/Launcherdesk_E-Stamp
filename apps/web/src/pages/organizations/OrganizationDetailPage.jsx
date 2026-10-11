@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { formatCurrency } from "../../utils/format";
 import { getErrorMessage } from "../../utils/errors";
+import { useAuth } from "../../context/AuthContext";
 
 const STATUS_OPTIONS = ["ACTIVE", "PENDING_APPROVAL", "RESTRICTED", "SUSPENDED", "DEACTIVATED"];
 
@@ -18,6 +19,9 @@ export default function OrganizationDetailPage() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [statusBusy, setStatusBusy] = useState(false);
+  // PATCH /organizations/:id/status is Master-Admin-only (requireRole).
+  const { user } = useAuth();
+  const canChangeStatus = user?.role === "MASTER_ADMIN";
 
   const [showProvision, setShowProvision] = useState(false);
   const [provisionForm, setProvisionForm] = useState({ name: "", email: "", phone: "" });
@@ -86,7 +90,10 @@ export default function OrganizationDetailPage() {
     setProvisionBusy(true);
     setProvisionError(null);
     try {
-      const { data: result } = await apiClient.post(`/organizations/${id}/super-admin`, provisionForm);
+      // Phone is optional but must be >= 6 chars when present - omit an empty box.
+      const body = { name: provisionForm.name.trim(), email: provisionForm.email.trim() };
+      if (provisionForm.phone.trim()) body.phone = provisionForm.phone.trim();
+      const { data: result } = await apiClient.post(`/organizations/${id}/super-admin`, body);
       setProvisionResult(result.data);
       load();
     } catch (err) {
@@ -154,6 +161,7 @@ export default function OrganizationDetailPage() {
           )}
         </div>
 
+        {canChangeStatus && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="font-medium text-slate-900 mb-4">Status Management</h2>
           <div className="flex flex-wrap gap-2 mb-4">
@@ -172,6 +180,7 @@ export default function OrganizationDetailPage() {
             Changing status away from ACTIVE immediately blocks this organization's users from authenticating or using protected APIs.
           </p>
         </div>
+        )}
 
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="font-medium text-slate-900 mb-4">Super Admin</h2>

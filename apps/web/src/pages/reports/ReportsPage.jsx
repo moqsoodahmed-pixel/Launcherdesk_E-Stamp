@@ -5,6 +5,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { getErrorMessage } from "../../utils/errors";
 import { useApi } from "../../hooks/useApi";
 import LoadingState from "../../components/common/LoadingState";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 
 // @launcherdesk/shared is a CommonJS package built around a runtime
 // `__exportStar` re-export loop (see packages/shared/src/index.js) that
@@ -69,8 +70,13 @@ export default function ReportsPage() {
   const [orgFilter, setOrgFilter] = useState("");
 
   const dateParams = preset === "custom" ? { from: customFrom || undefined, to: customTo || undefined } : { preset };
-  const scopeParams = orgFilter ? { organizationId: orgFilter.trim() } : {};
-  const canLoadScoped = !orgRequired || !!orgFilter.trim();
+  // Only a complete organization id (24-hex ObjectId), once typing pauses, is
+  // sent - a partial id would just produce a 400 on every section.
+  const debouncedOrg = useDebouncedValue(orgFilter.trim(), 400);
+  const appliedOrg = /^[a-f0-9]{24}$/i.test(debouncedOrg) ? debouncedOrg : "";
+  const orgInvalid = !!orgFilter.trim() && debouncedOrg === orgFilter.trim() && !appliedOrg;
+  const scopeParams = appliedOrg ? { organizationId: appliedOrg } : {};
+  const canLoadScoped = (!orgRequired || !!appliedOrg) && !orgInvalid;
 
   // Every section loads independently: a failing (or slow, now bounded by
   // the API client's timeout) section shows its own error and never blocks
@@ -79,6 +85,7 @@ export default function ReportsPage() {
   const { data, loading, refetch: load } = useApi(
     async (signal) => {
       const errors = {};
+      let disabledMessage = null;
       const section = (key, enabled, url, params, fallback) =>
         enabled
           ? apiClient
@@ -86,6 +93,8 @@ export default function ReportsPage() {
               .then((r) => r.data.data)
               .catch((err) => {
                 if (signal.aborted) throw err;
+                // REPORTS_ENABLED=false answers 503 on every section: report it once.
+                if (err?.response?.status === 503) disabledMessage = err.response.data?.message || "Reports are currently disabled.";
                 errors[key] = errorMessage(err, fallback);
                 return null;
               })
@@ -99,12 +108,12 @@ export default function ReportsPage() {
         section("bulk", true, "/reports/bulk", { ...scopeParams, ...dateParams }, "Failed to load bulk E-Stamp report."),
         section("provider", canViewProvider, "/reports/provider", dateParams, "Failed to load provider report."),
       ]);
-      return { dashboard, requests, orders, financial, organizations, bulk, provider, errors };
+      return { dashboard, requests, orders, financial, organizations, bulk, provider, errors, disabledMessage };
     },
-    [preset, customFrom, customTo, orgFilter, canViewFinancial, canViewGlobal, canViewProvider],
+    [preset, customFrom, customTo, appliedOrg, canViewFinancial, canViewGlobal, canViewProvider],
     { enabled: canLoadScoped }
   );
-  const { dashboard = null, requests = null, orders = null, financial = null, organizations = null, bulk = null, provider = null, errors = {} } = data || {};
+  const { dashboard = null, requests = null, orders = null, financial = null, organizations = null, bulk = null, provider = null, errors = {}, disabledMessage = null } = data || {};
 
   return (
     <div className="space-y-6">
@@ -140,6 +149,10 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {orgInvalid && (
+        <div className="rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">Enter the full 24-character organization ID.</div>
+      )}
+
       {orgRequired && !orgFilter.trim() && (
         <div className="rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">
           You do not hold platform-wide report access - enter a specific organization's ID above to view its reports.
@@ -148,7 +161,14 @@ export default function ReportsPage() {
 
       {canLoadScoped && loading && <LoadingState text="Loading reports..." />}
 
-      {canLoadScoped && !loading && (
+      {canLoadScoped && !loading && disabledMessage && (
+        <div role="status" className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
+          <h2 className="font-medium text-slate-900 mb-1">Reports are unavailable</h2>
+          <p className="text-sm text-slate-500">{disabledMessage} Please check back later or contact your administrator.</p>
+        </div>
+      )}
+
+      {canLoadScoped && !loading && !disabledMessage && (
         <>
           <KpiSection dashboard={dashboard} error={errors.dashboard} canViewFinancial={canViewFinancial} />
 

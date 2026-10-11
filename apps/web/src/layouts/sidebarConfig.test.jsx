@@ -107,7 +107,8 @@ describe("sidebarConfig - getActiveItem (exactly one highlighted item)", () => {
     expect(active("SUPER_ADMIN", "/estamps/requests/new")).toBe("/estamps/requests/new");
     expect(active("SUPER_ADMIN", "/estamps/requests/abc123")).toBe("/estamps");
     expect(active("ADMIN", "/estamps/requests/abc123")).toBe("/estamps/requests");
-    expect(active("MASTER_ADMIN", "/audit/mine")).toBe("/audit");
+    expect(active("MASTER_ADMIN", "/audit/mine")).toBe("/audit/mine");
+    expect(active("MASTER_ADMIN", "/audit")).toBe("/audit");
     expect(active("ASSISTANT_MASTER_ADMIN", "/audit/mine")).toBe("/audit/mine");
     expect(active("MASTER_ADMIN", "/policies/manage")).toBe("/policies/manage");
     expect(active("MASTER_ADMIN", "/orders/507f1f77bcf86cd799439011")).toBe("/orders");

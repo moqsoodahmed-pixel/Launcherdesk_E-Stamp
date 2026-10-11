@@ -33,11 +33,15 @@ export default function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState({});
+  // Only the latest search may show results - a slower earlier response
+  // must never replace the results for what the user typed since.
+  const searchSeq = useRef(0);
 
   const groups = GROUPS.filter((g) => hasPermission(user, g.permission));
 
   const runSearch = useCallback(
     (term) => {
+      const seq = ++searchSeq.current;
       if (term.trim().length < MIN_QUERY_LENGTH || groups.length === 0) {
         setResults({});
         setLoading(false);
@@ -45,6 +49,7 @@ export default function GlobalSearch() {
       }
       setLoading(true);
       Promise.allSettled(groups.map((g) => apiClient.get(g.url, { params: { search: term.trim(), page: 1, limit: RESULT_LIMIT } }))).then((settled) => {
+        if (seq !== searchSeq.current) return;
         const next = {};
         settled.forEach((r, i) => {
           next[groups[i].key] = r.status === "fulfilled" ? r.value.data.data.items || [] : [];

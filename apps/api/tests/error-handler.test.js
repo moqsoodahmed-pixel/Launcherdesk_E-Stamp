@@ -34,4 +34,13 @@ describe("errorHandler in production", () => {
     expect(res2.body.message).toBe("Internal server error");
     expect(res2.body.stack).toBeUndefined();
   });
+
+  it("turns a malformed-ObjectId CastError into a 404", async () => {
+    const mongoose = require("mongoose");
+    const castError = new mongoose.Error.CastError("ObjectId", "abc", "_id");
+    const res = makeRes();
+    errorHandler(castError, makeReq(), res, () => {});
+    expect(res.statusCode).toBe(404);
+    expect(res.body.code).toBe("NOT_FOUND");
+  });
 });

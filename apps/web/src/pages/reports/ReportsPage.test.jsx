@@ -273,10 +273,14 @@ describe("ReportsPage - Assistant Master Admin organization-required scope", () 
     mockRoutes(defaultRoutes());
     render(<ReportsPage />);
 
-    await user.type(screen.getByPlaceholderText("Organization ID (required)"), "org-xyz");
+    const input = screen.getByPlaceholderText("Organization ID (required)");
+    await user.type(input, "507f1f77");
+    expect(await screen.findByText("Enter the full 24-character organization ID.")).toBeInTheDocument();
+    expect(apiClient.get.mock.calls.filter((c) => c[0] === "/reports/dashboard")).toHaveLength(0);
+    await user.type(input, "bcf86cd799439011");
     await waitFor(() => {
       const calls = apiClient.get.mock.calls.filter((c) => c[0] === "/reports/dashboard");
-      expect(calls.at(-1)[1].params.organizationId).toBe("org-xyz");
+      expect(calls.at(-1)[1].params.organizationId).toBe("507f1f77bcf86cd799439011");
     });
   });
 });
@@ -310,5 +314,15 @@ describe("ReportsPage - date range", () => {
     await screen.findAllByText("Total requests");
     await user.selectOptions(screen.getByDisplayValue("Last 30 days"), "custom");
     expect((await screen.findAllByText("Date range exceeds the maximum allowed.")).length).toBeGreaterThan(0);
+  });
+});
+
+describe("ReportsPage - Phase 2", () => {
+  it("shows one friendly 'unavailable' message when reports are disabled (503), not an error per section", async () => {
+    useAuth.mockReturnValue({ user: masterAdmin() });
+    apiClient.get.mockRejectedValue({ response: { status: 503, data: { message: "Reports are currently disabled" } } });
+    render(<ReportsPage />);
+    expect(await screen.findByText("Reports are unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Failed to load dashboard summary.")).not.toBeInTheDocument();
   });
 });

@@ -41,16 +41,22 @@ const MASTER_ADMIN_SECTIONS = [
     { to: "/reports", label: "Reports", permission: PERMISSIONS.REPORT_VIEW },
     { to: "/notifications", label: "Notifications", permission: PERMISSIONS.NOTIFICATION_VIEW },
     { to: "/audit", label: "Audit Logs", permission: PERMISSIONS.AUDIT_VIEW },
-    { to: "/policies/manage", label: "Manage Policies", permission: PERMISSIONS.POLICY_MANAGE },
+    { to: "/policies/manage", label: "Manage Policies", permission: PERMISSIONS.POLICY_VIEW },
     { to: "/policies", label: "Policies" },
   ]),
-  section("ACCOUNT", [{ to: "/profile", label: "Profile" }]),
+  section("ACCOUNT", [
+    { to: "/audit/mine", label: "My Activity" },
+    { to: "/profile", label: "Profile" },
+  ]),
 ];
 
 const ASSISTANT_MASTER_ADMIN_SECTIONS = [
   section("ACCOUNT", [{ to: "/dashboard", label: "Dashboard" }]),
   section("CLIENTS", [{ to: "/organizations", label: "Clients", permission: PERMISSIONS.CLIENT_VIEW }]),
-  section("FINANCE", [{ to: "/wallet", label: "Client Balances", permission: PERMISSIONS.WALLET_VIEW }]),
+  section("FINANCE", [
+    { to: "/wallet", label: "Client Balances", permission: PERMISSIONS.WALLET_VIEW },
+    { to: "/payments", label: "Payments", permission: PERMISSIONS.PAYMENT_VIEW },
+  ]),
   section("OPERATIONS", [
     { to: "/estamps/requests", label: "E-Stamp Requests", permission: PERMISSIONS.ESTAMP_VIEW },
     { to: "/orders", label: "Orders", permission: PERMISSIONS.ORDER_VIEW },
@@ -68,14 +74,17 @@ const ASSISTANT_MASTER_ADMIN_SECTIONS = [
     // gate exactly. Without it, this item is simply absent and `/audit/mine`
     // above remains the only audit-adjacent link, same as before.
     { to: "/audit", label: "Audit Logs", permission: PERMISSIONS.AUDIT_VIEW },
-    { to: "/policies/manage", label: "Manage Policies", permission: PERMISSIONS.POLICY_MANAGE },
+    { to: "/policies/manage", label: "Manage Policies", permission: PERMISSIONS.POLICY_VIEW },
     { to: "/policies", label: "Policies" },
   ]),
   // SETTINGS_VIEW is never part of Assistant Master Admin's role template -
   // it can only ever reach this array's filter (getSidebarSections) if a
   // Master Admin explicitly granted it to this specific user, matching
   // settings.routes.js's own requirePermission(SETTINGS_VIEW) gate exactly.
-  section("CONFIGURATION", [{ to: "/settings", label: "Settings", permission: PERMISSIONS.SETTINGS_VIEW }]),
+  section("CONFIGURATION", [
+    { to: "/articles", label: "Articles", permission: PERMISSIONS.ARTICLE_VIEW },
+    { to: "/settings", label: "Settings", permission: PERMISSIONS.SETTINGS_VIEW },
+  ]),
   section("ACCOUNT", [{ to: "/profile", label: "Profile" }]),
 ];
 
@@ -103,6 +112,7 @@ const SUPER_ADMIN_SECTIONS = [
   ]),
   section("ACCOUNT", [
     { to: "/organization/profile", label: "Company Profile" },
+    { to: "/audit/mine", label: "My Activity" },
     { to: "/about", label: "About" },
   ]),
 ];
@@ -122,7 +132,10 @@ const ADMIN_SECTIONS = [
     { to: "/audit", label: "Audit Log", permission: PERMISSIONS.AUDIT_VIEW },
     { to: "/policies", label: "Policies" },
   ]),
-  section("ACCOUNT", [{ to: "/profile", label: "Profile" }]),
+  section("ACCOUNT", [
+    { to: "/audit/mine", label: "My Activity" },
+    { to: "/profile", label: "Profile" },
+  ]),
 ];
 
 const USER_SECTIONS = [
@@ -135,7 +148,10 @@ const USER_SECTIONS = [
   ]),
   section("CONFIGURATION", [{ to: "/articles", label: "Articles", permission: PERMISSIONS.ARTICLE_VIEW }]),
   section("GOVERNANCE", [{ to: "/policies", label: "Policies" }]),
-  section("ACCOUNT", [{ to: "/profile", label: "Profile" }]),
+  section("ACCOUNT", [
+    { to: "/audit/mine", label: "My Activity" },
+    { to: "/profile", label: "Profile" },
+  ]),
 ];
 
 function sectionsFor(role) {

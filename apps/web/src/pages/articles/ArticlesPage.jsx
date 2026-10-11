@@ -7,7 +7,11 @@ import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 import PageHeader from "../../components/common/PageHeader";
 import ErrorState from "../../components/common/ErrorState";
 
-const RULE_TYPES = ["FIXED", "PERCENTAGE", "SLAB", "CUSTOM"];
+// Only rule types this form can fully configure. The API also accepts SLAB
+// and CUSTOM, but those need slab rows this form doesn't have - saving one
+// without them would calculate a stamp duty of 0.
+const RULE_TYPES = ["FIXED", "PERCENTAGE"];
+const EMPTY_VERSION_FORM = { ruleType: "FIXED", fixedAmount: "", percentage: "", minAmount: "", maxAmount: "", effectiveFrom: "" };
 
 export default function ArticlesPage() {
   const { user } = useAuth();
@@ -61,6 +65,7 @@ export default function ArticlesPage() {
     e.preventDefault();
     setCreating(true);
     setActionError(null);
+    setNotice(null);
     try {
       await apiClient.post("/articles", {
         stateCode: createForm.stateCode.toUpperCase(),
@@ -83,6 +88,8 @@ export default function ArticlesPage() {
   async function handleToggleStatus(article) {
     const next = !article.isActive;
     if (!window.confirm(`${next ? "Activate" : "Deactivate"} "${article.title}"? ${!next ? "It will no longer be selectable for new E-Stamp requests." : ""}`)) return;
+    setActionError(null);
+    setNotice(null);
     try {
       await apiClient.patch(`/articles/${article._id}/status`, { isActive: next });
       setNotice(`Article ${next ? "activated" : "deactivated"}.`);
@@ -96,6 +103,7 @@ export default function ArticlesPage() {
     e.preventDefault();
     setSavingVersion(true);
     setActionError(null);
+    setNotice(null);
     try {
       await apiClient.post(`/articles/${versionArticleId}/versions`, {
         calculationRule: buildRule(versionForm),
@@ -197,7 +205,12 @@ export default function ArticlesPage() {
                 </td>
                 {canManage && (
                   <td className="px-4 py-3 space-x-3">
-                    <button onClick={() => setVersionArticleId(a._id)} className="text-brand-600 hover:underline">
+                    <button
+                      onClick={() => {
+                        setVersionForm(EMPTY_VERSION_FORM);
+                        setVersionArticleId(a._id);
+                      }}
+                      className="text-brand-600 hover:underline">
                       New version
                     </button>
                     <button onClick={() => handleToggleStatus(a)} className={a.isActive ? "text-red-600 hover:underline" : "text-green-600 hover:underline"}>
@@ -250,8 +263,8 @@ function RuleFields({ form, setForm }) {
           ))}
         </select>
       </label>
-      {form.ruleType === "FIXED" && <TextField label="Fixed amount (₹)" type="number" value={form.fixedAmount} onChange={(v) => setForm((f) => ({ ...f, fixedAmount: v }))} />}
-      {form.ruleType === "PERCENTAGE" && <TextField label="Percentage (%)" type="number" value={form.percentage} onChange={(v) => setForm((f) => ({ ...f, percentage: v }))} />}
+      {form.ruleType === "FIXED" && <TextField label="Fixed amount (₹)" type="number" required min="0" value={form.fixedAmount} onChange={(v) => setForm((f) => ({ ...f, fixedAmount: v }))} />}
+      {form.ruleType === "PERCENTAGE" && <TextField label="Percentage (%)" type="number" required min="0" step="any" value={form.percentage} onChange={(v) => setForm((f) => ({ ...f, percentage: v }))} />}
       <div className="grid grid-cols-2 gap-4">
         <TextField label="Min amount (optional)" type="number" value={form.minAmount} onChange={(v) => setForm((f) => ({ ...f, minAmount: v }))} />
         <TextField label="Max amount (optional)" type="number" value={form.maxAmount} onChange={(v) => setForm((f) => ({ ...f, maxAmount: v }))} />
@@ -260,11 +273,11 @@ function RuleFields({ form, setForm }) {
   );
 }
 
-function TextField({ label, value, onChange, type = "text" }) {
+function TextField({ label, value, onChange, type = "text", ...inputProps }) {
   return (
     <label className="block">
       <span className="block text-xs font-medium text-slate-700 mb-1">{label}</span>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+      <input type={type} {...inputProps} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
     </label>
   );
 }

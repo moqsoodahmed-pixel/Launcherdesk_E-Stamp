@@ -82,7 +82,7 @@ export default function App() {
           <Route path="/audit" element={guard(<AuditLogsPage />, P.AUDIT_VIEW)}/>
           <Route path="/audit/mine" element={<MyActivityPage />}/>
           <Route path="/policies" element={<PolicyPage />}/>
-          <Route path="/policies/manage" element={guard(<PolicyAdminPage />, P.POLICY_MANAGE)}/>
+          <Route path="/policies/manage" element={guard(<PolicyAdminPage />, P.POLICY_VIEW)}/>
           <Route path="/settings" element={guard(<SystemSettingsPage />, P.SETTINGS_VIEW)}/>
           <Route path="/files/upload" element={guard(<PlaceholderPage title="Upload"/>, P.ESTAMP_UPLOAD)}/>
           <Route path="/files/download" element={guard(<PlaceholderPage title="Download"/>, P.ESTAMP_DOWNLOAD)}/>

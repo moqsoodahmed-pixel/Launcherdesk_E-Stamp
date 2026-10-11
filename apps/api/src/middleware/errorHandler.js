@@ -22,6 +22,11 @@ function errorHandler(err, req, res, _next) {
             details: env_1.env.NODE_ENV === "production" && err.statusCode >= 500 ? undefined : err.details,
         });
     }
+    // A malformed id in the URL (e.g. /payments/abc) makes Mongoose throw a
+    // CastError - that's "no such record", not a server fault.
+    if (err?.name === "CastError" && err?.kind === "ObjectId") {
+        return res.status(404).json({ success: false, message: "Not found", code: "NOT_FOUND" });
+    }
     const message = err instanceof Error ? err.message : "Unknown error";
     logger_1.logger.error("Unhandled error", { path: req.path, message });
     return res.status(500).json({
