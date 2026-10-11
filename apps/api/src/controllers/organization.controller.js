@@ -12,7 +12,6 @@ const auth_service_1 = require("../services/auth.service");
 const crypto_1 = require("crypto");
 const shared_2 = require("@launcherdesk/shared");
 const orgAccess_1 = require("../utils/orgAccess");
-const wallet_service_1 = require("../services/wallet.service");
 // The assignee must be an existing, active Assistant Master Admin.
 async function loadAssignableAssistant(assistantId) {
     if (!assistantId || !/^[a-f0-9]{24}$/i.test(String(assistantId))) {
