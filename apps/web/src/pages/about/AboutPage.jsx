@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import PageHeader from "../../components/common/PageHeader";
 
 // Edit these two values to change the About page.
 const SUPPORT_EMAIL = "support@launcherdesk.com";
@@ -9,7 +10,7 @@ const PRODUCT_DESCRIPTION =
 export default function AboutPage() {
   return (
     <div className="max-w-3xl">
-      <h1 className="text-xl font-semibold text-slate-900 mb-6">About</h1>
+      <PageHeader title="About" />
       <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4 text-sm text-slate-700">
         <div>
           <p className="text-lg font-semibold text-slate-900">LauncherDesk E-Stamping</p>

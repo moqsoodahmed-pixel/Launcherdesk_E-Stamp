@@ -1,158 +1,121 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "../../api/client";
-import { useAuth } from "../../context/AuthContext";
+import { useApi } from "../../hooks/useApi";
+import { getErrorMessage } from "../../utils/errors";
+import PageHeader from "../../components/common/PageHeader";
+import LoadingState from "../../components/common/LoadingState";
+import ErrorState from "../../components/common/ErrorState";
+import ChangePasswordForm from "../../components/common/ChangePasswordForm";
 
-const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
+const inputClass = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
 
-function msg(err, fallback) {
-  if (err?.response?.status === 429) return "Too many attempts. Please wait and try again.";
-  return err?.response?.data?.message || fallback;
-}
+const ROLE_LABELS = {
+  MASTER_ADMIN: "Master Admin",
+  ASSISTANT_MASTER_ADMIN: "Assistant Master Admin",
+  SUPER_ADMIN: "Super Admin",
+  ADMIN: "Admin",
+  USER: "User",
+};
 
 export default function ProfilePage() {
-  const { user } = useAuth();
-  const [me, setMe] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
+  const { data: me, loading, error, refetch, setData } = useApi(
+    (signal) => apiClient.get("/auth/me", { signal }).then((r) => r.data.data),
+    [],
+    { errorMessage: "Failed to load your profile." }
+  );
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
   const [saveErr, setSaveErr] = useState(null);
-
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [show, setShow] = useState(false);
-  const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState(null);
-  const [pwErr, setPwErr] = useState(null);
 
-  function load() {
-    setLoading(true);
-    setLoadError(null);
-    apiClient
-      .get("/auth/me")
-      .then(({ data }) => {
-        setMe(data.data);
-        setName(data.data.name || "");
-        setPhone(data.data.phone || "");
-      })
-      .catch((err) => setLoadError(msg(err, "Failed to load your profile.")))
-      .finally(() => setLoading(false));
-  }
-  useEffect(load, []);
+  useEffect(() => {
+    if (!me) return;
+    setName(me.name || "");
+    setPhone(me.phone || "");
+  }, [me]);
 
   async function saveProfile(e) {
     e.preventDefault();
     setSaveMsg(null);
     setSaveErr(null);
+    const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
+    if (trimmedName.length < 2 || trimmedName.length > 150) return setSaveErr("Name must be 2 to 150 characters.");
+    if (trimmedPhone && (trimmedPhone.length < 6 || trimmedPhone.length > 20)) return setSaveErr("Phone must be 6 to 20 characters, or empty.");
     setSaving(true);
     try {
-      const { data } = await apiClient.patch("/profile", { name, phone });
-      setMe(data.data);
+      const { data } = await apiClient.patch("/profile", { name: trimmedName, phone: trimmedPhone });
+      setData((prev) => ({ ...prev, name: data.data.name, phone: data.data.phone }));
       setSaveMsg("Profile updated.");
     } catch (err) {
-      setSaveErr(msg(err, "Failed to update profile."));
+      setSaveErr(getErrorMessage(err, "Could not update your profile."));
     } finally {
       setSaving(false);
     }
   }
 
-  async function changePassword(e) {
-    e.preventDefault();
-    setPwMsg(null);
-    setPwErr(null);
-    if (newPassword.length < 8) return setPwErr("New password must be at least 8 characters.");
-    if (newPassword !== confirmPassword) return setPwErr("New password and confirmation do not match.");
-    if (newPassword === currentPassword) return setPwErr("New password must be different from the current one.");
-    setPwSaving(true);
-    try {
-      // IMPORTANT: if your Phase 2 endpoint uses different field names, change them here.
-      // Check apps/web/src/pages/auth/ChangePasswordPage.jsx for the exact body it sends.
-      const { data } = await apiClient.post("/auth/change-password", { currentPassword, newPassword });
-      // Phase 2 returns a fresh session for this tab; save it if present.
-      const payload = data?.data;
-      if (payload?.accessToken) localStorage.setItem("ld_access_token", payload.accessToken);
-      if (payload?.refreshToken) localStorage.setItem("ld_refresh_token", payload.refreshToken);
-      setPwMsg("Password changed. Other devices have been signed out.");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (err) {
-      setPwErr(msg(err, "Failed to change password."));
-    } finally {
-      setPwSaving(false);
-    }
-  }
-
-  if (loading) return <p className="text-sm text-slate-500">Loading profile...</p>;
-  if (loadError)
-    return (
-      <div className="rounded-lg bg-red-50 text-red-700 text-sm p-4">
-        {loadError}{" "}
-        <button type="button" onClick={load} className="underline font-medium">
-          Retry
-        </button>
-      </div>
-    );
-
-  const role = (me?.role || user?.role || "").replace(/_/g, " ");
-
   return (
-    <div className="max-w-2xl space-y-6">
-      <h1 className="text-xl font-semibold text-slate-900">Profile</h1>
+    <div className="max-w-3xl">
+      <PageHeader title="Profile" subtitle="Your account details" />
+      {loading && <LoadingState text="Loading your profile..." />}
+      {!loading && error && <ErrorState message={error} onRetry={refetch} />}
+      {!loading && !error && me && (
+        <div className="space-y-6">
+          <section className="bg-white rounded-xl border border-slate-200 p-6">
+            <h2 className="text-base font-semibold text-slate-900 mb-4">Account</h2>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm">
+              <div>
+                <dt className="text-slate-500">Email</dt>
+                <dd className="text-slate-900 break-all">{me.email}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Role</dt>
+                <dd className="text-slate-900">{ROLE_LABELS[me.role] || me.role}</dd>
+              </div>
+            </dl>
+            {saveMsg && (
+              <div role="status" className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">
+                {saveMsg}
+              </div>
+            )}
+            {saveErr && (
+              <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+                {saveErr}
+              </div>
+            )}
+            <form onSubmit={saveProfile} className="space-y-4">
+              <div>
+                <label htmlFor="profile-name" className="block text-sm font-medium text-slate-700 mb-1">
+                  Name
+                </label>
+                <input id="profile-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={150} className={inputClass} />
+              </div>
+              <div>
+                <label htmlFor="profile-phone" className="block text-sm font-medium text-slate-700 mb-1">
+                  Phone (optional)
+                </label>
+                <input id="profile-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} className={inputClass} />
+              </div>
+              <button disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                {saving ? "Saving..." : "Save changes"}
+              </button>
+            </form>
+          </section>
 
-      <form onSubmit={saveProfile} className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-        <h2 className="font-medium text-slate-900">Your details</h2>
-        <div>
-          <label className="block text-sm text-slate-600 mb-1" htmlFor="pf-email">Email</label>
-          <input id="pf-email" className={inputClass + " bg-slate-50"} value={me?.email || ""} disabled />
+          <section className="bg-white rounded-xl border border-slate-200 p-6">
+            <h2 className="text-base font-semibold text-slate-900 mb-4">Change password</h2>
+            {pwMsg && (
+              <div role="status" className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">
+                {pwMsg}
+              </div>
+            )}
+            <ChangePasswordForm submitClassName="" onSuccess={() => setPwMsg("Password changed. Other devices have been signed out.")} />
+          </section>
         </div>
-        <div>
-          <label className="block text-sm text-slate-600 mb-1" htmlFor="pf-role">Role</label>
-          <input id="pf-role" className={inputClass + " bg-slate-50"} value={role} disabled />
-        </div>
-        <div>
-          <label className="block text-sm text-slate-600 mb-1" htmlFor="pf-name">Name</label>
-          <input id="pf-name" className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={150} />
-        </div>
-        <div>
-          <label className="block text-sm text-slate-600 mb-1" htmlFor="pf-phone">Phone</label>
-          <input id="pf-phone" className={inputClass} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" maxLength={20} />
-        </div>
-        {saveErr && <p role="alert" className="text-sm text-red-600">{saveErr}</p>}
-        {saveMsg && <p role="status" className="text-sm text-green-700">{saveMsg}</p>}
-        <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white rounded-lg px-4 py-2 text-sm font-medium">
-          {saving ? "Saving..." : "Save changes"}
-        </button>
-      </form>
-
-      <form onSubmit={changePassword} className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-        <h2 className="font-medium text-slate-900">Change password</h2>
-        <div>
-          <label className="block text-sm text-slate-600 mb-1" htmlFor="pw-current">Current password</label>
-          <input id="pw-current" type={show ? "text" : "password"} className={inputClass} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" required />
-        </div>
-        <div>
-          <label className="block text-sm text-slate-600 mb-1" htmlFor="pw-new">New password (min 8 characters)</label>
-          <input id="pw-new" type={show ? "text" : "password"} className={inputClass} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" required />
-        </div>
-        <div>
-          <label className="block text-sm text-slate-600 mb-1" htmlFor="pw-confirm">Confirm new password</label>
-          <input id="pw-confirm" type={show ? "text" : "password"} className={inputClass} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" required />
-        </div>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} /> Show passwords
-        </label>
-        {pwErr && <p role="alert" className="text-sm text-red-600">{pwErr}</p>}
-        {pwMsg && <p role="status" className="text-sm text-green-700">{pwMsg}</p>}
-        <button type="submit" disabled={pwSaving} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white rounded-lg px-4 py-2 text-sm font-medium">
-          {pwSaving ? "Changing..." : "Change password"}
-        </button>
-      </form>
+      )}
     </div>
   );
 }
