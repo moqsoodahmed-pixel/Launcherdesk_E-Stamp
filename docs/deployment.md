@@ -28,7 +28,9 @@ final blocker classification). Before deploying anywhere:
     restart-on-crash and health checks against `GET /health` (as of Phase 20 this also reports live MongoDB
     connection state as `db`, and `status` degrades to `"degraded"` when the database is not connected — a
     load balancer/uptime monitor should treat `"degraded"` as unhealthy, not just a non-2xx status code).
-11. **E-Stamp provider**: `ESTAMP_PROVIDER` must be set to a real, implemented provider before production use.
+11. **E-Stamp fulfilment**: `ESTAMP_FULFILMENT=manual` (the default) means LauncherDesk staff stamp outside the
+    app and upload certificates from "Orders to fulfil"; no provider is called and `ESTAMP_PROVIDER` is not
+    needed. Only with `ESTAMP_FULFILMENT=provider` must `ESTAMP_PROVIDER` be set to a real, implemented provider.
     Left as `mock`/unset, the app refuses to start serving E-Stamp issuance in `NODE_ENV=production` rather
     than silently fabricating certificates (see `services/estamp-providers/index.js`). No real provider
     integration exists in this codebase yet — see `docs/production-readiness.md`'s "External Dependencies"

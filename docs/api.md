@@ -87,6 +87,38 @@ run `npm run migrate:balance-ledger --workspace=apps/api` once to make that expl
 ## Orders — `/orders`
 `GET /` list, filterable by `status` and (internal roles) `organizationId`
 
+### Fulfilment mode — `ESTAMP_FULFILMENT`
+Env var (default value) and Settings key (a Master Admin override wins): `manual` (default) or `provider`.
+The current mode is returned as `fulfilmentMode` on `GET /auth/me` and the login `user` object.
+- **manual**: there is no external E-Stamp vendor. The organization's assigned Assistant Master Admin
+  stamps outside the app and uploads the certificate. No E-Stamp provider is ever instantiated, so
+  production does not need `ESTAMP_PROVIDER`. `POST /orders/:id/process|sync|retry`, `GET /reports/provider`
+  and every `/estamp-provider/*` route answer **409 `MANUAL_FULFILMENT_ENABLED`**;
+  `POST /orders/webhook/:provider` answers **410**.
+- **provider**: the provider-integration flow exactly as before; the manual endpoints below answer
+  409 `PROVIDER_FULFILMENT_ENABLED`.
+
+### Manual fulfilment endpoints (manual mode; Master Admin or the organization's assigned assistant, `order.manage`; never a client role — 403 otherwise)
+An order is fulfillable only when its request is `LOCKED`/`PROCESSING` **and** `chargeStatus: CHARGED` —
+never inside the 20-minute window, `CANCELLED` or `SHORTFALL` (409 `WINDOW_OPEN` / `INVALID_STATE` /
+`CHARGE_PENDING`).
+- `GET /?queue=fulfil` — orders still to stamp (`CREATED`/`PROCESSING`), assistant-scoped; rows add
+  `lockedAt` and `articleTitle`. Use `sortBy=createdAt&sortDir=asc` for oldest first. Clients: 403.
+- `GET /fulfilment-summary` — `{ toFulfil, oldestLockedAt, oldestAgeMinutes, fulfilledToday }` in scope.
+- `POST /:id/start` — `CREATED → PROCESSING`, request `LOCKED → PROCESSING`, records `fulfilledBy`/`startedAt`,
+  audited; idempotent.
+- `POST /:id/fulfil` (multipart: `file`, `stampReference` 3-100 chars, optional `notes`) — all-or-nothing:
+  upload (same MIME allowlist, size limit and executable-signature check as `/files/upload`), certificate
+  document, order `ISSUED`/`COMPLETED`/`downloadStatus: AVAILABLE` with `providerReference` = stamp reference,
+  request `DOWNLOAD_AVAILABLE`. Any failure removes the uploaded file and leaves the order unchanged.
+  Issued + certificate-available notifications/emails fire once per order. 409 `ALREADY_ISSUED` on repeat.
+- `POST /:id/fail` `{ reason (5-500), refundBalance (boolean, required) }` — order and request `FAILED`,
+  client notified. Only with `refundBalance: true`: ONE CREDIT reversing the charge
+  (`referenceType: ESTAMP_REQUEST_REVERSAL`, idempotency key `estamp-refund:<requestId>`, reason in the
+  description), audited `BALANCE_CHANGED`. Never refunds automatically.
+- When a request locks and is charged, the assigned assistant (or every Master Admin) gets one
+  "New order to fulfil <orderNumber>" notification.
+
 ## Files — `/files`
 `POST /upload` (multipart, `file` field + `fileType`) · `GET /estamp/:orderId/download` (records download
 history, notifies Master Admin if the actor was Assistant Master Admin)
