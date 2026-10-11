@@ -7,6 +7,7 @@ const ApiError_1 = require("../utils/ApiError");
 const report_service_1 = require("../services/report.service");
 const audit_service_1 = require("../services/audit.service");
 const shared_1 = require("@launcherdesk/shared");
+const orgAccess_1 = require("../utils/orgAccess");
 // Thin handlers only - every aggregation lives in report.service.js. Tenant
 // scoping mirrors order.controller.js's isInternalActor/resolveOrgId
 // pattern exactly, with one addition: an internal actor (Assistant Master
@@ -24,15 +25,23 @@ function hasGlobalView(req) {
 // endpoints. organizationId is NEVER read from a tenant actor's request -
 // only an internal actor holding REPORT_GLOBAL_VIEW may omit it for a
 // genuinely platform-wide report.
-function resolveScope(req) {
+// Assistant Master Admin: a requested organization must be assigned to them
+// (403 otherwise); the "global" view becomes the set of assigned
+// organizations (empty = none), never the whole platform.
+async function resolveScope(req) {
     if (!isInternalActor(req)) {
         return { organizationId: req.user.organizationId, isGlobal: false };
     }
+    const isAssistant = req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
     const requested = req.query.organizationId;
     if (requested) {
+        if (isAssistant)
+            await (0, orgAccess_1.assertCanActOnOrganization)(req, requested);
         return { organizationId: requested, isGlobal: false };
     }
     if (hasGlobalView(req)) {
+        if (isAssistant)
+            return { organizationId: (await (0, orgAccess_1.getAccessibleOrganizationIds)(req)).map(String), isGlobal: true };
         return { organizationId: undefined, isGlobal: true };
     }
     throw ApiError_1.ApiError.badRequest("organizationId is required (you do not hold report.global_view)", "ORGANIZATION_ID_REQUIRED");
@@ -42,7 +51,7 @@ function dateRangeQuery(req) {
     return { from, to, preset };
 }
 exports.getDashboard = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { organizationId, isGlobal } = resolveScope(req);
+    const { organizationId, isGlobal } = await resolveScope(req);
     const summary = await report_service_1.ReportService.getDashboardSummary({ organizationId, isGlobal });
     if (!req.user.permissions.includes(shared_1.Permission.REPORT_FINANCIAL_VIEW)) {
         summary.financial = null;
@@ -59,17 +68,23 @@ exports.getDashboard = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 // deliberately not in that role's default template). The new, stricter
 // scope rule applies to every OTHER endpoint in this file instead.
 exports.getSummary = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const organizationId = isInternalActor(req) ? req.query.organizationId : req.user.organizationId;
+    let organizationId = isInternalActor(req) ? req.query.organizationId : req.user.organizationId;
+    if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN) {
+        if (organizationId)
+            await (0, orgAccess_1.assertCanActOnOrganization)(req, organizationId);
+        else
+            organizationId = (await (0, orgAccess_1.getAccessibleOrganizationIds)(req)).map(String);
+    }
     const summary = await report_service_1.ReportService.getLegacySummary({ organizationId });
     return (0, ApiResponse_1.ok)(res, summary);
 });
 exports.getRequests = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { organizationId } = resolveScope(req);
+    const { organizationId } = await resolveScope(req);
     const report = await report_service_1.ReportService.getRequestReport({ organizationId, ...dateRangeQuery(req) });
     return (0, ApiResponse_1.ok)(res, report);
 });
 exports.getOrders = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { organizationId } = resolveScope(req);
+    const { organizationId } = await resolveScope(req);
     const { groupBy, stateCode, articleId, status } = req.query;
     const report = await report_service_1.ReportService.getOrderReport({ organizationId, groupBy, stateCode, articleId, status, ...dateRangeQuery(req) });
     return (0, ApiResponse_1.ok)(res, report);
@@ -81,7 +96,7 @@ exports.getFinancial = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (!req.user.permissions.includes(shared_1.Permission.REPORT_FINANCIAL_VIEW)) {
         throw ApiError_1.ApiError.forbidden("You do not have permission to view financial reports");
     }
-    const { organizationId } = resolveScope(req);
+    const { organizationId } = await resolveScope(req);
     const report = await report_service_1.ReportService.getFinancialReport({ organizationId, ...dateRangeQuery(req) });
     return (0, ApiResponse_1.ok)(res, report);
 });
@@ -93,11 +108,12 @@ exports.getOrganizations = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
         throw ApiError_1.ApiError.forbidden("You do not have permission to view the organizations report");
     }
     const { page, limit, sortBy, sortDir, status } = req.query;
-    const report = await report_service_1.ReportService.getOrganizationReport({ page, limit, sortBy, sortDir, status });
+    const organizationIds = req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN ? await (0, orgAccess_1.getAccessibleOrganizationIds)(req) : undefined;
+    const report = await report_service_1.ReportService.getOrganizationReport({ page, limit, sortBy, sortDir, status, organizationIds });
     return (0, ApiResponse_1.ok)(res, report);
 });
 exports.getBulk = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { organizationId } = resolveScope(req);
+    const { organizationId } = await resolveScope(req);
     const report = await report_service_1.ReportService.getBulkReport({ organizationId, ...dateRangeQuery(req) });
     return (0, ApiResponse_1.ok)(res, report);
 });
@@ -114,7 +130,7 @@ exports.getBulk = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 // organization, an Assistant Master Admin without REPORT_GLOBAL_VIEW must
 // supply one explicit organizationId, never a silent global fallback.
 exports.getRecentActivity = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { organizationId, isGlobal } = resolveScope(req);
+    const { organizationId, isGlobal } = await resolveScope(req);
     const { limit } = req.query;
     const result = await report_service_1.ReportService.getRecentActivity({ organizationId, isGlobal, limit });
     return (0, ApiResponse_1.ok)(res, result);

@@ -13,6 +13,7 @@ const auth_service_1 = require("../services/auth.service");
 const audit_service_1 = require("../services/audit.service");
 const notification_service_1 = require("../services/notification.service");
 const crypto_1 = __importDefault(require("crypto"));
+const orgAccess_1 = require("../utils/orgAccess");
 function isInternalActor(req) {
     return req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
 }
@@ -63,6 +64,11 @@ async function findScopedUser(req, id) {
     if (!target)
         throw ApiError_1.ApiError.notFound("User not found");
     if (!isInternalActor(req) && target.organizationId?.toString() !== req.user.organizationId) {
+        throw ApiError_1.ApiError.notFound("User not found");
+    }
+    // An Assistant Master Admin only reaches users of organizations assigned
+    // to them (internal users have no organization, so never).
+    if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN && !(await (0, orgAccess_1.canAccessOrganization)(req, target.organizationId))) {
         throw ApiError_1.ApiError.notFound("User not found");
     }
     return target;
@@ -127,6 +133,10 @@ exports.createUser = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 });
 exports.listUsers = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const filter = resolveOrgFilter(req);
+    // Assistant: narrow to assigned organizations (a foreign organizationId
+    // filter returns nothing). Master Admin keeps the platform-wide view.
+    if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN)
+        await (0, orgAccess_1.scopeOrganizationFilter)(req, filter, req.query.organizationId);
     const { page = "1", limit = "20" } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));

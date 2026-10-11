@@ -118,7 +118,10 @@ exports.EStampProviderService = {
         // Explicit whitelist of matchable fields - never pass a client-supplied
         // filter object directly into MongoDB.
         const match = { createdAt: { $gte: rangeFrom, $lte: rangeTo } };
-        if (organizationId)
+        // An array = a set of organizations (an Assistant's assigned ones).
+        if (Array.isArray(organizationId))
+            match.organizationId = { $in: organizationId.map((id) => new mongoose_1.Types.ObjectId(id)) };
+        else if (organizationId)
             match.organizationId = new mongoose_1.Types.ObjectId(organizationId);
         if (stateCode)
             match.stateCode = String(stateCode).toUpperCase();
