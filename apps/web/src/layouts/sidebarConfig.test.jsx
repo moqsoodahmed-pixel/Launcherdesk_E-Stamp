@@ -79,6 +79,23 @@ describe("sidebarConfig - structural integrity", () => {
     }
   });
 
+  it("no role links to the removed /files/upload or /files/download pages", () => {
+    for (const role of ["MASTER_ADMIN", "ASSISTANT_MASTER_ADMIN", "SUPER_ADMIN", "ADMIN", "USER"]) {
+      const tos = flatTos(role, Object.values(PERMISSIONS));
+      expect(tos).not.toContain("/files/upload");
+      expect(tos).not.toContain("/files/download");
+    }
+  });
+
+  it("every role has a Profile link; SUPER_ADMIN also has Company Profile and About", () => {
+    for (const role of ["MASTER_ADMIN", "ASSISTANT_MASTER_ADMIN", "SUPER_ADMIN", "ADMIN", "USER"]) {
+      expect(flatTos(role, Object.values(PERMISSIONS))).toContain("/profile");
+    }
+    const superTos = flatTos("SUPER_ADMIN", Object.values(PERMISSIONS));
+    expect(superTos).toContain("/organization/profile");
+    expect(superTos).toContain("/about");
+  });
+
   it("every item's route is a real, non-empty path", () => {
     for (const role of ["MASTER_ADMIN", "ASSISTANT_MASTER_ADMIN", "SUPER_ADMIN", "ADMIN", "USER"]) {
       for (const item of getFlatSidebarItems(role, Object.values(PERMISSIONS))) {

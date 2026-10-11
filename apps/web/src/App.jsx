@@ -10,7 +10,6 @@ import RequestDetailPage from "./pages/estamps/RequestDetailPage";
 import BulkEStampPage from "./pages/estamps/BulkEStampPage";
 import BulkUploadWizard from "./pages/estamps/BulkUploadWizard";
 import BulkBatchDetailPage from "./pages/estamps/BulkBatchDetailPage";
-import PlaceholderPage from "./pages/PlaceholderPage";
 import OrganizationsListPage from "./pages/organizations/OrganizationsListPage";
 import CreateOrganizationPage from "./pages/organizations/CreateOrganizationPage";
 import OrganizationDetailPage from "./pages/organizations/OrganizationDetailPage";
@@ -66,12 +65,12 @@ export default function App() {
           <Route path="/estamps/bulk" element={guard(<BulkEStampPage />, P.ESTAMP_BULK_CREATE)}/>
           <Route path="/estamps/bulk/new" element={guard(<BulkUploadWizard />, P.ESTAMP_BULK_CREATE, TENANT)}/>
           <Route path="/estamps/bulk/:batchId" element={guard(<BulkBatchDetailPage />, P.ESTAMP_BULK_CREATE)}/>
-          <Route path="/estamps" element={guard(<PlaceholderPage title="E-Stamps"/>, P.ESTAMP_VIEW)}/>
+          <Route path="/estamps" element={guard(<EStampsPage />, P.ESTAMP_VIEW)}/>
 
           <Route path="/organizations" element={guard(<OrganizationsListPage />, P.CLIENT_VIEW, INTERNAL)}/>
           <Route path="/organizations/new" element={guard(<CreateOrganizationPage />, P.CLIENT_MANAGE, INTERNAL)}/>
           <Route path="/organizations/:id" element={guard(<OrganizationDetailPage />, P.CLIENT_VIEW, INTERNAL)}/>
-          <Route path="/assistant-admins" element={guard(<PlaceholderPage title="Assistant Master Admins"/>, null, ["MASTER_ADMIN"])}/>
+          <Route path="/assistant-admins" element={guard(<AssistantAdminsPage />, null, ["MASTER_ADMIN"])}/>
           <Route path="/users" element={guard(<UsersListPage />, P.USER_VIEW)}/>
           <Route path="/users/new" element={guard(<CreateUserPage />, P.USER_CREATE)}/>
           <Route path="/users/:id" element={guard(<EditUserPage />, P.USER_VIEW)}/>
@@ -89,16 +88,9 @@ export default function App() {
           <Route path="/policies" element={<PolicyPage />}/>
           <Route path="/policies/manage" element={guard(<PolicyAdminPage />, P.POLICY_VIEW)}/>
           <Route path="/settings" element={guard(<SystemSettingsPage />, P.SETTINGS_VIEW)}/>
-          <Route path="/files/upload" element={guard(<PlaceholderPage title="Upload"/>, P.ESTAMP_UPLOAD)}/>
-          <Route path="/files/download" element={guard(<PlaceholderPage title="Download"/>, P.ESTAMP_DOWNLOAD)}/>
-          <Route path="/organization/profile" element={<PlaceholderPage title="Company Profile"/>}/>
-          <Route path="/about" element={<PlaceholderPage title="About"/>}/>
-          <Route path="/profile" element={<PlaceholderPage title="Profile"/>}/>
-          <Route path="/estamps" element={<EStampsPage />} />
-          <Route path="/assistant-admins" element={<AssistantAdminsPage />} />
-          <Route path="/organization/profile" element={<CompanyProfilePage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/organization/profile" element={guard(<CompanyProfilePage />, null, ["SUPER_ADMIN"])}/>
+          <Route path="/about" element={<AboutPage />}/>
+          <Route path="/profile" element={<ProfilePage />}/>
         </Route>
       </Route>
 

@@ -111,6 +111,7 @@ const SUPER_ADMIN_SECTIONS = [
   section("ACCOUNT", [
     { to: "/organization/profile", label: "Company Profile" },
     { to: "/audit/mine", label: "My Activity" },
+    { to: "/profile", label: "Profile" },
     { to: "/about", label: "About" },
   ]),
 ];
