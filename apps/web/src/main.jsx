@@ -7,7 +7,7 @@ import ConfigErrorPage from "./pages/ConfigErrorPage";
 import { API_CONFIG_MISSING } from "./api/client";
 import "./index.css";
 ReactDOM.createRoot(document.getElementById("root")).render(<React.StrictMode>
-    {API_CONFIG_MISSING ? (<ConfigErrorPage />) : (<BrowserRouter>
+    {API_CONFIG_MISSING ? (<ConfigErrorPage />) : (<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthProvider>
           <App />
         </AuthProvider>
