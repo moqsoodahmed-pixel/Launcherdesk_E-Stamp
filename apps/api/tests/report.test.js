@@ -265,25 +265,38 @@ describe("Tenant isolation", () => {
     expect(error.code).toBe("ORGANIZATION_ID_REQUIRED");
   });
 
-  it("an Assistant Master Admin holding only REPORT_VIEW, given an explicit organizationId, is scoped to exactly that org", async () => {
+  it("an Assistant Master Admin holding only REPORT_VIEW, given an explicit ASSIGNED organizationId, is scoped to exactly that org; an unassigned one is 403", async () => {
     const orgA = await createOrg();
     const orgB = await createOrg();
     await createRequest(orgA);
     await createRequest(orgB);
     await createRequest(orgB);
-    const { res, error } = await runController(reportController.getRequests, assistantReq([Permission.REPORT_VIEW], { query: { organizationId: orgA._id.toString() } }), makeRes());
+    const req = assistantReq([Permission.REPORT_VIEW], { query: { organizationId: orgA._id.toString() } });
+    await Organization.updateOne({ _id: orgA._id }, { assignedAssistantId: req.user.id });
+    const { res, error } = await runController(reportController.getRequests, req, makeRes());
     expect(error).toBeNull();
     expect(res.body.data.total).toBe(1);
+    const other = { ...req, query: { organizationId: orgB._id.toString() } };
+    const denied = await runController(reportController.getRequests, other, makeRes());
+    expect(denied.error.statusCode).toBe(403);
   });
 
-  it("an Assistant Master Admin holding REPORT_GLOBAL_VIEW can omit organizationId and get a global view", async () => {
+  it("an Assistant Master Admin holding REPORT_GLOBAL_VIEW who omits organizationId sees only assigned organizations", async () => {
     const orgA = await createOrg();
     const orgB = await createOrg();
+    const orgC = await createOrg();
     await createRequest(orgA);
     await createRequest(orgB);
-    const { res, error } = await runController(reportController.getRequests, assistantReq([Permission.REPORT_VIEW, Permission.REPORT_GLOBAL_VIEW]), makeRes());
+    await createRequest(orgC);
+    const req = assistantReq([Permission.REPORT_VIEW, Permission.REPORT_GLOBAL_VIEW]);
+    await Organization.updateMany({ _id: { $in: [orgA._id, orgB._id] } }, { assignedAssistantId: req.user.id });
+    const { res, error } = await runController(reportController.getRequests, req, makeRes());
     expect(error).toBeNull();
-    expect(res.body.data.total).toBeGreaterThanOrEqual(2);
+    expect(res.body.data.total).toBe(2); // orgC (unassigned) excluded
+    const none = await runController(reportController.getRequests, assistantReq([Permission.REPORT_VIEW, Permission.REPORT_GLOBAL_VIEW]), makeRes());
+    expect(none.res.body.data.total).toBe(0); // nothing assigned = nothing visible
+    const orgs = await runController(reportController.getOrganizations, req, makeRes());
+    expect(orgs.res.body.data.items.map((o) => o._id.toString()).sort()).toEqual([orgA._id.toString(), orgB._id.toString()].sort());
   });
 });
 
