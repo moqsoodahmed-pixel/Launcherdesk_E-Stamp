@@ -1,242 +1,301 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiClient } from "../../api/client";
+import { useApi } from "../../hooks/useApi";
+import { getErrorMessage } from "../../utils/errors";
 import { PERMISSIONS } from "../../utils/permissions";
+import PageHeader from "../../components/common/PageHeader";
+import LoadingState from "../../components/common/LoadingState";
+import ErrorState from "../../components/common/ErrorState";
+import EmptyState from "../../components/common/EmptyState";
 
-const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
+const LIMIT = 20;
+const inputClass = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
+const ALL_PERMISSIONS = Object.values(PERMISSIONS);
 
-// Labels for the permission checkboxes (values come from utils/permissions.js).
-const PERMISSION_OPTIONS = Object.entries(PERMISSIONS).map(([key, value]) => ({
-  value,
-  label: key.toLowerCase().replace(/_/g, " "),
-}));
-
-function msg(err, fallback) {
-  if (err?.response?.status === 403) return "You do not have permission to do this.";
-  if (err?.response?.status === 429) return "Too many requests. Please wait and try again.";
-  return err?.response?.data?.message || fallback;
+// 403/409/429 get explicit wording; anything else uses the server message.
+export function actionError(err, fallback) {
+  const status = err?.response?.status;
+  if (status === 403) return "You do not have permission to do this. Only a Master Admin can manage Assistant Master Admins.";
+  if (status === 409) return err?.response?.data?.message || "A user with this email already exists.";
+  return getErrorMessage(err, fallback);
 }
 
 export default function AssistantAdminsPage() {
-  const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const limit = 10;
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [notice, setNotice] = useState(null);
+  const { data, loading, error, refetch } = useApi(
+    (signal) => apiClient.get("/users", { signal, params: { role: "ASSISTANT_MASTER_ADMIN", page, limit: LIMIT } }).then((r) => r.data.data),
+    [page],
+    { errorMessage: "Failed to load Assistant Master Admins." }
+  );
 
-  // create form
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState(null);
-  const [tempPassword, setTempPassword] = useState(null); // shown ONCE after creation
+  const [createErr, setCreateErr] = useState(null);
+  const [created, setCreated] = useState(null); // { email, tempPassword } shown once
+  const [rowErr, setRowErr] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const [editing, setEditing] = useState(null); // user whose permissions are being edited
 
-  // permission editor
-  const [editing, setEditing] = useState(null);
-  const [selected, setSelected] = useState([]);
-  const [savingPerms, setSavingPerms] = useState(false);
-  const [permError, setPermError] = useState(null);
-
-  const load = useCallback(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    apiClient
-      .get("/users", { params: { role: "ASSISTANT_MASTER_ADMIN", page, limit } })
-      .then(({ data }) => {
-        if (cancelled) return;
-        setItems(data.data.items || []);
-        setTotal(data.data.total || 0);
-      })
-      .catch((err) => !cancelled && setError(msg(err, "Failed to load Assistant Master Admins.")))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, [page]);
-
-  useEffect(() => load(), [load]);
-
-  async function create(e) {
+  async function handleCreate(e) {
     e.preventDefault();
-    setCreateError(null);
+    setCreateErr(null);
     setCreating(true);
     try {
       const body = { name: form.name.trim(), email: form.email.trim() };
       if (form.phone.trim()) body.phone = form.phone.trim();
-      const { data } = await apiClient.post("/users/assistant-admins", body);
-      setTempPassword({ email: body.email, password: data.data.tempPassword });
+      const { data: res } = await apiClient.post("/users/assistant-admins", body);
+      setCreated({ email: res.data.user.email, tempPassword: res.data.tempPassword });
       setForm({ name: "", email: "", phone: "" });
       setShowCreate(false);
-      setNotice(null);
-      load();
+      refetch();
     } catch (err) {
-      setCreateError(msg(err, "Failed to create Assistant Master Admin."));
+      setCreateErr(actionError(err, "Could not create the Assistant Master Admin."));
     } finally {
       setCreating(false);
     }
   }
 
   async function toggleStatus(u) {
-    const next = !u.isActive;
-    if (!window.confirm(`${next ? "Activate" : "Deactivate"} ${u.name}?`)) return;
+    setRowErr(null);
+    setBusyId(u._id);
     try {
-      await apiClient.patch(`/users/${u._id}/status`, { isActive: next });
-      setNotice(`${u.name} ${next ? "activated" : "deactivated"}.`);
-      load();
+      await apiClient.patch(`/users/${u._id}/status`, { isActive: !u.isActive });
+      refetch();
     } catch (err) {
-      setError(msg(err, "Failed to update status."));
-    }
-  }
-
-  function openPermissions(u) {
-    setEditing(u);
-    setSelected(Array.isArray(u.permissions) ? u.permissions : []);
-    setPermError(null);
-  }
-
-  function togglePerm(value) {
-    setSelected((cur) => (cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value]));
-  }
-
-  async function savePermissions() {
-    setSavingPerms(true);
-    setPermError(null);
-    try {
-      // Full overwrite: grants AND revokes, exactly what the API expects.
-      await apiClient.patch(`/users/${editing._id}/permissions`, { permissions: selected });
-      setNotice(`Permissions updated for ${editing.name}.`);
-      setEditing(null);
-      load();
-    } catch (err) {
-      setPermError(msg(err, "Failed to update permissions."));
+      setRowErr(actionError(err, "Could not change this account's status."));
     } finally {
-      setSavingPerms(false);
+      setBusyId(null);
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const items = data?.items || [];
+  const total = data?.total || 0;
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">Assistant Master Admins</h1>
-        <button type="button" onClick={() => { setShowCreate((v) => !v); setCreateError(null); }} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
-          {showCreate ? "Cancel" : "+ Add Assistant"}
-        </button>
-      </div>
+      <PageHeader
+        title="Assistant Master Admins"
+        subtitle="Internal staff accounts with a permission set you control"
+        actions={
+          <button type="button" onClick={() => setShowCreate((v) => !v)} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
+            {showCreate ? "Cancel" : "New Assistant Admin"}
+          </button>
+        }
+      />
 
-      {tempPassword && (
-        <div role="status" className="mb-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm p-4">
-          <p className="font-medium">Account created for {tempPassword.email}</p>
-          <p className="mt-1">
-            Temporary password: <code className="bg-white px-2 py-0.5 rounded border border-amber-200">{tempPassword.password}</code>
-          </p>
-          <p className="mt-1">This is shown only once. Share it securely; they must change it at first login.</p>
-          <button type="button" className="mt-2 underline" onClick={() => setTempPassword(null)}>Dismiss</button>
+      {created && (
+        <div role="status" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium">Account created for {created.email}.</p>
+              <p className="mt-1">
+                Temporary password: <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-amber-200 select-all">{created.tempPassword}</code>
+              </p>
+              <p className="mt-1 text-xs">Share it securely. It will not be shown again; they must change it at first sign-in.</p>
+            </div>
+            <button type="button" onClick={() => setCreated(null)} className="text-amber-800 hover:underline text-xs font-medium">
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
-      {notice && <p role="status" className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm p-3">{notice}</p>}
-      {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm p-3">{error}</p>}
 
       {showCreate && (
-        <form onSubmit={create} className="bg-white rounded-xl border border-slate-200 p-6 mb-6 grid gap-4 sm:grid-cols-3">
+        <form onSubmit={handleCreate} className="mb-6 bg-white rounded-xl border border-slate-200 p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {createErr && (
+            <div role="alert" className="sm:col-span-3 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+              {createErr}
+            </div>
+          )}
           <div>
-            <label className="block text-sm text-slate-600 mb-1" htmlFor="aa-name">Name</label>
-            <input id="aa-name" className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required minLength={2} maxLength={150} />
+            <label htmlFor="aa-name" className="block text-sm font-medium text-slate-700 mb-1">
+              Name
+            </label>
+            <input id="aa-name" required minLength={2} maxLength={150} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} />
           </div>
           <div>
-            <label className="block text-sm text-slate-600 mb-1" htmlFor="aa-email">Email</label>
-            <input id="aa-email" type="email" className={inputClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+            <label htmlFor="aa-email" className="block text-sm font-medium text-slate-700 mb-1">
+              Email
+            </label>
+            <input id="aa-email" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={inputClass} />
           </div>
           <div>
-            <label className="block text-sm text-slate-600 mb-1" htmlFor="aa-phone">Phone (optional)</label>
-            <input id="aa-phone" className={inputClass} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} minLength={6} maxLength={20} />
+            <label htmlFor="aa-phone" className="block text-sm font-medium text-slate-700 mb-1">
+              Phone (optional)
+            </label>
+            <input id="aa-phone" type="tel" minLength={6} maxLength={20} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={inputClass} />
           </div>
-          {createError && <p role="alert" className="sm:col-span-3 text-sm text-red-600">{createError}</p>}
           <div className="sm:col-span-3">
-            <button type="submit" disabled={creating} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white rounded-lg px-4 py-2 text-sm font-medium">
-              {creating ? "Creating..." : "Create"}
+            <button disabled={creating} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+              {creating ? "Creating..." : "Create account"}
             </button>
-            <span className="ml-3 text-xs text-slate-500">New assistants get the default permission set. Edit it afterwards.</span>
           </div>
         </form>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase text-slate-500 bg-slate-50">
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Permissions</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">Loading...</td></tr>}
-            {!loading && items.length === 0 && !error && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No Assistant Master Admins yet.</td></tr>
-            )}
-            {!loading && items.map((u) => (
-              <tr key={u._id} className="border-t border-slate-100">
-                <td className="px-4 py-3 font-medium">{u.name}</td>
-                <td className="px-4 py-3">{u.email}</td>
-                <td className="px-4 py-3">
-                  <span className={"rounded-full px-2 py-0.5 text-xs " + (u.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600")}>
-                    {u.isActive ? "Active" : "Inactive"}
-                  </span>
-                </td>
-                <td className="px-4 py-3">{Array.isArray(u.permissions) ? u.permissions.length : 0} granted</td>
-                <td className="px-4 py-3 text-right space-x-3 whitespace-nowrap">
-                  <button type="button" className="text-brand-600 hover:underline" onClick={() => openPermissions(u)}>Permissions</button>
-                  <button type="button" className={u.isActive ? "text-red-600 hover:underline" : "text-green-700 hover:underline"} onClick={() => toggleStatus(u)}>
-                    {u.isActive ? "Deactivate" : "Activate"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-between mt-4 text-sm text-slate-600">
-        <span>{total} total</span>
-        <div className="flex items-center gap-3">
-          <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-50">Previous</button>
-          <span>Page {page} of {totalPages}</span>
-          <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-50">Next</button>
+      {rowErr && (
+        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+          {rowErr}
         </div>
-      </div>
+      )}
 
-      {editing && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={`Permissions for ${editing.name}`}>
-          <div className="bg-white rounded-xl max-w-lg w-full max-h-[85vh] flex flex-col">
-            <div className="p-5 border-b border-slate-200">
-              <h2 className="font-semibold text-slate-900">Permissions: {editing.name}</h2>
-              <p className="text-xs text-slate-500">Saving replaces the full set. Unticked items are revoked.</p>
-            </div>
-            <div className="p-5 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {PERMISSION_OPTIONS.map((p) => (
-                <label key={p.value} className="flex items-center gap-2 text-sm text-slate-700">
-                  <input type="checkbox" checked={selected.includes(p.value)} onChange={() => togglePerm(p.value)} />
-                  <span className="capitalize">{p.label}</span>
-                </label>
+      {loading && <LoadingState text="Loading Assistant Master Admins..." />}
+      {!loading && error && <ErrorState message={error} onRetry={refetch} />}
+      {!loading && !error && items.length === 0 && (
+        <div className="bg-white rounded-xl border border-slate-200">
+          <EmptyState title="No Assistant Master Admins yet" description="Create one to delegate client and order operations." />
+        </div>
+      )}
+      {!loading && !error && items.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+              <tr>
+                <th className="text-left px-4 py-3">Name</th>
+                <th className="text-left px-4 py-3">Email</th>
+                <th className="text-left px-4 py-3">Status</th>
+                <th className="text-left px-4 py-3">Permissions</th>
+                <th className="px-4 py-3">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((u) => (
+                <tr key={u._id} className="border-t border-slate-100">
+                  <td className="px-4 py-3 font-medium text-slate-900">{u.name}</td>
+                  <td className="px-4 py-3 text-slate-600 break-all">{u.email}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${u.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"}`}>
+                      {u.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{(u.permissions || []).length}</td>
+                  <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                    <button type="button" onClick={() => setEditing(u)} className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50">
+                      Edit permissions
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === u._id}
+                      onClick={() => toggleStatus(u)}
+                      className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {u.isActive ? "Deactivate" : "Activate"}
+                    </button>
+                  </td>
+                </tr>
               ))}
-            </div>
-            {permError && <p role="alert" className="px-5 text-sm text-red-600">{permError}</p>}
-            <div className="p-5 border-t border-slate-200 flex justify-end gap-3">
-              <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button>
-              <button type="button" disabled={savingPerms} onClick={savePermissions} className="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white rounded-lg px-4 py-2 text-sm font-medium">
-                {savingPerms ? "Saving..." : "Save permissions"}
-              </button>
-            </div>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!error && total > LIMIT && (
+        <div className="flex flex-wrap items-center justify-between gap-2 mt-4 text-sm text-slate-500">
+          <span>
+            Page {page} of {totalPages} ({total} total)
+          </span>
+          <div className="space-x-2">
+            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+              Previous
+            </button>
+            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+              Next
+            </button>
           </div>
         </div>
       )}
+
+      {editing && (
+        <PermissionsDialog
+          user={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            refetch();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// PATCH /users/:id/permissions is a FULL overwrite: the checked set is sent
+// as-is, so unchecking a box revokes it.
+function PermissionsDialog({ user, onClose, onSaved }) {
+  const [selected, setSelected] = useState(() => new Set(user.permissions || []));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+  const dialogRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Focus the first checkbox once on open; Escape closes.
+  useEffect(() => {
+    dialogRef.current?.querySelector("input")?.focus();
+    function onKey(e) {
+      if (e.key === "Escape") onCloseRef.current();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  function toggle(p) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  }
+
+  async function save() {
+    setErr(null);
+    setSaving(true);
+    try {
+      await apiClient.patch(`/users/${user._id}/permissions`, { permissions: ALL_PERMISSIONS.filter((p) => selected.has(p)) });
+      onSaved();
+    } catch (e) {
+      setErr(actionError(e, "Could not save permissions."));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="perm-dialog-title" className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-xl border border-slate-200 p-6">
+        <h2 id="perm-dialog-title" className="text-base font-semibold text-slate-900">
+          Permissions for {user.name}
+        </h2>
+        <p className="text-xs text-slate-500 mt-1 mb-4">Saving replaces the whole permission set: unchecked permissions are revoked.</p>
+        {err && (
+          <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+            {err}
+          </div>
+        )}
+        <fieldset>
+          <legend className="sr-only">Permissions</legend>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {ALL_PERMISSIONS.map((p) => (
+              <label key={p} className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={selected.has(p)} onChange={() => toggle(p)} className="rounded border-slate-300" />
+                <span className="font-mono text-xs">{p}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+            Cancel
+          </button>
+          <button type="button" onClick={save} disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+            {saving ? "Saving..." : "Save permissions"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
