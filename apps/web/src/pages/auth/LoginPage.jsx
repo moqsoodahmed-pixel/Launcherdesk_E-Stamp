@@ -1,6 +1,15 @@
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getErrorMessage } from "../../utils/errors";
+
+// Only same-app relative paths are allowed as a post-login destination -
+// never "//evil.com" or an absolute URL (open redirect), never /login itself.
+export function safeNextPath(raw) {
+  if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return "/dashboard";
+  if (raw === "/login" || raw.startsWith("/login?") || raw.startsWith("/login/")) return "/dashboard";
+  return raw;
+}
 
 function messageFor(err, context) {
   const status = err?.response?.status;
@@ -8,6 +17,7 @@ function messageFor(err, context) {
   if (status === 429) {
     return backendMessage || "Too many attempts. Please wait before trying again.";
   }
+  if (!err?.response) return getErrorMessage(err, "Login failed. Please try again.");
   if (context === "otp") {
     if (status === 400) return "Incorrect or expired code. Please try again or resend.";
     return backendMessage || "OTP verification failed.";
@@ -17,10 +27,15 @@ function messageFor(err, context) {
 }
 
 export default function LoginPage() {
-  const { loginStep1, verifyOtp } = useAuth();
+  const { user, loading, loginStep1, verifyOtp } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const sessionExpired = searchParams.get("sessionExpired") === "1";
+  // Where to go after login: ProtectedRoute passes it as router state, the
+  // API client's session-expired redirect passes it as ?next=.
+  const fromState = location.state?.from;
+  const nextPath = safeNextPath(fromState ? `${fromState.pathname}${fromState.search || ""}` : searchParams.get("next"));
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,7 +56,7 @@ export default function LoginPage() {
       if (result.requiresOtp && result.challengeToken) {
         setChallengeToken(result.challengeToken);
       } else {
-        navigate("/dashboard");
+        navigate(nextPath, { replace: true });
       }
     } catch (err) {
       setError(messageFor(err, "login"));
@@ -58,7 +73,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await verifyOtp(challengeToken, otp);
-      navigate("/dashboard");
+      navigate(nextPath, { replace: true });
     } catch (err) {
       setError(messageFor(err, "otp"));
     } finally {
@@ -83,6 +98,9 @@ export default function LoginPage() {
       setBusy(false);
     }
   }
+
+  // Already signed in (e.g. back button to /login): go straight on.
+  if (!loading && user) return <Navigate to={nextPath} replace />;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100">

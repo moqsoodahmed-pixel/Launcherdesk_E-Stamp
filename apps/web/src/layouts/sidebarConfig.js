@@ -191,3 +191,32 @@ export function getFlatSidebarItems(role, permissions) {
 export function getSidebarItems(role) {
   return sectionsFor(role).flatMap((sec) => sec.items);
 }
+
+// Picks the ONE sidebar item to highlight for the current URL (or null).
+// - Items with a querystring (e.g. /users?role=ADMIN) match only when the
+//   pathname is equal and every one of their query params is present with the
+//   same value - so Manage Users and Manage Admins are told apart. Extra
+//   params (?role=ADMIN&page=2) still match. An exact query match always wins.
+// - Plain items match their own path or any nested path (/orders/123 ->
+//   /orders); the longest matching path wins.
+export function getActiveItem(items, pathname, search = "") {
+  const current = new URLSearchParams(search);
+  let best = null;
+  let bestScore = -1;
+  for (const item of items) {
+    const [itemPath, itemQuery] = item.to.split("?");
+    let score = -1;
+    if (itemQuery) {
+      const wanted = new URLSearchParams(itemQuery);
+      const allMatch = [...wanted.entries()].every(([k, v]) => current.get(k) === v);
+      if (pathname === itemPath && allMatch) score = 100000 + itemPath.length;
+    } else if (pathname === itemPath || pathname.startsWith(`${itemPath}/`)) {
+      score = itemPath.length;
+    }
+    if (score > bestScore) {
+      best = item;
+      bestScore = score;
+    }
+  }
+  return best;
+}

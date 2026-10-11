@@ -32,6 +32,13 @@ import PolicyPage from "./pages/policies/PolicyPage";
 import PolicyAdminPage from "./pages/policies/PolicyAdminPage";
 import SystemSettingsPage from "./pages/settings/SystemSettingsPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import RequireAccess from "./routes/RequireAccess";
+import NotFoundPage from "./pages/NotFoundPage";
+import { PERMISSIONS as P } from "./utils/permissions";
+
+const INTERNAL = ["MASTER_ADMIN", "ASSISTANT_MASTER_ADMIN"];
+// Wrap a page in the same permission/role check its sidebar link uses.
+const guard = (element, permission, roles) => <RequireAccess permission={permission} roles={roles}>{element}</RequireAccess>;
 export default function App() {
     return (<Routes>
       <Route path="/login" element={<LoginPage />}/>
@@ -42,37 +49,37 @@ export default function App() {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<DashboardPage />}/>
 
-          <Route path="/estamps/requests" element={<RequestsListPage />}/>
-          <Route path="/estamps/requests/new" element={<NewRequestPage />}/>
-          <Route path="/estamps/requests/:id" element={<RequestDetailPage />}/>
-          <Route path="/estamps/bulk" element={<BulkEStampPage />}/>
-          <Route path="/estamps/bulk/new" element={<BulkUploadWizard />}/>
-          <Route path="/estamps/bulk/:batchId" element={<BulkBatchDetailPage />}/>
-          <Route path="/estamps" element={<PlaceholderPage title="E-Stamps"/>}/>
+          <Route path="/estamps/requests" element={guard(<RequestsListPage />, P.ESTAMP_VIEW)}/>
+          <Route path="/estamps/requests/new" element={guard(<NewRequestPage />, P.ESTAMP_CREATE)}/>
+          <Route path="/estamps/requests/:id" element={guard(<RequestDetailPage />, P.ESTAMP_VIEW)}/>
+          <Route path="/estamps/bulk" element={guard(<BulkEStampPage />, P.ESTAMP_BULK_CREATE)}/>
+          <Route path="/estamps/bulk/new" element={guard(<BulkUploadWizard />, P.ESTAMP_BULK_CREATE)}/>
+          <Route path="/estamps/bulk/:batchId" element={guard(<BulkBatchDetailPage />, P.ESTAMP_BULK_CREATE)}/>
+          <Route path="/estamps" element={guard(<PlaceholderPage title="E-Stamps"/>, P.ESTAMP_VIEW)}/>
 
-          <Route path="/organizations" element={<OrganizationsListPage />}/>
-          <Route path="/organizations/new" element={<CreateOrganizationPage />}/>
-          <Route path="/organizations/:id" element={<OrganizationDetailPage />}/>
-          <Route path="/assistant-admins" element={<PlaceholderPage title="Assistant Master Admins"/>}/>
-          <Route path="/users" element={<UsersListPage />}/>
-          <Route path="/users/new" element={<CreateUserPage />}/>
-          <Route path="/users/:id" element={<EditUserPage />}/>
-          <Route path="/orders" element={<OrdersListPage />}/>
-          <Route path="/orders/:id" element={<OrderDetailPage />}/>
-          <Route path="/estamp-provider" element={<EStampProviderPage />}/>
-          <Route path="/articles" element={<ArticlesPage />}/>
-          <Route path="/payments" element={<PaymentsListPage />}/>
-          <Route path="/payments/:id" element={<PaymentDetailPage />}/>
-          <Route path="/wallet" element={<WalletPage />}/>
-          <Route path="/reports" element={<ReportsPage />}/>
+          <Route path="/organizations" element={guard(<OrganizationsListPage />, P.CLIENT_VIEW, INTERNAL)}/>
+          <Route path="/organizations/new" element={guard(<CreateOrganizationPage />, P.CLIENT_MANAGE, INTERNAL)}/>
+          <Route path="/organizations/:id" element={guard(<OrganizationDetailPage />, P.CLIENT_VIEW, INTERNAL)}/>
+          <Route path="/assistant-admins" element={guard(<PlaceholderPage title="Assistant Master Admins"/>, null, ["MASTER_ADMIN"])}/>
+          <Route path="/users" element={guard(<UsersListPage />, P.USER_VIEW)}/>
+          <Route path="/users/new" element={guard(<CreateUserPage />, P.USER_CREATE)}/>
+          <Route path="/users/:id" element={guard(<EditUserPage />, P.USER_VIEW)}/>
+          <Route path="/orders" element={guard(<OrdersListPage />, P.ORDER_VIEW)}/>
+          <Route path="/orders/:id" element={guard(<OrderDetailPage />, P.ORDER_VIEW)}/>
+          <Route path="/estamp-provider" element={guard(<EStampProviderPage />, P.ESTAMP_PROVIDER_VIEW)}/>
+          <Route path="/articles" element={guard(<ArticlesPage />, P.ARTICLE_VIEW)}/>
+          <Route path="/payments" element={guard(<PaymentsListPage />, P.PAYMENT_VIEW)}/>
+          <Route path="/payments/:id" element={guard(<PaymentDetailPage />, P.PAYMENT_VIEW)}/>
+          <Route path="/wallet" element={guard(<WalletPage />, P.WALLET_VIEW)}/>
+          <Route path="/reports" element={guard(<ReportsPage />, P.REPORT_VIEW)}/>
           <Route path="/notifications" element={<NotificationsPage />}/>
-          <Route path="/audit" element={<AuditLogsPage />}/>
+          <Route path="/audit" element={guard(<AuditLogsPage />, P.AUDIT_VIEW)}/>
           <Route path="/audit/mine" element={<MyActivityPage />}/>
           <Route path="/policies" element={<PolicyPage />}/>
-          <Route path="/policies/manage" element={<PolicyAdminPage />}/>
-          <Route path="/settings" element={<SystemSettingsPage />}/>
-          <Route path="/files/upload" element={<PlaceholderPage title="Upload"/>}/>
-          <Route path="/files/download" element={<PlaceholderPage title="Download"/>}/>
+          <Route path="/policies/manage" element={guard(<PolicyAdminPage />, P.POLICY_MANAGE)}/>
+          <Route path="/settings" element={guard(<SystemSettingsPage />, P.SETTINGS_VIEW)}/>
+          <Route path="/files/upload" element={guard(<PlaceholderPage title="Upload"/>, P.ESTAMP_UPLOAD)}/>
+          <Route path="/files/download" element={guard(<PlaceholderPage title="Download"/>, P.ESTAMP_DOWNLOAD)}/>
           <Route path="/organization/profile" element={<PlaceholderPage title="Company Profile"/>}/>
           <Route path="/about" element={<PlaceholderPage title="About"/>}/>
           <Route path="/profile" element={<PlaceholderPage title="Profile"/>}/>
@@ -80,6 +87,6 @@ export default function App() {
       </Route>
 
       <Route path="/" element={<Navigate to="/dashboard" replace/>}/>
-      <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
+      <Route path="*" element={<NotFoundPage />}/>
     </Routes>);
 }

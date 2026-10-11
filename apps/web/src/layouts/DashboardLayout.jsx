@@ -1,48 +1,31 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getSidebarSections, getFlatSidebarItems } from "./sidebarConfig";
+import { getSidebarSections, getFlatSidebarItems, getActiveItem } from "./sidebarConfig";
+import ErrorBoundary from "../components/common/ErrorBoundary";
 import NotificationBell from "../components/NotificationBell";
 import GlobalSearch from "../components/GlobalSearch";
 
-// Phase 21 - matches a nested route (e.g. /orders/507f...) to its parent
-// sidebar item (/orders) via a "longest matching prefix" rule rather than an
-// exact match, so a detail page still highlights the list item that leads to
-// it. Items carrying a literal querystring (e.g. /users?role=USER) are only
-// ever active on an EXACT pathname+search match against another such item -
-// otherwise two sibling items sharing the same pathname (Manage Users /
-// Manage Admins, both "/users") would both light up together.
-function isItemActive(item, pathname, search, allItems) {
-  const [itemPath, itemQuery] = item.to.split("?");
-  if (itemQuery) {
-    return pathname === itemPath && search.replace(/^\?/, "") === itemQuery;
-  }
-  if (pathname !== itemPath && !pathname.startsWith(`${itemPath}/`)) return false;
-  const longestOtherMatch = allItems
-    .filter((i) => i !== item && !i.to.includes("?"))
-    .map((i) => i.to.split("?")[0])
-    .filter((p) => pathname === p || pathname.startsWith(`${p}/`))
-    .reduce((max, p) => Math.max(max, p.length), 0);
-  return itemPath.length >= longestOtherMatch;
-}
-
 function SidebarNav({ sections, allItems, pathname, search, onNavigate }) {
+  // Exactly one item (or none) is highlighted - see getActiveItem.
+  const activeItem = getActiveItem(allItems, pathname, search);
   return (
     <nav className="flex-1 overflow-y-auto py-3" aria-label="Main navigation">
       {sections.map((sec) => (
         <div key={sec.heading} className="mb-3">
           <p className="px-5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{sec.heading}</p>
           {sec.items.map((item) => {
-            const active = isItemActive(item, pathname, search, allItems);
+            const active = item === activeItem;
             return (
-              <NavLink
+              <Link
                 key={item.to}
                 to={item.to}
                 onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
                 className={`block px-5 py-2.5 text-sm rounded-lg mx-2 mb-1 ${active ? "bg-brand-50 text-brand-700 font-medium" : "text-slate-600 hover:bg-slate-100"}`}
               >
                 {item.label}
-              </NavLink>
+              </Link>
             );
           })}
         </div>
@@ -151,7 +134,18 @@ export default function DashboardLayout() {
           <NotificationBell />
         </div>
         <div className="max-w-6xl mx-auto p-4 sm:p-6 pt-2">
-          <Outlet />
+          {user?.mustChangePassword && (
+            <div role="status" className="mb-4 rounded-lg bg-amber-50 text-amber-800 text-sm px-3 py-2">
+              You are using a temporary password. Please set a new one using{" "}
+              <Link to="/forgot-password" className="font-medium underline">
+                Reset password
+              </Link>
+              .
+            </div>
+          )}
+          <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
+            <Outlet />
+          </ErrorBoundary>
         </div>
       </main>
     </div>

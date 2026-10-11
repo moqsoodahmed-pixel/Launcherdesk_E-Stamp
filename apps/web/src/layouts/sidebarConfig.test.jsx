@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getSidebarSections, getFlatSidebarItems } from "./sidebarConfig";
+import { getSidebarSections, getFlatSidebarItems, getActiveItem } from "./sidebarConfig";
 import { PERMISSIONS } from "../utils/permissions";
 
 function flatTos(role, permissions) {
@@ -84,6 +84,44 @@ describe("sidebarConfig - structural integrity", () => {
       for (const item of getFlatSidebarItems(role, Object.values(PERMISSIONS))) {
         expect(item.to).toMatch(/^\//);
         expect(item.label).toBeTruthy();
+      }
+    }
+  });
+});
+
+describe("sidebarConfig - getActiveItem (exactly one highlighted item)", () => {
+  const ROLES = ["MASTER_ADMIN", "ASSISTANT_MASTER_ADMIN", "SUPER_ADMIN", "ADMIN", "USER"];
+  const all = Object.values(PERMISSIONS);
+  const active = (role, url) => {
+    const [pathname, query = ""] = url.split("?");
+    return getActiveItem(getFlatSidebarItems(role, all), pathname, query ? `?${query}` : "")?.to ?? null;
+  };
+
+  it("tells Manage Users and Manage Admins apart by query string", () => {
+    expect(active("SUPER_ADMIN", "/users?role=USER")).toBe("/users?role=USER");
+    expect(active("SUPER_ADMIN", "/users?role=ADMIN")).toBe("/users?role=ADMIN");
+    expect(active("SUPER_ADMIN", "/users?role=ADMIN&page=2")).toBe("/users?role=ADMIN");
+  });
+
+  it("prefers the longest matching path for nested routes", () => {
+    expect(active("SUPER_ADMIN", "/estamps/requests/new")).toBe("/estamps/requests/new");
+    expect(active("SUPER_ADMIN", "/estamps/requests/abc123")).toBe("/estamps");
+    expect(active("ADMIN", "/estamps/requests/abc123")).toBe("/estamps/requests");
+    expect(active("MASTER_ADMIN", "/audit/mine")).toBe("/audit");
+    expect(active("ASSISTANT_MASTER_ADMIN", "/audit/mine")).toBe("/audit/mine");
+    expect(active("MASTER_ADMIN", "/policies/manage")).toBe("/policies/manage");
+    expect(active("MASTER_ADMIN", "/orders/507f1f77bcf86cd799439011")).toBe("/orders");
+  });
+
+  it("highlights nothing for a URL no item covers", () => {
+    expect(active("SUPER_ADMIN", "/nope")).toBeNull();
+    expect(active("SUPER_ADMIN", "/users")).toBeNull();
+  });
+
+  it("never returns more than one item for any sidebar link of any role", () => {
+    for (const role of ROLES) {
+      for (const item of getFlatSidebarItems(role, all)) {
+        expect(active(role, item.to)).toBe(item.to);
       }
     }
   });
