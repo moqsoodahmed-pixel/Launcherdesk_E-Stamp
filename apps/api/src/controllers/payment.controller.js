@@ -27,8 +27,8 @@ exports.createRazorpayOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) 
         throw ApiError_1.ApiError.badRequest("organizationId is required");
     if (isInternalActor(req))
         await (0, orgAccess_1.assertCanActOnOrganization)(req, organizationId);
-    const { amount } = req.body;
-    const result = await payment_service_1.PaymentService.createOrder({ organizationId, userId: req.user.id, amount });
+    const { amount, plan, stampsCount } = req.body;
+    const result = await payment_service_1.PaymentService.createOrder({ organizationId, userId: req.user.id, amount, plan, stampsCount });
     await (0, audit_service_1.recordAudit)({
         actorId: req.user.id,
         actorRole: req.user.role,
@@ -176,24 +176,49 @@ exports.listPayments = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             .limit(limitNum),
         models_1.Payment.countDocuments(filter),
     ]);
-    // Display-only organization name, internal actors only.
+    // Enrich records with organization and creator (Super Admin) details.
     let rows = items;
-    if (isInternalActor(req) && items.length) {
-        const orgs = await models_1.Organization.find({ _id: { $in: [...new Set(items.map((p) => p.organizationId.toString()))] } }).select("name");
+    if (items.length) {
+        const orgIds = [...new Set(items.map((p) => p.organizationId?.toString()).filter(Boolean))];
+        const userIds = [...new Set(items.map((p) => p.createdBy?.toString()).filter(Boolean))];
+        const [orgs, users] = await Promise.all([
+            isInternalActor(req) ? models_1.Organization.find({ _id: { $in: orgIds } }).select("name") : Promise.resolve([]),
+            models_1.User.find({ _id: { $in: userIds } }).select("name email role"),
+        ]);
         const names = new Map(orgs.map((o) => [o._id.toString(), o.name]));
-        rows = items.map((p) => ({ ...p.toObject(), organizationName: names.get(p.organizationId.toString()) ?? null }));
+        const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+        rows = items.map((p) => {
+            const u = userMap.get(p.createdBy?.toString());
+            const invoiceNum = p.invoiceNumber || `INV-${new Date(p.createdAt).getFullYear()}-${p._id.toString().slice(-6).toUpperCase()}`;
+            const row = {
+                ...p.toObject(),
+                createdByName: u?.name ?? null,
+                createdByEmail: u?.email ?? null,
+                createdByRole: u?.role ?? null,
+                plan: p.plan || "Wallet Top-up & E-Stamping Balance",
+                transactionId: p.razorpayPaymentId || p.razorpayOrderId,
+                invoiceNumber: invoiceNum,
+            };
+            if (isInternalActor(req)) {
+                row.organizationName = names.get(p.organizationId?.toString()) || null;
+            }
+            return row;
+        });
     }
     return (0, ApiResponse_1.ok)(res, { items: rows, total, page: pageNum, limit: limitNum });
 });
 exports.getPayment = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const payment = await models_1.Payment.findById(req.params.id);
+    const payment = await models_1.Payment.findById(req.params.id)
+        .populate("organizationId", "name contactEmail contactPhone")
+        .populate("createdBy", "name email role");
     // Identical "not found" for a genuinely missing payment and one that
     // belongs to another organization - existence is never confirmed to a
     // tenant actor probing another org's payment ids.
-    if (!payment || (!isInternalActor(req) && payment.organizationId.toString() !== req.user.organizationId)) {
+    const paymentOrgId = payment?.organizationId?._id ? payment.organizationId._id.toString() : payment?.organizationId?.toString();
+    if (!payment || (!isInternalActor(req) && paymentOrgId !== req.user.organizationId)) {
         throw ApiError_1.ApiError.notFound("Payment not found");
     }
-    if (isInternalActor(req) && !(await (0, orgAccess_1.canAccessOrganization)(req, payment.organizationId))) {
+    if (isInternalActor(req) && !(await (0, orgAccess_1.canAccessOrganization)(req, paymentOrgId))) {
         throw ApiError_1.ApiError.notFound("Payment not found");
     }
     // The real ledger entry this payment produced (if any) - the wallet
@@ -205,7 +230,15 @@ exports.getPayment = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const tx = await models_1.WalletTransaction.findOne({ referenceType: "PAYMENT", referenceId: payment._id.toString(), pending: { $ne: true } });
         walletEffect = tx ? { type: tx.type, amount: tx.amount, balanceAfter: tx.balanceAfter, at: tx.createdAt } : { credited: false };
     }
-    return (0, ApiResponse_1.ok)(res, { ...payment.toObject(), walletEffect });
+    const paymentObj = payment.toObject();
+    paymentObj.organizationName = payment.organizationId?.name || null;
+    paymentObj.createdByName = payment.createdBy?.name || null;
+    paymentObj.createdByEmail = payment.createdBy?.email || null;
+    paymentObj.createdByRole = payment.createdBy?.role || null;
+    paymentObj.plan = payment.plan || "Wallet Top-up & E-Stamping Balance";
+    paymentObj.transactionId = payment.razorpayPaymentId || payment.razorpayOrderId;
+    paymentObj.invoiceNumber = payment.invoiceNumber || `INV-${new Date(payment.createdAt).getFullYear()}-${payment._id.toString().slice(-6).toUpperCase()}`;
+    return (0, ApiResponse_1.ok)(res, { ...paymentObj, walletEffect });
 });
 // Razorpay server-to-server webhook. Deliberately NOT behind `authenticate` -
 // Razorpay cannot present a LauncherDesk session token. Trust is established

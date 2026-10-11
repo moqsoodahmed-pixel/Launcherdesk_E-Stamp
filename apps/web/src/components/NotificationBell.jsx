@@ -21,7 +21,12 @@ export default function NotificationBell() {
   useEffect(() => {
     loadUnreadCount();
     const interval = setInterval(loadUnreadCount, 30000); // periodic poll for the badge only - not the full list
-    return () => clearInterval(interval);
+    const handleRefresh = () => loadUnreadCount();
+    window.addEventListener("ld:notifications_refresh", handleRefresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("ld:notifications_refresh", handleRefresh);
+    };
   }, [loadUnreadCount]);
 
   useEffect(() => {

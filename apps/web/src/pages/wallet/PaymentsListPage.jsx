@@ -165,39 +165,51 @@ export default function PaymentsListPage() {
       )}
 
       <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-x-auto">
-        <table className="w-full text-sm min-w-[860px]">
+        <table className="w-full text-sm min-w-[960px]">
           <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
             <tr>
               {isInternal && <th className="text-left px-4 py-3">Organization</th>}
+              {isInternal && <th className="text-left px-4 py-3">Paid By</th>}
+              <th className="text-left px-4 py-3">Plan / Type</th>
               <th className="text-right px-4 py-3">Amount</th>
               <th className="text-left px-4 py-3">Status</th>
               <th className="text-left px-4 py-3">Balance</th>
-              <th className="text-left px-4 py-3">Razorpay order</th>
-              <th className="text-left px-4 py-3">Razorpay payment</th>
-              <th className="text-left px-4 py-3">Created</th>
-              <th className="text-left px-4 py-3">Verified</th>
+              <th className="text-left px-4 py-3">Transaction ID</th>
+              <th className="text-left px-4 py-3">Invoice</th>
+              <th className="text-left px-4 py-3">Date & Time</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="px-4 py-6">
+                <td colSpan={isInternal ? 10 : 8} className="px-4 py-6">
                   <TableSkeleton rows={4} />
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && !error && (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={isInternal ? 10 : 8}>
                   <EmptyState text={hasFilters ? "No payments match these filters" : "No payments found"} />
                 </td>
               </tr>
             )}
             {!loading &&
               items.map((p) => (
-                <tr key={p._id} className="border-t border-slate-100">
-                  {isInternal && <td className="px-4 py-3 text-slate-600">{p.organizationName || "-"}</td>}
+                <tr key={p._id} className="border-t border-slate-100 hover:bg-slate-50/50">
+                  {isInternal && <td className="px-4 py-3 font-medium text-slate-900">{p.organizationName || "-"}</td>}
+                  {isInternal && (
+                    <td className="px-4 py-3 text-slate-600">
+                      <div className="font-medium text-slate-800">{p.createdByName || "-"}</div>
+                      {p.createdByEmail && <div className="text-xs text-slate-400">{p.createdByEmail}</div>}
+                    </td>
+                  )}
+                  <td className="px-4 py-3">
+                    <span className="inline-block px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700 font-medium">
+                      {p.plan || "Wallet Balance"}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-right font-medium text-slate-900 tabular-nums">{formatCurrency(p.amount)}</td>
                   <td className="px-4 py-3">
                     <PaymentStatusBadge status={p.status} />
@@ -205,10 +217,13 @@ export default function PaymentsListPage() {
                   <td className="px-4 py-3">
                     <BalanceStatusBadge payment={p} />
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.razorpayOrderId}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.razorpayPaymentId || "-"}</td>
-                  <td className="px-4 py-3 text-slate-500">{fmt(p.createdAt)}</td>
-                  <td className="px-4 py-3 text-slate-500">{fmt(p.verifiedAt)}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500">
+                    {p.transactionId || p.razorpayPaymentId || p.razorpayOrderId}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-600 font-medium">
+                    {p.invoiceNumber || "-"}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">{fmt(p.createdAt)}</td>
                   <td className="px-4 py-3">
                     <Link to={`/payments/${p._id}`} className="text-brand-600 hover:underline">
                       View
@@ -242,11 +257,21 @@ export default function PaymentsListPage() {
                   <>
                     <dt>Organization</dt>
                     <dd className="text-right text-slate-700 break-words">{p.organizationName || "-"}</dd>
+                    <dt>Paid By</dt>
+                    <dd className="text-right text-slate-700">{p.createdByName || p.createdByEmail || "-"}</dd>
                   </>
                 )}
-                <dt>Order</dt>
-                <dd className="text-right text-slate-700 break-all font-mono">{p.razorpayOrderId}</dd>
-                <dt>Created</dt>
+                <dt>Plan</dt>
+                <dd className="text-right text-slate-700">{p.plan || "Wallet Balance"}</dd>
+                <dt>Transaction</dt>
+                <dd className="text-right text-slate-700 break-all font-mono">{p.transactionId || p.razorpayPaymentId || p.razorpayOrderId}</dd>
+                {p.invoiceNumber && (
+                  <>
+                    <dt>Invoice</dt>
+                    <dd className="text-right text-slate-700 font-mono font-medium">{p.invoiceNumber}</dd>
+                  </>
+                )}
+                <dt>Date & Time</dt>
                 <dd className="text-right text-slate-700">{fmt(p.createdAt)}</dd>
               </dl>
             </Link>

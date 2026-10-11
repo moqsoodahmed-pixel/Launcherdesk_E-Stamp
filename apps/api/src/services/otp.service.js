@@ -87,4 +87,35 @@ exports.OtpService = {
         await (0, audit_service_1.recordAudit)({ actorId: otp.userId.toString(), actorRole, action: shared_1.AuditAction.OTP_VERIFIED, req });
         return { userId: otp.userId.toString(), purpose: otp.purpose };
     },
+    async issueDirectResetToken(userId, email, actorRole, req) {
+        const challengeToken = (0, crypto_1.generateOpaqueToken)(32);
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+        await models_1.OTP.create({
+            userId,
+            purpose: "PASSWORD_RESET",
+            codeHash: "direct_reset_token",
+            challengeToken,
+            expiresAt,
+            attempts: 0,
+            maxAttempts: 1,
+            lastSentAt: new Date(),
+        });
+        await (0, audit_service_1.recordAudit)({ actorId: userId, actorRole: actorRole || "UNKNOWN", action: shared_1.AuditAction.PASSWORD_RESET_REQUESTED, entityType: "OTP", req });
+        return challengeToken;
+    },
+    async verifyDirectToken(challengeToken, req) {
+        const otp = await models_1.OTP.findOne({ challengeToken, purpose: "PASSWORD_RESET" });
+        if (!otp)
+            throw ApiError_1.ApiError.badRequest("Invalid or expired reset link");
+        if (otp.consumedAt)
+            throw ApiError_1.ApiError.badRequest("This reset link has already been used");
+        if (otp.expiresAt.getTime() < Date.now())
+            throw ApiError_1.ApiError.badRequest("Reset link has expired, please request a new one");
+        otp.consumedAt = new Date();
+        await otp.save();
+        const actor = await models_1.User.findById(otp.userId).select("role").lean();
+        const actorRole = actor?.role || "UNKNOWN";
+        await (0, audit_service_1.recordAudit)({ actorId: otp.userId.toString(), actorRole, action: shared_1.AuditAction.OTP_VERIFIED, req });
+        return { userId: otp.userId.toString() };
+    },
 };

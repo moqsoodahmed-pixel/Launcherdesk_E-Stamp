@@ -492,11 +492,41 @@ exports.ReportService = {
                 organizationName: isGlobal ? "$organization.name" : { $literal: null },
             },
         });
-        const [requests, orders] = await Promise.all([
+        const paymentPipeline = withOrgName([
+            { $match: filter },
+            { $sort: { createdAt: -1 } },
+            { $limit: lim },
+        ]);
+        paymentPipeline.push({
+            $lookup: { from: "users", localField: "createdBy", foreignField: "_id", as: "user" },
+        });
+        paymentPipeline.push({
+            $unwind: { path: "$user", preserveNullAndEmptyArrays: true },
+        });
+        paymentPipeline.push({
+            $project: {
+                _id: 1,
+                amount: 1,
+                currency: 1,
+                status: 1,
+                plan: 1,
+                razorpayOrderId: 1,
+                razorpayPaymentId: 1,
+                createdAt: 1,
+                organizationId: 1,
+                organizationName: isGlobal ? "$organization.name" : { $literal: null },
+                createdByName: "$user.name",
+                createdByEmail: "$user.email",
+                invoiceNumber: 1,
+                stampsCount: 1,
+            },
+        });
+        const [requests, orders, payments] = await Promise.all([
             models_1.EStampRequest.aggregate(requestPipeline),
             models_1.EStampOrder.aggregate(orderPipeline),
+            models_1.Payment.aggregate(paymentPipeline),
         ]);
-        return { requests, orders };
+        return { requests, orders, payments };
     },
     // Wraps EStampProviderService.getLatestBalance() (never calls the
     // provider - serves the last snapshot only) plus a bounded balance

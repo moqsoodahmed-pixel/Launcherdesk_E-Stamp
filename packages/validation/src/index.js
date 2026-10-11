@@ -16,7 +16,7 @@ exports.forgotPasswordSchema = zod_1.z.object({
 });
 exports.resetPasswordSchema = zod_1.z.object({
     resetToken: zod_1.z.string().min(10),
-    code: zod_1.z.string().length(6),
+    code: zod_1.z.string().length(6).optional(),
     newPassword: zod_1.z.string().min(8),
 });
 // Logged-in password change. Same strength rule as resetPasswordSchema.
@@ -195,6 +195,8 @@ exports.createRazorpayOrderSchema = zod_1.z.object({
         .positive()
         .max(1000000)
         .refine((v) => Math.round(v * 100) === v * 100, "Amount must have at most 2 decimal places"),
+    plan: zod_1.z.string().max(200).optional(),
+    stampsCount: zod_1.z.number().int().nonnegative().optional(),
     organizationId: zod_1.z.string().optional(), // only ever honored for internal actors, see resolveOrgId
 }).strict();
 exports.verifyRazorpayPaymentSchema = zod_1.z.object({

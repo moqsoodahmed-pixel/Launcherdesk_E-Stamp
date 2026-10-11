@@ -41,7 +41,9 @@ export function AuthProvider({ children }) {
         return data.data; // { challengeToken, message } - challengeToken absent/irrelevant if email unknown
     }
     async function resetPassword(resetToken, code, newPassword) {
-        const { data } = await apiClient.post("/auth/reset-password", { resetToken, code, newPassword });
+        const payload = { resetToken, newPassword };
+        if (code) payload.code = code;
+        const { data } = await apiClient.post("/auth/reset-password", payload);
         return data.data;
     }
     // Logged-in password change; the API ends every other session and returns

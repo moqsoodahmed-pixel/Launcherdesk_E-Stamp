@@ -74,13 +74,73 @@ const TEMPLATES = {
         subject: `E-Stamp downloaded: ${data.orderNumber}`,
         html: layout(`<p>Your E-Stamp for order <b>${escapeHtml(data.orderNumber)}</b> was downloaded.</p>`),
     }),
-    paymentSuccess: (data) => ({
-        subject: "Payment successful",
-        html: layout(`
-      <h2 style="margin-top:0;">Payment successful</h2>
-      <p>Your payment of <b>&#8377;${escapeHtml(data.amount)}</b> was received. Your balance will be updated once LauncherDesk confirms it.</p>
-    `),
-    }),
+    paymentSuccess: (data) => {
+        const orgName = escapeHtml(data.organizationName || "Your Organization");
+        const customerName = escapeHtml(data.customerName || "Valued Customer");
+        const plan = escapeHtml(data.plan || "E-Stamp Package / Balance Top-up");
+        const amount = escapeHtml(data.amount);
+        const txId = escapeHtml(data.transactionId || "N/A");
+        const invoiceNum = escapeHtml(data.invoiceNumber || "N/A");
+        const date = escapeHtml(data.purchaseDate || new Date().toLocaleDateString("en-IN"));
+        const resetPasswordUrl = escapeHtml(data.resetPasswordUrl || "#");
+        const portalUrl = escapeHtml(data.portalUrl || "#");
+
+        return {
+            subject: `Purchase Confirmation: ${plan} - LauncherDesk E-Stamp`,
+            html: layout(`
+                <div style="padding: 4px 0;">
+                  <h2 style="margin-top:0; color:#0f172a; font-size:20px;">Thank You for Your Purchase!</h2>
+                  <p style="font-size:14px; color:#475569; line-height:1.5;">
+                    Dear <b>${customerName}</b>, we have successfully received your payment for <b>${orgName}</b>. Your package is active and ready in your portal.
+                  </p>
+
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; margin: 18px 0; font-size:13px;">
+                    <tr>
+                      <td style="padding:10px 14px; color:#64748b; border-bottom:1px solid #f1f5f9;">Organization:</td>
+                      <td style="padding:10px 14px; font-weight:600; color:#0f172a; text-align:right; border-bottom:1px solid #f1f5f9;">${orgName}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:10px 14px; color:#64748b; border-bottom:1px solid #f1f5f9;">Plan / Package:</td>
+                      <td style="padding:10px 14px; font-weight:600; color:#0f172a; text-align:right; border-bottom:1px solid #f1f5f9;">${plan}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:10px 14px; color:#64748b; border-bottom:1px solid #f1f5f9;">Amount Paid:</td>
+                      <td style="padding:10px 14px; font-weight:700; color:#15803d; text-align:right; border-bottom:1px solid #f1f5f9;">&#8377;${amount}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:10px 14px; color:#64748b; border-bottom:1px solid #f1f5f9;">Transaction ID:</td>
+                      <td style="padding:10px 14px; font-family:monospace; color:#334155; text-align:right; border-bottom:1px solid #f1f5f9;">${txId}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:10px 14px; color:#64748b; border-bottom:1px solid #f1f5f9;">Invoice Number:</td>
+                      <td style="padding:10px 14px; font-family:monospace; font-weight:600; color:#2563eb; text-align:right; border-bottom:1px solid #f1f5f9;">${invoiceNum}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:10px 14px; color:#64748b;">Purchase Date:</td>
+                      <td style="padding:10px 14px; color:#334155; text-align:right;">${date}</td>
+                    </tr>
+                  </table>
+
+                  <div style="margin: 20px 0; text-align:center;">
+                    <a href="${portalUrl}" style="display:block; padding:12px 18px; margin-bottom:10px; background-color:#2563eb; color:#ffffff; text-decoration:none; font-size:14px; font-weight:600; border-radius:8px; text-align:center;">
+                      🚀 Open E-Stamp Portal
+                    </a>
+                    <a href="${resetPasswordUrl}" style="display:block; padding:10px 18px; background-color:#f1f5f9; color:#334155; text-decoration:none; font-size:13px; font-weight:600; border-radius:8px; border:1px solid #cbd5e1; text-align:center;">
+                      🔒 Reset Password
+                    </a>
+                  </div>
+
+                  <p style="font-size:11px; color:#94a3b8; text-align:center; margin-bottom:16px;">
+                    The password reset link is time-limited and valid for single use.
+                  </p>
+
+                  <div style="border-top:1px solid #f1f5f9; padding-top:12px; font-size:12px; color:#64748b;">
+                    Need help? Contact support at <a href="mailto:support@launcherdesk.com" style="color:#2563eb;">support@launcherdesk.com</a>.
+                  </div>
+                </div>
+            `),
+        };
+    },
     paymentFailed: (data) => ({
         subject: "Payment failed",
         html: layout(`

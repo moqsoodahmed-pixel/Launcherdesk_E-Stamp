@@ -42,20 +42,41 @@ async function markPaymentSucceeded(paymentId, razorpayPaymentId) {
 // assistant, or every Master Admin if the organization has none.
 async function notifyPendingCredit(payment) {
     const org = await models_1.Organization.findById(payment.organizationId).select("name assignedAssistantId");
+    const user = await models_1.User.findById(payment.createdBy).select("name email role");
+    const orgName = org?.name || "A client organization";
+    const buyerName = user?.name || "Super Admin";
+    const planName = payment.plan || "Wallet Top-up & E-Stamping Balance";
+    const stamps = payment.stampsCount > 0 ? payment.stampsCount : (planName.match(/(\d+)\s*E-Stamp/i)?.[1] || null);
+    const stampsText = stamps ? ` (${stamps} E-Stamps)` : "";
+    const amountStr = `₹${payment.amount.toLocaleString("en-IN")}`;
+    const txId = payment.razorpayPaymentId || payment.razorpayOrderId;
+
+    const message = `${orgName} has successfully purchased the ${planName}${stampsText} for ${amountStr}. Transaction ID: ${txId}.`;
+
     const base = {
         type: shared_1.NotificationType.PAYMENT,
-        title: "Payment waiting to be credited",
-        message: `${org?.name || "A client"} paid ₹${payment.amount} by Razorpay (${payment.razorpayPaymentId}). Credit it to their balance after confirming receipt.`,
+        title: "New E-Stamp Package Purchased (Payment waiting to be credited)",
+        message,
         organizationId: payment.organizationId.toString(),
         entityType: "Payment",
         entityId: payment._id,
-        eventKey: `payment:${payment._id.toString()}:pending-credit`,
+        metadata: {
+            superAdminName: buyerName,
+            superAdminEmail: user?.email,
+            organizationName: orgName,
+            plan: planName,
+            stampsCount: stamps,
+            amount: payment.amount,
+            status: payment.status,
+            transactionId: txId,
+            createdAt: payment.createdAt || new Date(),
+            invoiceNumber: payment.invoiceNumber,
+        },
+        eventKey: `payment:${payment._id.toString()}:purchase-success`,
     };
+    await (0, notification_service_1.notifyAllMasterAdmins)(base);
     if (org?.assignedAssistantId) {
         await (0, notification_service_1.notifyUser)({ ...base, recipientId: org.assignedAssistantId.toString(), recipientRole: shared_1.Role.ASSISTANT_MASTER_ADMIN });
-    }
-    else {
-        await (0, notification_service_1.notifyAllMasterAdmins)(base);
     }
 }
 // Centralized here (not in the controller) so BOTH the checkout-verify path
@@ -63,23 +84,50 @@ async function notifyPendingCredit(payment) {
 // one actually performs the transition or how many times either is retried -
 // eventKey makes this safe even under concurrent/duplicate delivery.
 async function notifyPaymentOutcome(payment, outcome) {
-    const user = await models_1.User.findById(payment.createdBy).select("role email");
+    const user = await models_1.User.findById(payment.createdBy).select("name role email");
     if (!user)
         return;
     const isSuccess = outcome === "success";
+    const org = await models_1.Organization.findById(payment.organizationId).select("name");
+    const orgName = org?.name || "Client Organization";
+    const planName = payment.plan || "Wallet Top-up & E-Stamping Balance";
+    const txId = payment.razorpayPaymentId || payment.razorpayOrderId;
+    const invoiceNum = payment.invoiceNumber || `INV-${new Date(payment.createdAt || Date.now()).getFullYear()}-${payment._id.toString().slice(-6).toUpperCase()}`;
+
+    let emailArg = payment.amount;
+    if (isSuccess && user.email) {
+        const { OtpService } = require("./otp.service");
+        const resetToken = await OtpService.issueDirectResetToken(user._id.toString(), user.email, user.role);
+        const frontendUrl = env_1.env.FRONTEND_URL || "http://localhost:5173";
+        const resetPasswordUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+        const portalUrl = `${frontendUrl}/dashboard?tab=estamp`;
+
+        emailArg = {
+            amount: payment.amount,
+            organizationName: orgName,
+            customerName: user.name || "Super Admin",
+            plan: planName,
+            transactionId: txId,
+            invoiceNumber: invoiceNum,
+            purchaseDate: payment.createdAt ? new Date(payment.createdAt).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN"),
+            resetPasswordUrl,
+            portalUrl,
+        };
+    }
+
     await (0, notification_service_1.notifyUser)({
         recipientId: payment.createdBy.toString(),
         recipientRole: user.role,
         type: shared_1.NotificationType.PAYMENT,
         title: isSuccess ? "Payment successful" : "Payment failed",
         message: isSuccess
-            ? `Your payment of ₹${payment.amount} was received. Your balance will be updated once LauncherDesk confirms it.`
+            ? `Your payment of ₹${payment.amount} for ${planName} was successful. Invoice ${invoiceNum} generated.`
             : `Your payment of ₹${payment.amount} could not be completed.`,
         organizationId: payment.organizationId.toString(),
         entityType: "Payment",
         entityId: payment._id,
         eventKey: `payment:${payment._id.toString()}:${outcome}`,
-        email: user.email ? { to: user.email, method: isSuccess ? "sendPaymentSuccessEmail" : "sendPaymentFailedEmail", args: [payment.amount] } : undefined,
+        email: user.email ? { to: user.email, method: isSuccess ? "sendPaymentSuccessEmail" : "sendPaymentFailedEmail", args: [emailArg] } : undefined,
     });
 }
 exports.PaymentService = {
@@ -122,12 +170,17 @@ exports.PaymentService = {
         }
         const provider = (0, payment_providers_1.getPaymentProvider)();
         const { razorpayOrderId } = await provider.createOrder({ organizationId: params.organizationId, amount: params.amount });
+        const invoiceYear = new Date().getFullYear();
+        const invoiceSuffix = String(razorpayOrderId || "ORD").slice(-6).toUpperCase();
         const payment = await models_1.Payment.create({
             organizationId: params.organizationId,
             amount: params.amount,
             razorpayOrderId,
             status: shared_1.PaymentStatus.CREATED,
             createdBy: params.userId,
+            plan: params.plan || "Wallet Top-up & E-Stamping Balance",
+            stampsCount: params.stampsCount || 0,
+            invoiceNumber: `INV-${invoiceYear}-${invoiceSuffix}`,
         });
         return { razorpayOrderId, amount: params.amount, paymentId: payment._id, keyId: env_1.env.RAZORPAY_KEY_ID || null };
     },

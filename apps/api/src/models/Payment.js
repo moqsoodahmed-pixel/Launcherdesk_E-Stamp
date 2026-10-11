@@ -16,6 +16,9 @@ const paymentSchema = new mongoose_1.Schema({
     // never a raw provider error payload that might carry sensitive detail.
     failureReason: { type: String },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
+    plan: { type: String, default: "Wallet Top-up & E-Stamping Balance" },
+    stampsCount: { type: Number, default: 0 },
+    invoiceNumber: { type: String },
     // Ledger flow: a verified Razorpay payment does NOT credit the wallet.
     // It waits as PENDING_CREDIT until the assigned Assistant Master Admin
     // (or a Master Admin) credits it. Deliberately no schema default: a

@@ -30,7 +30,16 @@ function createApp() {
     app.use((0, cors_1.default)({
         // Browsers send Origin without a trailing slash; strip one from the
         // configured value so "https://x.pages.dev/" still matches exactly.
-        origin: String(env_1.env.FRONTEND_URL).replace(/\/+$/, ""),
+        origin: (origin, callback) => {
+            const configured = String(env_1.env.FRONTEND_URL).replace(/\/+$/, "");
+            if (!origin || origin === configured) {
+                return callback(null, true);
+            }
+            if (env_1.env.NODE_ENV !== "production" && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+                return callback(null, true);
+            }
+            return callback(null, false);
+        },
         credentials: true,
     }));
     // Captures the exact raw request bytes alongside the parsed JSON body.

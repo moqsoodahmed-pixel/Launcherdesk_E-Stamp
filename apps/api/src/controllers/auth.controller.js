@@ -63,7 +63,14 @@ exports.forgotPassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 });
 exports.resetPassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { resetToken, code, newPassword } = req.body;
-    const { userId } = await otp_service_1.OtpService.verify(resetToken, code, req);
+    let userId;
+    if (code) {
+        const result = await otp_service_1.OtpService.verify(resetToken, code, req);
+        userId = result.userId;
+    } else {
+        const result = await otp_service_1.OtpService.verifyDirectToken(resetToken, req);
+        userId = result.userId;
+    }
     const user = await models_1.User.findById(userId);
     if (!user)
         throw ApiError_1.ApiError.badRequest("Invalid reset request");

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { PERMISSIONS, hasPermission } from "../../utils/permissions";
@@ -12,6 +13,7 @@ import RecentActivityTable from "../../components/dashboard/RecentActivityTable"
 import AttentionPanel from "../../components/dashboard/AttentionPanel";
 import ErrorState from "../../components/common/ErrorState";
 import QuickActionButton from "../../components/dashboard/QuickActionButton";
+import EStampWorkspace from "../../components/dashboard/EStampWorkspace";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 // Phase 21 - Super Admin's dashboard: an organization-scoped version of the
@@ -22,6 +24,17 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 export default function SuperAdminDashboard() {
   const { user } = useAuth();
   const canFinancial = hasPermission(user, PERMISSIONS.REPORT_FINANCIAL_VIEW);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "estamp" ? "estamp" : "overview";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "estamp" && activeTab !== "estamp") {
+      setActiveTab("estamp");
+    }
+  }, [searchParams, activeTab]);
 
   const [preset, setPreset] = useState("last30days");
   const [summary, setSummary] = useState(null);
@@ -81,7 +94,14 @@ export default function SuperAdminDashboard() {
   useEffect(() => {
     loadSummary();
     loadActivity();
-  }, [loadSummary, loadActivity]);
+    const handleSync = () => {
+      loadSummary();
+      loadFinancial();
+      loadActivity();
+    };
+    window.addEventListener("ld:payment_success", handleSync);
+    return () => window.removeEventListener("ld:payment_success", handleSync);
+  }, [loadSummary, loadActivity, loadFinancial]);
   useEffect(() => {
     loadRequests();
   }, [loadRequests]);
@@ -99,137 +119,184 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900 mb-1">Welcome back, {user?.name}</h1>
-        <p className="text-sm text-slate-500">Organization overview</p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {hasPermission(user, PERMISSIONS.ESTAMP_CREATE) && <QuickActionButton to="/estamps/requests/new" label="New E-Stamp Request" icon="✍️" />}
-        {hasPermission(user, PERMISSIONS.ESTAMP_BULK_CREATE) && <QuickActionButton to="/estamps/bulk" label="Bulk Request" icon="📚" />}
-        {hasPermission(user, PERMISSIONS.USER_VIEW) && <QuickActionButton to="/users?role=USER" label="Manage Users" icon="👥" />}
-        {hasPermission(user, PERMISSIONS.REPORT_VIEW) && <QuickActionButton to="/reports" label="Full Reports" icon="📊" />}
-      </div>
-
-      {summaryErr && <ErrorState message={summaryErr} onRetry={loadSummary} />}
-      {summaryLoading && <KpiSkeleton count={5} />}
-      {!summaryLoading && summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <KpiCard label="Total requests" value={summary.requests.total} />
-          <KpiCard label="Total orders" value={summary.orders.total} />
-          <KpiCard label="Issued orders" value={summary.orders.issued} />
-          <KpiCard label="Failed orders" value={summary.orders.failed} />
-          {canFinancial && summary.financial && (
-            <KpiCard
-              label="Ledger balance"
-              value={summary.financial.currentWalletBalance === null ? "N/A" : formatCurrency(summary.financial.currentWalletBalance)}
-            />
-          )}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 mb-1">Welcome back, {user?.name}</h1>
+          <p className="text-sm text-slate-500">Organization overview</p>
         </div>
-      )}
 
-      {hasPermission(user, PERMISSIONS.WALLET_VIEW) && <ClientBalanceCard />}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard
-          title="Requests over time"
-          action={<DateRangeFilter value={preset} onChange={setPreset} />}
-          loading={requestsLoading}
-          error={requestsErr} onRetry={loadRequests}
-          empty={!requests?.dailyTrend?.length}
-          emptyText="No requests in this range."
-        >
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={requests?.dailyTrend || []}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Line type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="Order status" loading={summaryLoading} error={summaryErr} onRetry={loadSummary} empty={!summary || summary.orders.total === 0} emptyText="No orders yet.">
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart
-              data={
-                summary
-                  ? [
-                      { status: "Issued", count: summary.orders.issued },
-                      { status: "Processing", count: summary.orders.processing },
-                      { status: "Failed", count: summary.orders.failed },
-                    ]
-                  : []
-              }
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="status" tick={{ fontSize: 11 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+        {/* Tab switch buttons */}
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("overview");
+              setSearchParams({});
+            }}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition ${
+              activeTab === "overview"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Dashboard Overview
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("estamp");
+              setSearchParams({ tab: "estamp" });
+            }}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 ${
+              activeTab === "estamp"
+                ? "bg-white text-brand-600 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <span>📜</span> E-Stamp Workspace
+          </button>
+        </div>
       </div>
 
-      {canFinancial && (
-        <ChartCard
-          title="Payment activity"
-          loading={financialLoading}
-          error={financialErr} onRetry={loadFinancial}
-          empty={!financial || financial.payments.successfulCount + financial.payments.failedCount === 0}
-          emptyText="No payments in this range."
-        >
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart
-              data={
-                financial
-                  ? [
-                      { label: "Successful", amount: financial.payments.successfulAmount },
-                      { label: "Failed", amount: financial.payments.failedAmount },
-                    ]
-                  : []
-              }
+      {activeTab === "estamp" ? (
+        <EStampWorkspace
+          user={user}
+          onStateChanged={() => {
+            loadSummary();
+            loadFinancial();
+            loadActivity();
+          }}
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {hasPermission(user, PERMISSIONS.ESTAMP_CREATE) && <QuickActionButton to="/estamps/requests/new" label="New E-Stamp Request" icon="✍️" />}
+            {hasPermission(user, PERMISSIONS.ESTAMP_BULK_CREATE) && <QuickActionButton to="/estamps/bulk" label="Bulk Request" icon="📚" />}
+            {hasPermission(user, PERMISSIONS.USER_VIEW) && <QuickActionButton to="/users?role=USER" label="Manage Users" icon="👥" />}
+            {hasPermission(user, PERMISSIONS.REPORT_VIEW) && <QuickActionButton to="/reports" label="Full Reports" icon="📊" />}
+          </div>
+
+          {summaryErr && <ErrorState message={summaryErr} onRetry={loadSummary} />}
+          {summaryLoading && <KpiSkeleton count={5} />}
+          {!summaryLoading && summary && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <KpiCard label="Total requests" value={summary.requests.total} />
+              <KpiCard label="Total orders" value={summary.orders.total} />
+              <KpiCard label="Issued orders" value={summary.orders.issued} />
+              <KpiCard label="Failed orders" value={summary.orders.failed} />
+              {canFinancial && summary.financial && (
+                <KpiCard
+                  label="Ledger balance"
+                  value={summary.financial.currentWalletBalance === null ? "N/A" : formatCurrency(summary.financial.currentWalletBalance)}
+                />
+              )}
+            </div>
+          )}
+
+          {hasPermission(user, PERMISSIONS.WALLET_VIEW) && <ClientBalanceCard />}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard
+              title="Requests over time"
+              action={<DateRangeFilter value={preset} onChange={setPreset} />}
+              loading={requestsLoading}
+              error={requestsErr} onRetry={loadRequests}
+              empty={!requests?.dailyTrend?.length}
+              emptyText="No requests in this range."
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v) => formatCurrency(v)} />
-              <Bar dataKey="amount" fill="#16a34a" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={requests?.dailyTrend || []}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard title="Order status" loading={summaryLoading} error={summaryErr} onRetry={loadSummary} empty={!summary || summary.orders.total === 0} emptyText="No orders yet.">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={
+                    summary
+                      ? [
+                          { status: "Issued", count: summary.orders.issued },
+                          { status: "Processing", count: summary.orders.processing },
+                          { status: "Failed", count: summary.orders.failed },
+                        ]
+                      : []
+                  }
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="status" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
+
+          {canFinancial && (
+            <ChartCard
+              title="Payment activity"
+              loading={financialLoading}
+              error={financialErr} onRetry={loadFinancial}
+              empty={!financial || financial.payments.successfulCount + financial.payments.failedCount === 0}
+              emptyText="No payments in this range."
+            >
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart
+                  data={
+                    financial
+                      ? [
+                          { label: "Successful", amount: financial.payments.successfulAmount },
+                          { label: "Failed", amount: financial.payments.failedAmount },
+                        ]
+                      : []
+                  }
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v) => formatCurrency(v)} />
+                  <Bar dataKey="amount" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
+
+          <AttentionPanel alerts={alerts} loading={summaryLoading} />
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <RecentActivityTable
+              title="Recent requests"
+              loading={activityLoading}
+              error={activityErr} onRetry={loadActivity}
+              rows={activity?.requests}
+              rowLinkPrefix="/estamps/requests"
+              columns={[
+                { key: "requestNumber", label: "Request #" },
+                { key: "status", label: "Status" },
+                { key: "calculatedStampDuty", label: "Value", render: (r) => formatCurrency(r.calculatedStampDuty) },
+              ]}
+            />
+            <RecentActivityTable
+              title="Recent orders"
+              loading={activityLoading}
+              error={activityErr} onRetry={loadActivity}
+              rows={activity?.orders}
+              rowLinkPrefix="/orders"
+              columns={[
+                { key: "orderNumber", label: "Order #" },
+                { key: "eStampStatus", label: "Status" },
+                { key: "amount", label: "Amount", render: (r) => formatCurrency(r.amount) },
+              ]}
+            />
+          </div>
+        </>
       )}
-
-      <AttentionPanel alerts={alerts} loading={summaryLoading} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RecentActivityTable
-          title="Recent requests"
-          loading={activityLoading}
-          error={activityErr} onRetry={loadActivity}
-          rows={activity?.requests}
-          rowLinkPrefix="/estamps/requests"
-          columns={[
-            { key: "requestNumber", label: "Request #" },
-            { key: "status", label: "Status" },
-            { key: "calculatedStampDuty", label: "Value", render: (r) => formatCurrency(r.calculatedStampDuty) },
-          ]}
-        />
-        <RecentActivityTable
-          title="Recent orders"
-          loading={activityLoading}
-          error={activityErr} onRetry={loadActivity}
-          rows={activity?.orders}
-          rowLinkPrefix="/orders"
-          columns={[
-            { key: "orderNumber", label: "Order #" },
-            { key: "eStampStatus", label: "Status" },
-            { key: "amount", label: "Amount", render: (r) => formatCurrency(r.amount) },
-          ]}
-        />
-      </div>
     </div>
   );
 }

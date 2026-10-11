@@ -14,6 +14,7 @@ export default function PaymentDetailPage() {
   const [payment, setPayment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -53,6 +54,12 @@ export default function PaymentDetailPage() {
     credited && { label: "Wallet credited", at: effect.at },
   ].filter(Boolean);
 
+  const orgName = payment.organizationName || (payment.organizationId && typeof payment.organizationId === "object" ? payment.organizationId.name : null);
+  const userName = payment.createdByName || (payment.createdBy && typeof payment.createdBy === "object" ? payment.createdBy.name : null);
+  const userEmail = payment.createdByEmail || (payment.createdBy && typeof payment.createdBy === "object" ? payment.createdBy.email : null);
+  const txId = payment.transactionId || payment.razorpayPaymentId || payment.razorpayOrderId;
+  const invNumber = payment.invoiceNumber || `INV-${new Date(payment.createdAt).getFullYear()}-${payment._id.slice(-6).toUpperCase()}`;
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -60,8 +67,19 @@ export default function PaymentDetailPage() {
           ← Payments
         </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold text-slate-900 tabular-nums">{formatCurrency(payment.amount)}</h1>
-          <PaymentStatusBadge status={payment.status} />
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900 tabular-nums">{formatCurrency(payment.amount)}</h1>
+            <p className="text-xs text-slate-500 mt-0.5">{payment.plan || "Wallet Top-up & E-Stamping Balance"}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowInvoiceModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 shadow-sm"
+            >
+              <span>📄</span> View Invoice
+            </button>
+            <PaymentStatusBadge status={payment.status} />
+          </div>
         </div>
       </div>
 
@@ -73,13 +91,28 @@ export default function PaymentDetailPage() {
       )}
 
       <Card title="Payment">
+        {orgName && <Row label="Organization" value={orgName} />}
+        {(userName || userEmail) && (
+          <Row
+            label="Paid By (Super Admin)"
+            value={
+              <div>
+                <span className="font-medium text-slate-900">{userName || "-"}</span>
+                {userEmail && <span className="block text-xs text-slate-500">{userEmail}</span>}
+              </div>
+            }
+          />
+        )}
+        {payment.plan && <Row label="Plan" value={payment.plan} />}
         <Row label="Amount" value={formatCurrency(payment.amount)} />
         <Row label="Currency" value={payment.currency || "INR"} />
         <Row label="Status" value={<PaymentStatusBadge status={payment.status} />} />
         {balanceStatusOf(payment) && <Row label="Balance" value={<BalanceStatusBadge payment={payment} />} />}
+        {payment.invoiceNumber && <Row label="Invoice number" value={<span className="font-mono text-xs text-brand-600 font-semibold">{invNumber}</span>} />}
         <Row label="Provider" value="Razorpay" />
         <Row label="Provider order ID" value={<span className="font-mono text-xs break-all">{payment.razorpayOrderId}</span>} />
         <Row label="Provider payment ID" value={payment.razorpayPaymentId ? <span className="font-mono text-xs break-all">{payment.razorpayPaymentId}</span> : "Not available"} />
+        <Row label="Date & Time" value={fmt(payment.createdAt)} />
       </Card>
 
       <Card title="Wallet effect">
@@ -116,6 +149,85 @@ export default function PaymentDetailPage() {
         </ol>
         <p className="text-xs text-slate-400 mt-3">Only events with a recorded timestamp are shown.</p>
       </Card>
+
+      {showInvoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">LauncherDesk E-Stamp</h3>
+                <p className="text-xs text-slate-500">Official Payment Receipt & Tax Invoice</p>
+              </div>
+              <button
+                onClick={() => setShowInvoiceModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg leading-none p-1"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs text-slate-600">
+              <div>
+                <p className="font-semibold text-slate-900">Invoice Number:</p>
+                <p className="font-mono text-slate-700">{invNumber}</p>
+                <p className="font-semibold text-slate-900 mt-2">Date:</p>
+                <p>{new Date(payment.createdAt).toLocaleDateString()}</p>
+              </div>
+              <div>
+                <p className="font-semibold text-slate-900">Billed To:</p>
+                <p className="text-slate-800 font-medium">{orgName || "Client Organization"}</p>
+                {userName && <p className="text-slate-600">{userName}</p>}
+                {userEmail && <p className="text-slate-500">{userEmail}</p>}
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
+                  <tr>
+                    <th className="text-left p-2.5">Description</th>
+                    <th className="text-right p-2.5">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="p-2.5 text-slate-800">{payment.plan || "Wallet Top-up & E-Stamping Balance"}</td>
+                    <td className="p-2.5 text-right font-medium text-slate-900">{formatCurrency(payment.amount)}</td>
+                  </tr>
+                </tbody>
+                <tfoot className="border-t border-slate-200 font-semibold bg-slate-50/50">
+                  <tr>
+                    <td className="p-2.5 text-slate-900">Total Paid</td>
+                    <td className="p-2.5 text-right text-slate-900 text-sm">{formatCurrency(payment.amount)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div className="text-xs text-slate-500 space-y-1">
+              <p>Payment Method: Razorpay</p>
+              <p className="font-mono">Transaction ID: {txId}</p>
+              <p>Status: <span className="text-green-700 font-semibold">{payment.status}</span></p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 shadow-sm"
+              >
+                Print / Save PDF
+              </button>
+              <button
+                onClick={() => setShowInvoiceModal(false)}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

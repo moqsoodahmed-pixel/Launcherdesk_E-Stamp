@@ -76,8 +76,9 @@ exports.EmailService = {
     async sendRequestCreatedEmail(to, requestNumber) {
         await dispatch(to, "requestCreated", { requestNumber });
     },
-    async sendPaymentSuccessEmail(to, amount, eventKey) {
-        await dispatch(to, "paymentSuccess", { amount }, eventKey);
+    async sendPaymentSuccessEmail(to, payloadOrAmount, eventKey) {
+        const data = typeof payloadOrAmount === "object" ? payloadOrAmount : { amount: payloadOrAmount };
+        await dispatch(to, "paymentSuccess", data, eventKey);
     },
     async sendPaymentFailedEmail(to, amount, eventKey) {
         await dispatch(to, "paymentFailed", { amount }, eventKey);

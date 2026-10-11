@@ -2,7 +2,11 @@
 // req.ip - and therefore every express-rate-limit bucket - is the real client
 // IP, not the proxy's. Without it, all users share one limiter bucket.
 import { describe, it, expect, afterEach } from "vitest";
+import { createRequire } from "node:module";
 import { createApp } from "../src/app.js";
+
+const require = createRequire(import.meta.url);
+const { env } = require("../src/config/env.js");
 
 const original = process.env.TRUST_PROXY;
 
@@ -37,7 +41,6 @@ describe("trust proxy", () => {
 
 describe("CORS origin", () => {
   it("matches the frontend origin even when FRONTEND_URL has a trailing slash", async () => {
-    const { env } = await import("../src/config/env.js");
     const previous = env.FRONTEND_URL;
     env.FRONTEND_URL = "https://launcherdesk-e-stamp.pages.dev/";
     try {

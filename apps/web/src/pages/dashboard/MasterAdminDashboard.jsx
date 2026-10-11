@@ -290,6 +290,25 @@ export default function MasterAdminDashboard() {
           ]}
         />
       </div>
+
+      {canFinancial && (
+        <RecentActivityTable
+          title="Recent Payments & Subscriptions (all organizations)"
+          loading={activityLoading}
+          error={activityErr} onRetry={loadActivity}
+          rows={activity?.payments}
+          rowLinkPrefix="/payments"
+          columns={[
+            { key: "organizationName", label: "Organization", render: (r) => r.organizationName || "-" },
+            { key: "createdByName", label: "Super Admin", render: (r) => r.createdByName || r.createdByEmail || "-" },
+            { key: "plan", label: "Plan", render: (r) => r.plan || "Wallet Balance" },
+            { key: "transactionId", label: "Transaction ID", render: (r) => r.razorpayPaymentId || r.razorpayOrderId || "-" },
+            { key: "amount", label: "Amount", render: (r) => formatCurrency(r.amount) },
+            { key: "status", label: "Status" },
+            { key: "createdAt", label: "Date & Time", render: (r) => (r.createdAt ? new Date(r.createdAt).toLocaleString() : "-") },
+          ]}
+        />
+      )}
     </div>
   );
 }

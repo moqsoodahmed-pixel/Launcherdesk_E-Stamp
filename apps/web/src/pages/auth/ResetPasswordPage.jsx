@@ -8,6 +8,7 @@ export default function ResetPasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [resetToken] = useState(searchParams.get("token") || "");
+  const isDirectToken = searchParams.get("direct") === "true" || resetToken.length === 64;
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -20,6 +21,10 @@ export default function ResetPasswordPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
+    if (!isDirectToken && !code.trim()) {
+      setError("Please enter the verification code.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -30,12 +35,12 @@ export default function ResetPasswordPage() {
     }
     setBusy(true);
     try {
-      await resetPassword(resetToken, code, newPassword);
+      await resetPassword(resetToken, isDirectToken ? undefined : code.trim(), newPassword);
       setDone(true);
     } catch (err) {
       const status = err?.response?.status;
       if (status === 400) {
-        setError("That code is invalid or has expired. Request a new one.");
+        setError(isDirectToken ? "This reset link is invalid or has expired. Please request a new one." : "That code is invalid or has expired. Request a new one.");
       } else if (status === 429) {
         setError("Too many attempts. Please wait before trying again.");
       } else {
@@ -74,24 +79,30 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthShell>
-      <p className="text-sm text-slate-600 mb-4">Enter the verification code sent to your email and choose a new password.</p>
+      <p className="text-sm text-slate-600 mb-4">
+        {isDirectToken
+          ? "Set a new password for your account below."
+          : "Enter the verification code sent to your email and choose a new password."}
+      </p>
       {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
       <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Verification code</label>
-          <input
-            type="text"
-            name="one-time-code"
-            autoComplete="one-time-code"
-            inputMode="numeric"
-            maxLength={6}
-            required
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="w-full text-center tracking-[0.5em] text-lg rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="______"
-          />
-        </div>
+        {!isDirectToken && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Verification code</label>
+            <input
+              type="text"
+              name="one-time-code"
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              maxLength={6}
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="w-full text-center tracking-[0.5em] text-lg rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="______"
+            />
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">New password</label>
           <div className="relative">

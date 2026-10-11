@@ -74,6 +74,7 @@ or convert `packages/validation` to a dual-format package (more setup, not neede
 
 | Script | Description |
 |---|---|
+| `npm run dev` | Run backend (API) and frontend (Web) concurrently for localhost |
 | `npm run dev:api` | Run the backend with nodemon (auto-restart on change) |
 | `npm run dev:web` | Run the Vite dev server |
 | `npm run build:web` | Build the frontend to `apps/web/dist` |
