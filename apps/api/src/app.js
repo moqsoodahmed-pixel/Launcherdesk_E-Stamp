@@ -19,6 +19,13 @@ const logger_1 = require("./utils/logger");
 function createApp() {
     const app = (0, express_1.default)();
     app.disable("x-powered-by");
+    // Behind Railway's (or any) reverse proxy, req.ip is the proxy's address
+    // unless Express trusts X-Forwarded-For - every rate limiter below would
+    // then put ALL users in one shared bucket (e.g. 30 token refreshes per
+    // 15 min for the whole platform). TRUST_PROXY = number of proxy hops in
+    // front of the app; 0 disables. Must be set before any limiter runs.
+    const trustProxyHops = Number(process.env.TRUST_PROXY ?? 1);
+    app.set("trust proxy", Number.isInteger(trustProxyHops) && trustProxyHops >= 0 ? trustProxyHops : 1);
     app.use((0, helmet_1.default)());
     app.use((0, cors_1.default)({
         origin: env_1.env.FRONTEND_URL,
