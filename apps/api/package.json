@@ -9,6 +9,8 @@
     "seed": "node src/scripts/seed.js",
     "seed:policies": "node src/scripts/seed-policies.js",
     "migrate:balance-ledger": "node src/scripts/migrate-balance-ledger.js",
+    "reconcile:wallets": "node src/scripts/reconcile-wallets.js",
+    "migrate:idempotency-index": "node src/scripts/migrate-idempotency-index.js",
     "test": "vitest run"
   },
   "dependencies": {

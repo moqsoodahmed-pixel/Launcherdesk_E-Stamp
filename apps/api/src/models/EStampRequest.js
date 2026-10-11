@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EStampRequest = void 0;
+exports.IDEMPOTENCY_INDEX_NAME = exports.EStampRequest = void 0;
 const mongoose_1 = require("mongoose");
 const shared_1 = require("@launcherdesk/shared");
 const eStampRequestSchema = new mongoose_1.Schema({
@@ -48,7 +48,13 @@ const eStampRequestSchema = new mongoose_1.Schema({
 }, { timestamps: true });
 eStampRequestSchema.index({ organizationId: 1, createdAt: -1 });
 eStampRequestSchema.index({ organizationId: 1, status: 1 });
-eStampRequestSchema.index({ organizationId: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
+// Unique per organization ONLY when a key is present. (The old
+// `sparse: true` version still indexed key-less requests, because a sparse
+// compound index includes any document that has organizationId - so two
+// key-less requests in one organization collided.) Named explicitly so it can
+// coexist with / replace the old index; see scripts/migrate-idempotency-index.js.
+exports.IDEMPOTENCY_INDEX_NAME = "org_idempotencyKey_partial_unique";
+eStampRequestSchema.index({ organizationId: 1, idempotencyKey: 1 }, { unique: true, partialFilterExpression: { idempotencyKey: { $type: "string" } }, name: exports.IDEMPOTENCY_INDEX_NAME });
 // Phase 12 hardening: lockExpiredRequests() now runs a global (no
 // organizationId filter) atomic query keyed on exactly {status,
 // modificationDeadline} on every invocation - without this index that's a
