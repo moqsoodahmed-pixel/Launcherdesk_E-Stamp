@@ -75,11 +75,14 @@ export default function ResetPasswordPage() {
     <AuthShell>
       <p className="text-sm text-slate-600 mb-4">Enter the verification code sent to your email and choose a new password.</p>
       {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Verification code</label>
           <input
             type="text"
+            name="one-time-code"
+            autoComplete="one-time-code"
+            inputMode="numeric"
             maxLength={6}
             required
             value={code}
@@ -94,6 +97,7 @@ export default function ResetPasswordPage() {
             <input
               type={showNewPassword ? "text" : "password"}
               required
+              autoComplete="new-password"
               minLength={8}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -116,6 +120,7 @@ export default function ResetPasswordPage() {
             <input
               type={showConfirmPassword ? "text" : "password"}
               required
+              autoComplete="new-password"
               minLength={8}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
