@@ -4,6 +4,7 @@ import { apiClient } from "../../api/client";
 import { formatCurrency } from "../../utils/format";
 import { getErrorMessage } from "../../utils/errors";
 import { useAuth } from "../../context/AuthContext";
+import AssignedAssistantSelect from "../../components/organizations/AssignedAssistantSelect";
 
 const STATUS_OPTIONS = ["ACTIVE", "PENDING_APPROVAL", "RESTRICTED", "SUSPENDED", "DEACTIVATED"];
 
@@ -23,6 +24,10 @@ export default function OrganizationDetailPage() {
   const { user } = useAuth();
   const canChangeStatus = user?.role === "MASTER_ADMIN";
 
+  const [assistantChoice, setAssistantChoice] = useState("");
+  const [assignBusy, setAssignBusy] = useState(false);
+  const [assignError, setAssignError] = useState(null);
+
   const [showProvision, setShowProvision] = useState(false);
   const [provisionForm, setProvisionForm] = useState({ name: "", email: "", phone: "" });
   const [provisionResult, setProvisionResult] = useState(null);
@@ -36,6 +41,7 @@ export default function OrganizationDetailPage() {
       .get(`/organizations/${id}`)
       .then((res) => {
         setData(res.data.data);
+        setAssistantChoice(res.data.data.assignedAssistant?._id || "");
         setEditForm({
           name: res.data.data.organization.name,
           contactEmail: res.data.data.organization.contactEmail,
@@ -65,6 +71,21 @@ export default function OrganizationDetailPage() {
       setError(getErrorMessage(err, "Failed to update organization."));
     } finally {
       setSavingEdit(false);
+    }
+  }
+
+  async function handleAssign(e) {
+    e.preventDefault();
+    setAssignBusy(true);
+    setAssignError(null);
+    try {
+      await apiClient.patch(`/organizations/${id}/assigned-assistant`, { assistantId: assistantChoice || null });
+      setNotice(assistantChoice ? "Assigned assistant saved." : "Assistant unassigned. Only Master Admins handle this client now.");
+      load();
+    } catch (err) {
+      setAssignError(getErrorMessage(err, "Failed to save the assigned assistant."));
+    } finally {
+      setAssignBusy(false);
     }
   }
 
@@ -233,9 +254,40 @@ export default function OrganizationDetailPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="font-medium text-slate-900 mb-4">Wallet</h2>
           {wallet ? (
-            <p className="text-2xl font-semibold text-slate-900">{formatCurrency(wallet.balance)}</p>
+            <>
+              <p className="text-xs text-slate-500">Available</p>
+              <p className="text-2xl font-semibold text-slate-900">{formatCurrency(wallet.availableBalance ?? wallet.balance)}</p>
+              {wallet.reservedBalance !== undefined && (
+                <dl className="text-sm space-y-2 mt-3">
+                  <Row label="Balance" value={formatCurrency(wallet.balance)} />
+                  <Row label="Reserved (requests in window)" value={formatCurrency(wallet.reservedBalance)} />
+                </dl>
+              )}
+            </>
           ) : (
             <p className="text-sm text-slate-500">No wallet found.</p>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <h2 className="font-medium text-slate-900 mb-4">Assigned assistant</h2>
+          {canChangeStatus ? (
+            <form onSubmit={handleAssign} className="space-y-3">
+              {assignError && (
+                <div role="alert" className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+                  {assignError}
+                </div>
+              )}
+              <p className="text-sm text-slate-600">
+                Current: <span className="font-medium text-slate-900">{data.assignedAssistant ? `${data.assignedAssistant.name} (${data.assignedAssistant.email})` : "None"}</span>
+              </p>
+              <AssignedAssistantSelect value={assistantChoice} onChange={setAssistantChoice} disabled={assignBusy} label="Change assigned assistant" />
+              <button disabled={assignBusy || assistantChoice === (data.assignedAssistant?._id || "")} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                {assignBusy ? "Saving..." : "Save assignment"}
+              </button>
+            </form>
+          ) : (
+            <p className="text-sm text-slate-900">{data.assignedAssistant ? `${data.assignedAssistant.name} (${data.assignedAssistant.email})` : "None"}</p>
           )}
         </div>
 

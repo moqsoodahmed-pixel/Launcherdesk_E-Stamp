@@ -30,6 +30,7 @@ const MASTER_ADMIN_SECTIONS = [
     { to: "/estamp-provider", label: "E-Stamp Provider", permission: PERMISSIONS.ESTAMP_PROVIDER_VIEW },
   ]),
   section("FINANCE", [
+    { to: "/payments/credit-queue", label: "Payments to credit", permission: PERMISSIONS.WALLET_MANAGE },
     { to: "/payments", label: "Payments", permission: PERMISSIONS.PAYMENT_VIEW },
     { to: "/wallet", label: "Client Balances", permission: PERMISSIONS.WALLET_VIEW },
   ]),
@@ -54,6 +55,7 @@ const ASSISTANT_MASTER_ADMIN_SECTIONS = [
   section("ACCOUNT", [{ to: "/dashboard", label: "Dashboard" }]),
   section("CLIENTS", [{ to: "/organizations", label: "Clients", permission: PERMISSIONS.CLIENT_VIEW }]),
   section("FINANCE", [
+    { to: "/payments/credit-queue", label: "Payments to credit", permission: PERMISSIONS.WALLET_MANAGE },
     { to: "/wallet", label: "Client Balances", permission: PERMISSIONS.WALLET_VIEW },
     { to: "/payments", label: "Payments", permission: PERMISSIONS.PAYMENT_VIEW },
   ]),

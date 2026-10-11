@@ -30,7 +30,8 @@ export default function BulkUploadWizard() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    apiClient.get("/wallet/balance").then((res) => setBalance(res.data.data.balance)).catch(() => setBalance(null));
+    // Available = balance minus amounts reserved by requests still in their window.
+    apiClient.get("/wallet/balance").then((res) => setBalance(res.data.data.availableBalance ?? res.data.data.balance)).catch(() => setBalance(null));
   }, []);
 
   function loadItemsPage(batchId, pageNum) {

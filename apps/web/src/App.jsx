@@ -20,6 +20,7 @@ import OrderDetailPage from "./pages/orders/OrderDetailPage";
 import EStampProviderPage from "./pages/provider/EStampProviderPage";
 import PaymentsListPage from "./pages/wallet/PaymentsListPage";
 import PaymentDetailPage from "./pages/wallet/PaymentDetailPage";
+import CreditQueuePage from "./pages/wallet/CreditQueuePage";
 import UsersListPage from "./pages/users/UsersListPage";
 import CreateUserPage from "./pages/users/CreateUserPage";
 import EditUserPage from "./pages/users/EditUserPage";
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="/estamp-provider" element={guard(<EStampProviderPage />, P.ESTAMP_PROVIDER_VIEW)}/>
           <Route path="/articles" element={guard(<ArticlesPage />, P.ARTICLE_VIEW)}/>
           <Route path="/payments" element={guard(<PaymentsListPage />, P.PAYMENT_VIEW)}/>
+          <Route path="/payments/credit-queue" element={guard(<CreditQueuePage />, P.WALLET_MANAGE, INTERNAL)}/>
           <Route path="/payments/:id" element={guard(<PaymentDetailPage />, P.PAYMENT_VIEW)}/>
           <Route path="/wallet" element={guard(<WalletPage />, P.WALLET_VIEW)}/>
           <Route path="/reports" element={guard(<ReportsPage />, P.REPORT_VIEW)}/>

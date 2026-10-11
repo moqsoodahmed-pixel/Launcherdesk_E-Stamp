@@ -56,6 +56,8 @@ export default function RequestDetailPage() {
         descriptionOfDocument: res.data.data.descriptionOfDocument,
         propertyDescription: res.data.data.propertyDescription || "",
         stampDutyPaidBy: res.data.data.stampDutyPaidBy,
+        considerationPrice: String(res.data.data.considerationPrice ?? ""),
+        numberOfEStamps: String(res.data.data.numberOfEStamps ?? ""),
       });
       if (res.data.data.orderId) {
         apiClient
@@ -85,7 +87,13 @@ export default function RequestDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      await apiClient.patch(`/estamps/${id}`, editForm);
+      // Amount fields are sent only when changed: the server recalculates the
+      // stamp duty and adjusts the reservation (or rejects INSUFFICIENT_BALANCE).
+      const { considerationPrice, numberOfEStamps, ...descriptive } = editForm;
+      const body = { ...descriptive };
+      if (considerationPrice !== "" && Number(considerationPrice) !== request.considerationPrice) body.considerationPrice = Number(considerationPrice);
+      if (numberOfEStamps !== "" && Number(numberOfEStamps) !== request.numberOfEStamps) body.numberOfEStamps = Number(numberOfEStamps);
+      await apiClient.patch(`/estamps/${id}`, body);
       setEditing(false);
       setNotice("Request updated.");
       await reload();
@@ -206,9 +214,16 @@ export default function RequestDetailPage() {
               value={editForm.stampDutyPaidBy}
               onChange={(v) => setEditForm((f) => ({ ...f, stampDutyPaidBy: v }))}
             />
+            {request.chargeStatus === "RESERVED" && (
+              <>
+                <EditField label="Consideration Price" type="number" value={editForm.considerationPrice} onChange={(v) => setEditForm((f) => ({ ...f, considerationPrice: v }))} />
+                <EditField label="No. of E-Stamps" type="number" value={editForm.numberOfEStamps} onChange={(v) => setEditForm((f) => ({ ...f, numberOfEStamps: v }))} />
+              </>
+            )}
             <p className="text-xs text-slate-500">
-              Consideration price, article, state and number of E-Stamps cannot be changed after creation - they determine the amount
-              already charged to your wallet.
+              {request.chargeStatus === "RESERVED"
+                ? "Changing the consideration price or number of E-Stamps recalculates the stamp duty and adjusts the amount reserved from your available balance. Article and state cannot be changed."
+                : "Consideration price, article, state and number of E-Stamps cannot be changed after creation."}
             </p>
             <div className="flex gap-2">
               <button disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
@@ -231,7 +246,7 @@ export default function RequestDetailPage() {
 
       <Section title="Financial Information">
         <Row label="Consideration Price" value={formatCurrency(request.considerationPrice)} />
-        <Row label="Stamp Duty (debited)" value={formatCurrency(request.calculatedStampDuty)} />
+        <Row label={`Stamp Duty (${chargeLabel(request.chargeStatus)})`} value={formatCurrency(request.calculatedStampDuty)} />
         <Row label="Stamp Duty Paid By" value={request.stampDutyPaidBy} />
       </Section>
 
@@ -243,7 +258,8 @@ export default function RequestDetailPage() {
             <p className="text-sm text-slate-600 mb-3">
               {windowStillOpen ? (
                 <>
-                  Modification/cancellation window closes in <span className="font-medium tabular-nums">{formatCountdown(secondsLeft)}</span>.
+                  Modification/cancellation window closes in <span className="font-medium tabular-nums">{formatCountdown(secondsLeft)}</span>.{" "}
+                  {request.chargeStatus === "RESERVED" && "The amount is reserved and charged when the window ends; cancelling now costs nothing."}
                 </>
               ) : (
                 "Modification window has closed."
@@ -345,11 +361,25 @@ function Section({ title, children }) {
   );
 }
 
-function EditField({ label, value, onChange }) {
+// Legacy requests (no chargeStatus) were debited at submit.
+function chargeLabel(chargeStatus) {
+  switch (chargeStatus) {
+    case "RESERVED":
+      return "reserved";
+    case "RELEASED":
+      return "released, not charged";
+    case "SHORTFALL":
+      return "on hold: balance too low";
+    default:
+      return "charged";
+  }
+}
+
+function EditField({ label, value, onChange, type = "text" }) {
   return (
     <label className="block">
       <span className="block text-xs font-medium text-slate-700 mb-1">{label}</span>
-      <input className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input type={type} min={type === "number" ? 0 : undefined} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={value} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }

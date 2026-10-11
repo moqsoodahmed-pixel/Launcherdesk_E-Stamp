@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { actionErrorMessage, formatCurrency } from "../../utils/format";
 import PaymentStatusBadge from "../../components/payments/PaymentStatusBadge";
+import BalanceStatusBadge, { balanceStatusOf } from "../../components/payments/BalanceStatusBadge";
 
 function fmt(d) {
   return d ? new Date(d).toLocaleString() : "Not available";
@@ -75,6 +76,7 @@ export default function PaymentDetailPage() {
         <Row label="Amount" value={formatCurrency(payment.amount)} />
         <Row label="Currency" value={payment.currency || "INR"} />
         <Row label="Status" value={<PaymentStatusBadge status={payment.status} />} />
+        {balanceStatusOf(payment) && <Row label="Balance" value={<BalanceStatusBadge payment={payment} />} />}
         <Row label="Provider" value="Razorpay" />
         <Row label="Provider order ID" value={<span className="font-mono text-xs break-all">{payment.razorpayOrderId}</span>} />
         <Row label="Provider payment ID" value={payment.razorpayPaymentId ? <span className="font-mono text-xs break-all">{payment.razorpayPaymentId}</span> : "Not available"} />
@@ -91,7 +93,11 @@ export default function PaymentDetailPage() {
           </div>
         ) : (
           <p className="text-sm text-slate-500">
-            {payment.status === "SUCCESS" ? "The payment is marked successful but no wallet credit has been recorded for it." : "No wallet credit has been recorded for this payment."}
+            {balanceStatusOf(payment) === "PENDING_CREDIT"
+              ? "Payment received. Your balance will be updated once LauncherDesk confirms it."
+              : payment.status === "SUCCESS"
+                ? "The payment is marked successful but no wallet credit has been recorded for it."
+                : "No wallet credit has been recorded for this payment."}
           </p>
         )}
       </Card>

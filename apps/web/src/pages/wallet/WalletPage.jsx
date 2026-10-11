@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 import { actionErrorMessage, formatCurrency } from "../../utils/format";
 import PaymentStatusBadge from "../../components/payments/PaymentStatusBadge";
+import BalanceStatusBadge from "../../components/payments/BalanceStatusBadge";
 import DateRangeFilter, { TREND_PRESETS } from "../../components/dashboard/DateRangeFilter";
 import EmptyState from "../../components/dashboard/EmptyState";
 
@@ -29,6 +30,13 @@ const TX_BADGE = {
   REFUND: "bg-slate-200 text-slate-700",
   ADJUSTMENT: "bg-amber-100 text-amber-700",
 };
+
+// Ledger label: new entries already carry a readable description
+// ("Balance added, payment pay_…", "E-Stamp request LDE-REQ-…").
+function txLabel(t) {
+  if (t.description) return t.description;
+  return t.type === "CREDIT" ? "Balance added" : t.type === "DEBIT" ? "E-Stamp request" : t.type;
+}
 
 function fmt(d) {
   return d ? new Date(d).toLocaleString() : "-";
@@ -99,7 +107,7 @@ export default function WalletPage() {
         return;
       }
       const d = r.value?.data?.data;
-      if (k === "balance" && d) setBalance(d.balance);
+      if (k === "balance" && d) setBalance(d);
       if (k === "transactions" && d) setTransactions(d.items || []);
       if (k === "payments" && d) setPayments(d.items || []);
       if (k === "summary" && d) setSummary(d);
@@ -155,7 +163,7 @@ export default function WalletPage() {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             });
-            setNotice("Payment verified by the server. Balance and history refreshed below.");
+            setNotice("Payment received. Your balance will be updated once LauncherDesk confirms it.");
             setAmount("");
           } catch (err) {
             setError(actionErrorMessage(err, "Payment verification failed."));
@@ -231,9 +239,26 @@ export default function WalletPage() {
                 {sectionErrors.balance ? (
                   <p className="text-sm text-red-600">{sectionErrors.balance}</p>
                 ) : (
-                  <p className="text-3xl font-semibold text-slate-900 tabular-nums">{loading && balance === null ? "…" : formatCurrency(balance ?? 0)}</p>
+                  <>
+                    <p className="text-3xl font-semibold text-slate-900 tabular-nums">
+                      {loading && balance === null ? "…" : formatCurrency(balance?.availableBalance ?? balance?.balance ?? 0)}
+                    </p>
+                    {balance?.reservedBalance !== undefined && (
+                      <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <dt className="text-xs text-slate-500">Reserved</dt>
+                          <dd className="font-medium text-slate-900 tabular-nums">{formatCurrency(balance.reservedBalance ?? 0)}</dd>
+                          <dd className="text-xs text-slate-400">held for requests in their 20-minute window</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-slate-500">Balance</dt>
+                          <dd className="font-medium text-slate-900 tabular-nums">{formatCurrency(balance.balance ?? 0)}</dd>
+                        </div>
+                      </dl>
+                    )}
+                  </>
                 )}
-                <p className="text-xs text-slate-400 mt-2">Funding credits the wallet; E-Stamp requests debit it. Processing an order never charges it.</p>
+                <p className="text-xs text-slate-400 mt-2">A request reserves its amount when submitted and is charged when its 20-minute window ends. Cancelling inside the window costs nothing.</p>
               </div>
             )}
 
@@ -257,7 +282,7 @@ export default function WalletPage() {
                     {stepLabel || "Add Money"}
                   </button>
                 </form>
-                <p className="text-xs text-slate-400 mt-2">The amount is validated again by the server. Your balance changes only after the server confirms the payment.</p>
+                <p className="text-xs text-slate-400 mt-2">You pay securely with Razorpay. Your balance is updated after LauncherDesk confirms the payment.</p>
               </div>
             )}
           </div>
@@ -300,6 +325,7 @@ export default function WalletPage() {
                     <Link to={`/payments/${p._id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 hover:bg-slate-50 text-sm">
                       <span className="font-medium text-slate-900 tabular-nums">{formatCurrency(p.amount)}</span>
                       <PaymentStatusBadge status={p.status} />
+                      <BalanceStatusBadge payment={p} />
                       <span className="text-slate-400 text-xs">{fmt(p.createdAt)}</span>
                     </Link>
                   </li>
@@ -310,13 +336,16 @@ export default function WalletPage() {
 
           {canViewWallet && (
             <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 font-medium text-slate-900 text-sm">Recent wallet transactions</div>
+              <div className="px-4 py-3 border-b border-slate-100 font-medium text-slate-900 text-sm">Balance ledger</div>
               {sectionErrors.transactions && <p className="px-4 py-3 text-sm text-red-600">{sectionErrors.transactions}</p>}
               {!sectionErrors.transactions && transactions.length === 0 && !loading && <EmptyState text="No transactions yet" />}
               <ul className="divide-y divide-slate-100">
                 {transactions.map((t) => (
                   <li key={t._id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${TX_BADGE[t.type] || "bg-slate-100 text-slate-600"}`}>{t.type}</span>
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${TX_BADGE[t.type] || "bg-slate-100 text-slate-600"}`}>{t.type}</span>
+                      <span className="text-slate-700 break-all">{txLabel(t)}</span>
+                    </span>
                     <span className="font-medium tabular-nums text-slate-900">
                       {t.type === "DEBIT" ? "−" : t.type === "CREDIT" ? "+" : ""}
                       {formatCurrency(t.amount)}

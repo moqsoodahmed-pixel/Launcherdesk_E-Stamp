@@ -48,3 +48,16 @@ describe("NewRequestPage - wallet balance and lookups", () => {
     expect(await screen.findByText("Could not load states. Refresh the page to try again.")).toBeInTheDocument();
   });
 });
+
+describe("NewRequestPage - available balance (ledger flow)", () => {
+  it("uses the AVAILABLE balance (balance minus reserved) and warns with links to Wallet and Payments when it is zero", async () => {
+    apiClient.get.mockImplementation((url) => {
+      if (url === "/wallet/balance") return Promise.resolve({ data: { data: { balance: 500, reservedBalance: 500, availableBalance: 0 } } });
+      return Promise.resolve({ data: { data: ["KA"] } });
+    });
+    renderPage();
+    expect(await screen.findByText(/available balance is ₹0/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Payments" })).toHaveAttribute("href", "/payments");
+    expect(screen.getByRole("link", { name: "Add money to the wallet" })).toHaveAttribute("href", "/wallet");
+  });
+});

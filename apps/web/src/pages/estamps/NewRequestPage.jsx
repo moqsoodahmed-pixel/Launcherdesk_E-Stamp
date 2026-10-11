@@ -71,7 +71,11 @@ export default function NewRequestPage() {
   const isFresh = calculation !== null && calculatedForKey === currentKey;
 
   useEffect(() => {
-    apiClient.get("/wallet/balance").then((res) => setBalance(res.data.data.balance)).catch(() => setBalance(null));
+    // Available = balance minus amounts reserved by requests still in their window.
+    apiClient
+      .get("/wallet/balance")
+      .then((res) => setBalance(res.data.data.availableBalance ?? res.data.data.balance))
+      .catch(() => setBalance(null));
     apiClient
       .get("/articles/states")
       .then((res) => setStates(res.data.data))
@@ -145,7 +149,7 @@ export default function NewRequestPage() {
       const { request } = data.data;
       navigate(`/estamps/requests/${request._id}`, {
         replace: true,
-        state: { notice: `Request ${request.requestNumber} created. ${formatCurrency(request.calculatedStampDuty)} debited from your organization's wallet.` },
+        state: { notice: `Request ${request.requestNumber} created. ${formatCurrency(request.calculatedStampDuty)} is reserved from your available balance and charged when the 20-minute window ends. Cancel within the window and nothing is charged.` },
       });
     } catch (err) {
       setServerError(errorMessage(err, "Failed to create request"));
@@ -183,7 +187,7 @@ export default function NewRequestPage() {
       )}
       {balance === 0 && !serverError && (
         <div className="mb-4 rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">
-          Your organization's wallet balance is ₹0. This request will be rejected unless funds are added first. <AddFundsHint canOpenWallet={canOpenWallet} />
+          Your organization's available balance is ₹0. This request will be rejected unless funds are added first. <AddFundsHint canOpenWallet={canOpenWallet} />
         </div>
       )}
 
@@ -338,9 +342,16 @@ function Stepper({ step }) {
 
 function AddFundsHint({ canOpenWallet }) {
   return canOpenWallet ? (
-    <Link to="/wallet" className="font-medium underline">
-      Add money to the wallet
-    </Link>
+    <span>
+      <Link to="/wallet" className="font-medium underline">
+        Add money to the wallet
+      </Link>{" "}
+      (payments are added to your balance once LauncherDesk confirms them, see{" "}
+      <Link to="/payments" className="font-medium underline">
+        Payments
+      </Link>
+      ).
+    </span>
   ) : (
     <span>Ask your Super Admin to add funds.</span>
   );
@@ -364,8 +375,9 @@ function ReviewStep({ values, calculation, balance, canOpenWallet }) {
       <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
         {calculation ? (
           <>
-            <Row label="Stamp Duty to be Debited" value={formatCurrency(calculation.amount)} />
-            <Row label="Current Wallet Balance" value={formatCurrency(balance)} />
+            <Row label="Stamp Duty to be Reserved" value={formatCurrency(calculation.amount)} />
+            <Row label="Available Balance" value={formatCurrency(balance)} />
+            <p className="text-xs text-slate-500 pt-1">The amount is reserved when you submit and charged when the 20-minute window ends.</p>
           </>
         ) : (
           <p className="text-amber-700">Go back to the Calculation step and recalculate before submitting.</p>
@@ -374,7 +386,7 @@ function ReviewStep({ values, calculation, balance, canOpenWallet }) {
 
       {insufficientBalance && (
         <div className="rounded-lg bg-red-50 text-red-700 px-3 py-2">
-          Insufficient balance: this request needs {formatCurrency(calculation.amount)} but the wallet has {formatCurrency(balance)}.{" "}
+          Insufficient balance: this request needs {formatCurrency(calculation.amount)} but the available balance is {formatCurrency(balance)}.{" "}
           <AddFundsHint canOpenWallet={canOpenWallet} />
         </div>
       )}

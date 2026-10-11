@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { PERMISSIONS, hasPermission } from "../../utils/permissions";
 import { formatCurrency, errorMessage } from "../../utils/format";
 import KpiCard from "../../components/dashboard/KpiCard";
+import PaymentCreditsCard from "../../components/dashboard/PaymentCreditsCard";
 import { KpiSkeleton } from "../../components/dashboard/LoadingSkeleton";
 import ChartCard from "../../components/dashboard/ChartCard";
 import DateRangeFilter from "../../components/dashboard/DateRangeFilter";
@@ -134,6 +135,8 @@ export default function AssistantDashboard() {
         {canOrderView && <QuickActionButton to="/orders" label="Orders" icon="📦" />}
         {canReport && <QuickActionButton to="/reports" label="Full Reports" icon="📊" />}
       </div>
+
+      {hasPermission(user, PERMISSIONS.WALLET_MANAGE) && hasPermission(user, PERMISSIONS.PAYMENT_VIEW) && <PaymentCreditsCard variant="assistant" />}
 
       {!canReport && (
         <div className="rounded-lg bg-slate-100 text-slate-500 text-sm px-4 py-3">

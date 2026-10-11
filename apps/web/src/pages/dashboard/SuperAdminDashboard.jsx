@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { PERMISSIONS, hasPermission } from "../../utils/permissions";
 import { formatCurrency, errorMessage } from "../../utils/format";
 import KpiCard from "../../components/dashboard/KpiCard";
+import ClientBalanceCard from "../../components/dashboard/ClientBalanceCard";
 import { KpiSkeleton } from "../../components/dashboard/LoadingSkeleton";
 import ChartCard from "../../components/dashboard/ChartCard";
 import DateRangeFilter from "../../components/dashboard/DateRangeFilter";
@@ -120,12 +121,14 @@ export default function SuperAdminDashboard() {
           <KpiCard label="Failed orders" value={summary.orders.failed} />
           {canFinancial && summary.financial && (
             <KpiCard
-              label="Available balance"
+              label="Ledger balance"
               value={summary.financial.currentWalletBalance === null ? "N/A" : formatCurrency(summary.financial.currentWalletBalance)}
             />
           )}
         </div>
       )}
+
+      {hasPermission(user, PERMISSIONS.WALLET_VIEW) && <ClientBalanceCard />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ChartCard

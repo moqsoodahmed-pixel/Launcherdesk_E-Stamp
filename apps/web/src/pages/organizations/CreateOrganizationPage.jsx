@@ -2,10 +2,17 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { getErrorMessage } from "../../utils/errors";
+import { useAuth } from "../../context/AuthContext";
+import AssignedAssistantSelect from "../../components/organizations/AssignedAssistantSelect";
 
 export default function CreateOrganizationPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Only a Master Admin picks the assistant; an assistant creating a client
+  // is assigned to it automatically by the server.
+  const canAssign = user?.role === "MASTER_ADMIN";
   const [form, setForm] = useState({ name: "", contactEmail: "", contactPhone: "", gstin: "", address: "" });
+  const [assistantId, setAssistantId] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -18,7 +25,8 @@ export default function CreateOrganizationPage() {
     setError(null);
     setBusy(true);
     try {
-      const { data } = await apiClient.post("/organizations", form);
+      const body = canAssign && assistantId ? { ...form, assignedAssistantId: assistantId } : form;
+      const { data } = await apiClient.post("/organizations", body);
       navigate(`/organizations/${data.data._id}`, { state: { created: true } });
     } catch (err) {
       const flat = err?.response?.data?.details;
@@ -77,6 +85,7 @@ export default function CreateOrganizationPage() {
           </label>
           <textarea id="create-org-address" value={form.address} onChange={(e) => update("address", e.target.value)} rows={3} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
         </div>
+        {canAssign && <AssignedAssistantSelect value={assistantId} onChange={setAssistantId} disabled={busy} />}
         <button disabled={busy} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
           {busy ? "Creating..." : "Create organization"}
         </button>

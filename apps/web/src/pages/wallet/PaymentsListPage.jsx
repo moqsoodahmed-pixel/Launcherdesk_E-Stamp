@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 import { actionErrorMessage, formatCurrency } from "../../utils/format";
 import PaymentStatusBadge from "../../components/payments/PaymentStatusBadge";
+import BalanceStatusBadge from "../../components/payments/BalanceStatusBadge";
 import EmptyState from "../../components/dashboard/EmptyState";
 import { TableSkeleton } from "../../components/dashboard/LoadingSkeleton";
 
@@ -170,6 +171,7 @@ export default function PaymentsListPage() {
               {isInternal && <th className="text-left px-4 py-3">Organization</th>}
               <th className="text-right px-4 py-3">Amount</th>
               <th className="text-left px-4 py-3">Status</th>
+              <th className="text-left px-4 py-3">Balance</th>
               <th className="text-left px-4 py-3">Razorpay order</th>
               <th className="text-left px-4 py-3">Razorpay payment</th>
               <th className="text-left px-4 py-3">Created</th>
@@ -200,6 +202,9 @@ export default function PaymentsListPage() {
                   <td className="px-4 py-3">
                     <PaymentStatusBadge status={p.status} />
                   </td>
+                  <td className="px-4 py-3">
+                    <BalanceStatusBadge payment={p} />
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.razorpayOrderId}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.razorpayPaymentId || "-"}</td>
                   <td className="px-4 py-3 text-slate-500">{fmt(p.createdAt)}</td>
@@ -227,7 +232,10 @@ export default function PaymentsListPage() {
             <Link key={p._id} to={`/payments/${p._id}`} className="block bg-white rounded-2xl border border-slate-200 p-4">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-slate-900 tabular-nums">{formatCurrency(p.amount)}</span>
-                <PaymentStatusBadge status={p.status} />
+                <span className="flex flex-wrap gap-1 justify-end">
+                  <PaymentStatusBadge status={p.status} />
+                  <BalanceStatusBadge payment={p} />
+                </span>
               </div>
               <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500">
                 {isInternal && (

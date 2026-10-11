@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { PERMISSIONS, hasPermission } from "../../utils/permissions";
 import { formatCurrency, errorMessage } from "../../utils/format";
 import KpiCard from "../../components/dashboard/KpiCard";
+import PaymentCreditsCard from "../../components/dashboard/PaymentCreditsCard";
 import { KpiSkeleton } from "../../components/dashboard/LoadingSkeleton";
 import ChartCard from "../../components/dashboard/ChartCard";
 import DateRangeFilter from "../../components/dashboard/DateRangeFilter";
@@ -254,6 +255,8 @@ export default function MasterAdminDashboard() {
       </div>
 
       <AttentionPanel alerts={alerts} loading={summaryLoading} />
+
+      <PaymentCreditsCard variant="master" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <RecentActivityTable
