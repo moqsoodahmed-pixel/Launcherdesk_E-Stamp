@@ -260,6 +260,7 @@ exports.getOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     // never exposing storage-addressing/credential fields (cloudinaryPublicId
     // etc.) in the response below, only safe descriptive metadata.
     const fileAsset = document ? await models_1.FileAsset.findById(document.fileAssetId) : null;
+    const article = request ? await models_1.Article.findById(request.articleId).select("title") : null;
     if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN) {
         await (0, audit_service_1.recordAudit)({
             actorId: req.user.id,
@@ -300,6 +301,9 @@ exports.getOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             stampDutyPaidBy: request.stampDutyPaidBy,
             numberOfEStamps: request.numberOfEStamps,
             calculatedStampDuty: request.calculatedStampDuty,
+            articleTitle: article ? article.title : null,
+            lockedAt: request.lockedAt,
+            modificationDeadline: request.modificationDeadline,
         } : null,
         // certificateAvailable stays a plain boolean for backward
         // compatibility (existing frontend usage / Phase 13 tests); `document`
