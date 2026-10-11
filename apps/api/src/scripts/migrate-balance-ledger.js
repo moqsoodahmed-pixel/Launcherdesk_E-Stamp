@@ -28,7 +28,7 @@ async function migrateBalanceLedger() {
     let paymentsPending = 0;
     const legacyPayments = models_1.Payment.find({ status: shared_1.PaymentStatus.SUCCESS, balanceStatus: { $exists: false } }).cursor();
     for await (const payment of legacyPayments) {
-        const tx = await models_1.WalletTransaction.findOne({ idempotencyKey: `payment:${payment._id.toString()}` }).select("_id createdAt");
+        const tx = await models_1.WalletTransaction.findOne({ idempotencyKey: `payment:${payment._id.toString()}`, pending: { $ne: true } }).select("_id createdAt");
         const update = tx
             ? { balanceStatus: "CREDITED", creditedAt: tx.createdAt, walletTransactionId: tx._id }
             : { balanceStatus: "PENDING_CREDIT" };

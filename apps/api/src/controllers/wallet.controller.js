@@ -57,11 +57,13 @@ exports.listTransactions = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
     // endpoints (order/payment/user/notification/audit controllers).
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
-    const items = await models_1.WalletTransaction.find({ organizationId })
+    // Pending entries (interrupted mid-write) are not part of the ledger yet.
+    const ledgerFilter = { organizationId, pending: { $ne: true } };
+    const items = await models_1.WalletTransaction.find(ledgerFilter)
         .sort({ createdAt: -1 })
         .skip((pageNum - 1) * limitNum)
         .limit(limitNum);
-    const total = await models_1.WalletTransaction.countDocuments({ organizationId });
+    const total = await models_1.WalletTransaction.countDocuments(ledgerFilter);
     return (0, ApiResponse_1.ok)(res, { items, total, page: pageNum, limit: limitNum });
 });
 // Master Admin / Assistant Master Admin manually adding credit to a client's

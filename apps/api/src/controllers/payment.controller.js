@@ -202,7 +202,7 @@ exports.getPayment = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     // wallet ledger.
     let walletEffect = null;
     if (req.user.permissions.includes(shared_1.Permission.WALLET_VIEW)) {
-        const tx = await models_1.WalletTransaction.findOne({ referenceType: "PAYMENT", referenceId: payment._id.toString() });
+        const tx = await models_1.WalletTransaction.findOne({ referenceType: "PAYMENT", referenceId: payment._id.toString(), pending: { $ne: true } });
         walletEffect = tx ? { type: tx.type, amount: tx.amount, balanceAfter: tx.balanceAfter, at: tx.createdAt } : { credited: false };
     }
     return (0, ApiResponse_1.ok)(res, { ...payment.toObject(), walletEffect });

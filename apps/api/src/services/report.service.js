@@ -93,6 +93,15 @@ function toObjectId(id, message, code) {
 function toOrgId(organizationId) {
     return toObjectId(organizationId, "Invalid organizationId", "INVALID_ORGANIZATION_ID");
 }
+// Match value for a report's organization scope: one id, or an array of ids
+// (an Assistant Master Admin's assigned organizations - empty = none).
+function orgMatch(organizationId) {
+    return Array.isArray(organizationId) ? { $in: organizationId.map((id) => toOrgId(id)) } : toOrgId(organizationId);
+}
+// A single "current balance" only exists for exactly one organization.
+function singleOrg(organizationId) {
+    return organizationId && !Array.isArray(organizationId) ? organizationId : null;
+}
 function toArticleId(articleId) {
     return toObjectId(articleId, "Invalid articleId", "INVALID_ARTICLE_ID");
 }
@@ -109,7 +118,7 @@ exports.ReportService = {
     // handler this phase refactors out of report.routes.js - DashboardPage.jsx
     // consumes this exact shape and is not being changed in this phase.
     async getLegacySummary({ organizationId }) {
-        const filter = organizationId ? { organizationId: toOrgId(organizationId) } : {};
+        const filter = organizationId ? { organizationId: orgMatch(organizationId) } : {};
         const [totalRequests, totalOrders, statusCounts] = await Promise.all([
             models_1.EStampRequest.countDocuments(filter),
             models_1.EStampOrder.countDocuments(filter),
@@ -124,7 +133,7 @@ exports.ReportService = {
     // function itself always computes the full shape so that gating logic
     // lives in exactly one place (the controller), not duplicated here.
     async getDashboardSummary({ organizationId, isGlobal }) {
-        const filter = organizationId ? { organizationId: toOrgId(organizationId) } : {};
+        const filter = organizationId ? { organizationId: orgMatch(organizationId) } : {};
         const [requestStatusRows, orderStatusRows, successfulPayments, failedPayments, requestValueAgg, wallet, orgCounts] = await Promise.all([
             models_1.EStampRequest.aggregate([{ $match: filter }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
             models_1.EStampOrder.aggregate([{ $match: filter }, { $group: { _id: "$eStampStatus", count: { $sum: 1 } } }]),
@@ -134,11 +143,11 @@ exports.ReportService = {
             // A single "current balance" is only meaningful for one organization -
             // never summed/averaged across organizations for a global view (see
             // getOrganizationReport for the per-org breakdown instead).
-            organizationId ? models_1.Wallet.findOne({ organizationId: toOrgId(organizationId) }) : Promise.resolve(null),
+            singleOrg(organizationId) ? models_1.Wallet.findOne({ organizationId: toOrgId(organizationId) }) : Promise.resolve(null),
             isGlobal
                 ? Promise.all([
-                    models_1.Organization.countDocuments({}),
-                    models_1.Organization.countDocuments({ status: shared_1.OrganizationStatus.ACTIVE }),
+                    models_1.Organization.countDocuments(Array.isArray(organizationId) ? { _id: orgMatch(organizationId) } : {}),
+                    models_1.Organization.countDocuments({ ...(Array.isArray(organizationId) ? { _id: orgMatch(organizationId) } : {}), status: shared_1.OrganizationStatus.ACTIVE }),
                 ])
                 : Promise.resolve(null),
         ]);
@@ -179,7 +188,7 @@ exports.ReportService = {
         const range = await resolveDateRange({ preset, from, to });
         const match = { createdAt: { $gte: range.from, $lte: range.to } };
         if (organizationId)
-            match.organizationId = toOrgId(organizationId);
+            match.organizationId = orgMatch(organizationId);
         const [statusRows, stateRows, articleRows, dailyRows, idsInRange] = await Promise.all([
             models_1.EStampRequest.aggregate([{ $match: match }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
             models_1.EStampRequest.aggregate([{ $match: match }, { $group: { _id: "$stateCode", count: { $sum: 1 } } }]),
@@ -239,7 +248,7 @@ exports.ReportService = {
         // never a looser/different filter.
         const match = { createdAt: { $gte: usage.from, $lte: usage.to } };
         if (organizationId)
-            match.organizationId = toOrgId(organizationId);
+            match.organizationId = orgMatch(organizationId);
         if (stateCode)
             match.stateCode = String(stateCode).toUpperCase();
         if (articleId)
@@ -299,12 +308,12 @@ exports.ReportService = {
         const range = await resolveDateRange({ preset, from, to });
         const match = { createdAt: { $gte: range.from, $lte: range.to } };
         if (organizationId)
-            match.organizationId = toOrgId(organizationId);
+            match.organizationId = orgMatch(organizationId);
         const [paymentRows, walletTxRows, requestValueAgg, wallet] = await Promise.all([
             models_1.Payment.aggregate([{ $match: match }, { $group: { _id: "$status", amount: { $sum: "$amount" }, count: { $sum: 1 } } }]),
-            models_1.WalletTransaction.aggregate([{ $match: match }, { $group: { _id: "$type", amount: { $sum: "$amount" }, count: { $sum: 1 } } }]),
+            models_1.WalletTransaction.aggregate([{ $match: { ...match, pending: { $ne: true } } }, { $group: { _id: "$type", amount: { $sum: "$amount" }, count: { $sum: 1 } } }]),
             models_1.EStampRequest.aggregate([{ $match: match }, { $group: { _id: null, total: { $sum: "$calculatedStampDuty" }, count: { $sum: 1 } } }]),
-            organizationId ? models_1.Wallet.findOne({ organizationId: toOrgId(organizationId) }) : Promise.resolve(null),
+            singleOrg(organizationId) ? models_1.Wallet.findOne({ organizationId: toOrgId(organizationId) }) : Promise.resolve(null),
         ]);
         const findRow = (rows, key) => rows.find((r) => r._id === key);
         const successRow = findRow(paymentRows, shared_1.PaymentStatus.SUCCESS);
@@ -326,7 +335,7 @@ exports.ReportService = {
             // case where the organization has no Wallet document yet -
             // never fabricated as a real zero balance, consistent with
             // getDashboardSummary's same convention.
-            wallet: { currentBalance: organizationId ? (wallet ? wallet.balance : null) : null },
+            wallet: { currentBalance: singleOrg(organizationId) ? (wallet ? wallet.balance : null) : null },
             walletTransactions: {
                 totalCredits: creditRow?.amount || 0,
                 totalDebits: debitRow?.amount || 0,
@@ -342,13 +351,16 @@ exports.ReportService = {
     // MASTER_ADMIN / REPORT_GLOBAL_VIEW only (enforced by the controller) -
     // a paginated, per-organization roll-up. Explicit sort-field whitelist
     // and a bounded limit, matching order.controller.js's listOrders.
-    async getOrganizationReport({ page = "1", limit = "20", sortBy = "createdAt", sortDir = "desc", status }) {
+    async getOrganizationReport({ page = "1", limit = "20", sortBy = "createdAt", sortDir = "desc", status, organizationIds }) {
         const SORT_FIELDS = ["name", "createdAt", "status"];
         const pageNum = Math.max(1, parseInt(page) || 1);
         const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
         const sortField = SORT_FIELDS.includes(sortBy) ? sortBy : "createdAt";
         const sortOrder = sortDir === "asc" ? 1 : -1;
         const filter = {};
+        // Assistant Master Admin: only assigned organizations.
+        if (Array.isArray(organizationIds))
+            filter._id = orgMatch(organizationIds);
         if (status) {
             if (!Object.values(shared_1.OrganizationStatus).includes(status))
                 throw ApiError_1.ApiError.badRequest("Invalid status filter", "INVALID_STATUS");
@@ -395,7 +407,7 @@ exports.ReportService = {
         const range = await resolveDateRange({ preset, from, to });
         const match = { createdAt: { $gte: range.from, $lte: range.to } };
         if (organizationId)
-            match.organizationId = toOrgId(organizationId);
+            match.organizationId = orgMatch(organizationId);
         const [statusRows, totalsAgg] = await Promise.all([
             models_1.BulkEStampBatch.aggregate([{ $match: match }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
             models_1.BulkEStampBatch.aggregate([
@@ -437,7 +449,7 @@ exports.ReportService = {
     // own bounded-list convention.
     async getRecentActivity({ organizationId, isGlobal, limit = 5 }) {
         const lim = Math.min(10, Math.max(1, parseInt(limit, 10) || 5));
-        const filter = organizationId ? { organizationId: toOrgId(organizationId) } : {};
+        const filter = organizationId ? { organizationId: orgMatch(organizationId) } : {};
         const withOrgName = (pipeline) => {
             if (!isGlobal)
                 return pipeline;

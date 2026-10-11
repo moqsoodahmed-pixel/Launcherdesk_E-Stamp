@@ -10,6 +10,10 @@ const walletSchema = new mongoose_1.Schema({
     // Available to spend = balance - reservedBalance. Only ever changed by
     // the atomic conditional updates in wallet.service.js.
     reservedBalance: { type: Number, default: 0, min: 0 },
+    // Ids of the most recent ledger entries applied to this balance - the
+    // guard that makes each entry move the balance at most once, even when
+    // an interrupted write is retried (see wallet.service applyLedgerEntry).
+    appliedTxIds: { type: [mongoose_1.Schema.Types.ObjectId], default: undefined, select: false },
     currency: { type: String, default: "INR" },
     version: { type: Number, default: 0 },
 }, { timestamps: true });
@@ -29,6 +33,9 @@ const walletTransactionSchema = new mongoose_1.Schema({
     idempotencyKey: { type: String, required: true, unique: true },
     description: { type: String },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", default: null },
+    // true only between "ledger entry inserted" and "wallet updated"; such
+    // entries are hidden from the ledger and flagged by reconcileWallets().
+    pending: { type: Boolean },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 walletTransactionSchema.index({ organizationId: 1, createdAt: -1 });
 exports.WalletTransaction = (0, mongoose_1.model)("WalletTransaction", walletTransactionSchema);
