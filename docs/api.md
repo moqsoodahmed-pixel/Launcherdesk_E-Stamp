@@ -15,9 +15,23 @@ Base URL: `/api/v1`. All endpoints except `/auth/login`, `/auth/login/verify-otp
 | POST | `/reset-password` | `{ resetToken, code, newPassword }`; invalidates all existing sessions |
 | POST | `/change-password` | Authenticated. `{ currentPassword, newPassword }` (min 8 chars, must differ). Wrong current password → 400. Clears `mustChangePassword`, ends all other sessions (tokenVersion bump + refresh tokens revoked), returns a fresh token pair. Rate-limited 5 / 15 min per user. Audit: `PASSWORD_CHANGED`. |
 
-## Organizations — `/organizations` (Master/Assistant Master Admin only)
-`POST /` create · `GET /` list · `GET /:id` detail · `PATCH /:id/status` (Master Admin only) ·
-`PATCH /:id/estamp-service` (Master Admin only)
+## Assistant scoping (balance-ledger flow)
+Master Admin acts on every organization. An Assistant Master Admin acts **only** on organizations whose
+`assignedAssistantId` is them (none assigned = sees none). One helper (`apps/api/src/utils/orgAccess.js`)
+enforces this on: `/organizations` list/detail/edit/super-admin provisioning, `/wallet/:organizationId/*`
+(balance, transactions, manual credit), `POST /payments/:id/credit-balance`, `GET /payments` (+ detail,
+verify, order creation), `GET /payments/credit-summary`, `GET /orders` (+ summary, detail, process, sync,
+retry) and `GET /estamps` (+ detail, modify, cancel). Lists are narrowed (a foreign `organizationId` filter
+returns nothing); acting on an unassigned organization returns 403 (404 for single orders/requests/payments,
+so ids are not confirmed).
+
+## Organizations — `/organizations` (Master/Assistant Master Admin only, assistant-scoped)
+`POST /` create (optional `assignedAssistantId`, Master Admin only; an assistant creating a client is
+assigned to it) · `GET /` list · `GET /:id` detail (now includes `assignedAssistant` and
+`wallet.{balance,reservedBalance,availableBalance}`) · `PATCH /:id/status` (Master Admin only) ·
+`PATCH /:id/estamp-service` (Master Admin only) ·
+`PATCH /:id/assigned-assistant` `{ assistantId | null }` (Master Admin only): target must be an active
+Assistant Master Admin; audited as `ORG_MODIFIED`, the assistant is notified
 
 ## Users — `/users` (tenant-scoped)
 `POST /` create (role must be strictly below creator's authority) · `GET /` list (scoped to caller's org,
@@ -31,22 +45,44 @@ otherwise 6-20 chars). Email, role and organization are never changed here. Audi
 never returns `passwordHash`.
 
 ## Wallet — `/wallet`
-`GET /balance` · `GET /transactions` (own org) · `GET /:organizationId/balance` and
-`POST /:organizationId/credit` (internal roles only — manual credit, goes through the same atomic service
-as Razorpay credits)
+The balance is a ledger number per organization; real money goes to the company bank account via Razorpay.
+`GET /balance` → `{ balance, reservedBalance, availableBalance }` (available = balance − reserved) ·
+`GET /transactions` (own org; credits read "Balance added, payment <razorpay id>", debits
+"E-Stamp request <number>") · `GET /:organizationId/balance` and `GET /:organizationId/transactions`
+(internal, assistant-scoped) · `POST /:organizationId/credit` `{ amount, description }` (internal +
+`wallet.manage`, assistant-scoped): manual credit for offline transfers or corrections; `description`
+(3-500 chars) is **required**; audited `BALANCE_CHANGED`
 
 ## Payments — `/payments`
-`POST /razorpay/order` create order · `POST /razorpay/verify` server-verifies signature, then credits wallet
-idempotently
+`POST /razorpay/order` create order · `POST /razorpay/verify` server-verifies the signature and marks the
+payment `SUCCESS` + `balanceStatus: PENDING_CREDIT` — it does **not** credit the wallet (same for the
+webhook); the assigned assistant (or every Master Admin if none) is notified · `GET /` list, new filter
+`balanceStatus=PENDING_CREDIT|CREDITED` (CREDITED also matches legacy SUCCESS payments without the field) ·
+`POST /:id/credit-balance` (Master Admin or the assigned assistant, `wallet.manage`): credits exactly
+`payment.amount` with idempotency key `payment:<id>`, sets `balanceStatus: CREDITED`, `creditedAt`,
+`creditedBy`, `walletTransactionId`; audited `BALANCE_CHANGED`; client payer + Super Admins notified, and
+Master Admins if an assistant did it; 409 `ALREADY_CREDITED` if already credited, 409 `PAYMENT_NOT_PAID`
+if not successful · `GET /credit-summary` (internal, `payment.view`, assistant-scoped):
+`{ totalReceived, totalCredited, pendingAmount, pendingCount, pendingByOrganization[] }`
 
 ## Articles — `/articles`
 `GET /` list (query: `stateCode`, `search`) · `GET /:id` detail · `POST /` create (Master Admin only) ·
 `POST /:id/versions` add a new calculation rule version (Master Admin only)
 
 ## E-Stamp Requests — `/estamps`
-`POST /` create (runs calculation → debits wallet → creates request+order, all-or-nothing) ·
-`GET /` list (USER role sees only their own) · `GET /:id` detail · `POST /:id/cancel` (only within the
-20-minute window, backend-enforced)
+`POST /` create (runs calculation → atomically **reserves** the amount against the available balance,
+400 `INSUFFICIENT_BALANCE` if too low → creates request+order with `chargeStatus: RESERVED`) ·
+`GET /` list (USER role sees only their own) · `GET /:id` detail · `PATCH /:id` modify within the window;
+`considerationPrice` / `numberOfEStamps` may now change: the server recalculates and moves the reservation
+by the difference (400 `INSUFFICIENT_BALANCE` on an unaffordable increase) · `POST /:id/cancel` (only
+within the 20-minute window) releases the reservation (`chargeStatus: RELEASED`), costs nothing.
+When the window ends the lock job converts the reservation into one DEBIT (idempotency key
+`estamp-charge:<requestId>`, `chargeStatus: CHARGED`); a sweep on every tick charges anything left
+reserved after a crash. If the balance cannot cover it, `chargeStatus: SHORTFALL`, the request is held
+from processing (409 `CHARGE_PENDING`) and the assigned assistant is notified; it charges automatically
+once the balance is corrected. No automatic refund after lock.
+Legacy requests (debited at submit before this flow) have no `chargeStatus` and are treated as charged;
+run `npm run migrate:balance-ledger --workspace=apps/api` once to make that explicit.
 
 ## Orders — `/orders`
 `GET /` list, filterable by `status` and (internal roles) `organizationId`
