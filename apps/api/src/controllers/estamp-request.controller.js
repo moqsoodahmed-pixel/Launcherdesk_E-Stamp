@@ -11,6 +11,7 @@ const ApiError_1 = require("../utils/ApiError");
 const email_service_1 = require("../services/email.service");
 const shared_1 = require("@launcherdesk/shared");
 const mongoose_1 = require("mongoose");
+const orgAccess_1 = require("../utils/orgAccess");
 function resolveOrgId(req) {
     const isInternal = req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
     return isInternal ? req.query.organizationId || req.body.organizationId : req.user.organizationId;
@@ -51,9 +52,14 @@ exports.previewCalculation = (0, asyncHandler_1.asyncHandler)(async (req, res) =
     return (0, ApiResponse_1.ok)(res, result);
 });
 exports.listRequests = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const organizationId = resolveOrgId(req);
+    const isInternal = (0, orgAccess_1.isInternalRole)(req.user.role);
+    const organizationId = isInternal ? undefined : resolveOrgId(req);
     const { status, stateCode, articleId, search, dateFrom, dateTo, page = "1", limit = "20" } = req.query;
     const filter = organizationId ? { organizationId } : {};
+    // Internal actors: Master Admin sees all (optionally one org); an
+    // Assistant only their assigned organizations.
+    if (isInternal)
+        await (0, orgAccess_1.scopeOrganizationFilter)(req, filter, req.query.organizationId);
     if (status) {
         if (!Object.values(shared_1.EStampRequestStatus).includes(status))
             throw ApiError_1.ApiError.badRequest("Invalid status filter", "INVALID_STATUS");
@@ -120,17 +126,21 @@ exports.getRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (!isInternal)
         filter.organizationId = req.user.organizationId;
     const request = await models_1.EStampRequest.findOne(filter);
-    if (!request)
+    if (!request || (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN && !(await (0, orgAccess_1.canAccessOrganization)(req, request.organizationId))))
         throw ApiError_1.ApiError.notFound("Request not found");
     return (0, ApiResponse_1.ok)(res, { ...request.toObject(), ...(0, estamp_request_service_1.computeWindowInfo)(request) });
 });
 exports.modifyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const organizationId = resolveOrgId(req);
+    if ((0, orgAccess_1.isInternalRole)(req.user.role))
+        await (0, orgAccess_1.assertCanActOnOrganization)(req, organizationId);
     const request = await estamp_request_service_1.EStampRequestService.modifyRequest(req.params.id, organizationId, req.user.id, req.user.role, req.body, req);
     return (0, ApiResponse_1.ok)(res, request);
 });
 exports.cancelRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const organizationId = resolveOrgId(req);
+    if ((0, orgAccess_1.isInternalRole)(req.user.role))
+        await (0, orgAccess_1.assertCanActOnOrganization)(req, organizationId);
     const request = await estamp_request_service_1.EStampRequestService.cancelRequest(req.params.id, organizationId, req.user.id, req.user.role, req);
     return (0, ApiResponse_1.ok)(res, request);
 });

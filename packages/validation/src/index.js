@@ -32,6 +32,8 @@ exports.createOrganizationSchema = zod_1.z.object({
     contactPhone: zod_1.z.string().min(6).max(20),
     gstin: zod_1.z.string().optional(),
     address: zod_1.z.string().optional(),
+    // Optional at creation (Master Admin only - enforced in the controller).
+    assignedAssistantId: zod_1.z.string().regex(/^[a-f0-9]{24}$/i).nullable().optional(),
 });
 // Partial update - only fields an organization's own profile actually owns.
 // Deliberately excludes status/isEstampServiceEnabled (their own dedicated,
@@ -123,6 +125,10 @@ exports.updateEStampRequestSchema = zod_1.z.object({
     descriptionOfDocument: zod_1.z.string().min(1).max(1000).optional(),
     propertyDescription: zod_1.z.string().max(2000).optional(),
     stampDutyPaidBy: zod_1.z.string().min(1).max(300).optional(),
+    // Amount-changing fields: the server recalculates the amount and moves
+    // the wallet reservation by the difference (see modifyRequest).
+    considerationPrice: zod_1.z.number().finite().min(0).optional(),
+    numberOfEStamps: zod_1.z.number().int().min(1).max(100).optional(),
 }).strict();
 // Shared shape for a calculation rule, used by both article creation and
 // new-version creation - CalculationService (apps/api) remains the only

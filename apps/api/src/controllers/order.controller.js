@@ -11,6 +11,17 @@ const estamp_request_service_1 = require("../services/estamp-request.service");
 const audit_service_1 = require("../services/audit.service");
 const shared_1 = require("@launcherdesk/shared");
 const sanitizeFilename_1 = require("../utils/sanitizeFilename");
+const orgAccess_1 = require("../utils/orgAccess");
+// Assistant Master Admins only reach orders of organizations assigned to
+// them; same "not found" as a missing order so ids are never confirmed.
+async function assertOrderAccess(req, orderId) {
+    if (req.user.role !== shared_1.Role.ASSISTANT_MASTER_ADMIN)
+        return;
+    const order = mongoose_1.Types.ObjectId.isValid(orderId) ? await models_1.EStampOrder.findById(orderId).select("organizationId") : null;
+    if (!order || !(await (0, orgAccess_1.canAccessOrganization)(req, order.organizationId))) {
+        throw ApiError_1.ApiError.notFound("Order not found");
+    }
+}
 function isInternalActor(req) {
     return req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
 }
@@ -25,9 +36,13 @@ const SORT_FIELDS = ["createdAt", "updatedAt", "status", "eStampStatus", "amount
 // into MongoDB. Every field below is validated/typed before being placed
 // into the query.
 async function buildOrderFilter(req) {
-    const organizationId = resolveOrgId(req);
     const { status, eStampStatus, stateCode, articleId, search, dateFrom, dateTo, organizationName } = req.query;
     const filter = {};
+    // Internal actors: Master Admin sees all (optionally one org); an
+    // Assistant only their assigned organizations.
+    const organizationId = isInternalActor(req) ? undefined : resolveOrgId(req);
+    if (isInternalActor(req))
+        await (0, orgAccess_1.scopeOrganizationFilter)(req, filter, req.query.organizationId);
     if (organizationId) {
         // Cast explicitly - this filter also feeds an aggregate() pipeline
         // (getOrderSummary), which does NOT apply Mongoose's automatic
@@ -78,10 +93,13 @@ async function buildOrderFilter(req) {
         const matchingOrgs = await models_1.Organization.find({ name: { $regex: escapeRegex(organizationName), $options: "i" } }).select("_id").limit(500);
         const matchingIds = matchingOrgs.map((o) => o._id.toString());
         if (filter.organizationId) {
-            filter.organizationId = matchingIds.includes(filter.organizationId.toString()) ? filter.organizationId : { $in: [] };
+            // Intersect with whatever scope is already applied (a single org
+            // or an assistant's assigned set) - never widen it.
+            const current = filter.organizationId.$in ? filter.organizationId.$in.map(String) : [filter.organizationId.toString()];
+            filter.organizationId = { $in: current.filter((id) => matchingIds.includes(id)).map((id) => new mongoose_1.Types.ObjectId(id)) };
         }
         else {
-            filter.organizationId = { $in: matchingIds };
+            filter.organizationId = { $in: matchingIds.map((id) => new mongoose_1.Types.ObjectId(id)) };
         }
     }
     if (search) {
@@ -173,7 +191,8 @@ function computeAvailableActions(req, order, request) {
 }
 exports.getOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const order = await models_1.EStampOrder.findById(req.params.id);
-    if (!order || (!isInternalActor(req) && order.organizationId.toString() !== req.user.organizationId)) {
+    if (!order || (!isInternalActor(req) && order.organizationId.toString() !== req.user.organizationId)
+        || (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN && !(await (0, orgAccess_1.canAccessOrganization)(req, order.organizationId)))) {
         throw ApiError_1.ApiError.notFound("Order not found");
     }
     const [request, document, historyEntries] = await Promise.all([
@@ -252,16 +271,19 @@ exports.getOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 // to the existing Phase 7 EStampRequestService - no second processing/retry/
 // sync engine is introduced here.
 exports.processOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    await assertOrderAccess(req, req.params.id);
     const organizationId = resolveOrgId(req);
     const result = await estamp_request_service_1.EStampRequestService.processOrder(req.params.id, organizationId, req.user.id, req.user.role, req);
     return (0, ApiResponse_1.ok)(res, result);
 });
 exports.syncOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    await assertOrderAccess(req, req.params.id);
     const organizationId = resolveOrgId(req);
     const result = await estamp_request_service_1.EStampRequestService.syncEStampOrderStatus(req.params.id, organizationId, req.user.id, req.user.role, req);
     return (0, ApiResponse_1.ok)(res, result);
 });
 exports.retryOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    await assertOrderAccess(req, req.params.id);
     const organizationId = resolveOrgId(req);
     const result = await estamp_request_service_1.EStampRequestService.retryOrder(req.params.id, organizationId, req.user.id, req.user.role, req);
     return (0, ApiResponse_1.ok)(res, result);

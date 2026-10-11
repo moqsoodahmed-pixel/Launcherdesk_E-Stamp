@@ -40,18 +40,22 @@ const authorize_1 = require("../../middleware/authorize");
 const validate_1 = require("../../middleware/validate");
 const validation_1 = require("@launcherdesk/validation");
 const shared_1 = require("@launcherdesk/shared");
+const orgAccess_1 = require("../../utils/orgAccess");
+// An Assistant Master Admin may only touch organizations assigned to them.
+const orgScope = (0, orgAccess_1.requireOrganizationParamAccess)("id");
 const router = (0, express_1.Router)();
 router.use(authenticate_1.authenticate, (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN, shared_1.Role.ASSISTANT_MASTER_ADMIN));
 router.post("/", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_MANAGE), (0, validate_1.validateBody)(validation_1.createOrganizationSchema), ctrl.createOrganization);
 router.get("/", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_VIEW), ctrl.listOrganizations);
-router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_VIEW), ctrl.getOrganization);
-router.patch("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_MANAGE), (0, validate_1.validateBody)(validation_1.updateOrganizationSchema), ctrl.updateOrganization);
+router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_VIEW), orgScope, ctrl.getOrganization);
+router.patch("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_MANAGE), orgScope, (0, validate_1.validateBody)(validation_1.updateOrganizationSchema), ctrl.updateOrganization);
 // Activate/deactivate/suspend/restrict and enabling E-Stamp service are
 // reserved to Master Admin outright (not permission-delegable to Assistant
 // Master Admin), per the authoritative role spec.
 router.patch("/:id/status", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), ctrl.updateOrganizationStatus);
 router.patch("/:id/estamp-service", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), ctrl.setEstampServiceEnabled);
+router.patch("/:id/assigned-assistant", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), ctrl.setAssignedAssistant);
 // Provisions the organization's initial Super Admin. Delegable to Assistant
 // Master Admin via CLIENT_MANAGE, same as organization create/edit.
-router.post("/:id/super-admin", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_MANAGE), (0, validate_1.validateBody)(validation_1.provisionSuperAdminSchema), ctrl.provisionSuperAdmin);
+router.post("/:id/super-admin", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_MANAGE), orgScope, (0, validate_1.validateBody)(validation_1.provisionSuperAdminSchema), ctrl.provisionSuperAdmin);
 exports.default = router;

@@ -17,6 +17,9 @@ const organizationSchema = new mongoose_1.Schema({
     },
     isEstampServiceEnabled: { type: Boolean, default: false },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
+    // The one Assistant Master Admin responsible for this client (credits
+    // its payments, manages its balance). null = only Master Admins.
+    assignedAssistantId: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", default: null, index: true },
 }, { timestamps: true });
 organizationSchema.index({ name: 1 });
 exports.Organization = (0, mongoose_1.model)("Organization", organizationSchema);
