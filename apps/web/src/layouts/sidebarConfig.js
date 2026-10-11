@@ -61,8 +61,6 @@ const ASSISTANT_MASTER_ADMIN_SECTIONS = [
     { to: "/estamps/requests", label: "E-Stamp Requests", permission: PERMISSIONS.ESTAMP_VIEW },
     { to: "/orders", label: "Orders", permission: PERMISSIONS.ORDER_VIEW },
     { to: "/estamps", label: "E-Stamps", permission: PERMISSIONS.ESTAMP_VIEW },
-    { to: "/files/upload", label: "Upload", permission: PERMISSIONS.ESTAMP_UPLOAD },
-    { to: "/files/download", label: "Download", permission: PERMISSIONS.ESTAMP_DOWNLOAD },
   ]),
   section("GOVERNANCE", [
     { to: "/reports", label: "Reports", permission: PERMISSIONS.REPORT_VIEW },

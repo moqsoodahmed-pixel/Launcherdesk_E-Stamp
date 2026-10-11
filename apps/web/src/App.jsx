@@ -36,6 +36,11 @@ import RequireAccess from "./routes/RequireAccess";
 import NotFoundPage from "./pages/NotFoundPage";
 import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
 import { PERMISSIONS as P } from "./utils/permissions";
+import AboutPage from "./pages/about/AboutPage";
+import ProfilePage from "./pages/profile/ProfilePage";
+import CompanyProfilePage from "./pages/organizations/CompanyProfilePage";
+import EStampsPage from "./pages/estamps/EStampsPage";
+import AssistantAdminsPage from "./pages/assistants/AssistantAdminsPage";
 
 const INTERNAL = ["MASTER_ADMIN", "ASSISTANT_MASTER_ADMIN"];
 // Creating requests/batches charges the caller's own organization wallet;
@@ -89,6 +94,11 @@ export default function App() {
           <Route path="/organization/profile" element={<PlaceholderPage title="Company Profile"/>}/>
           <Route path="/about" element={<PlaceholderPage title="About"/>}/>
           <Route path="/profile" element={<PlaceholderPage title="Profile"/>}/>
+          <Route path="/estamps" element={<EStampsPage />} />
+          <Route path="/assistant-admins" element={<AssistantAdminsPage />} />
+          <Route path="/organization/profile" element={<CompanyProfilePage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>
 
