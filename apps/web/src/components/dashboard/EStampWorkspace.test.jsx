@@ -40,6 +40,12 @@ const mockOrders = [
   },
 ];
 
+const mockPackages = [
+  { key: "starter", name: "Starter E-Stamp Pack", stampsCount: 25, price: 500, description: "Small teams.", features: [], validityDays: null, recommended: false },
+  { key: "pro", name: "Pro Business Bundle", stampsCount: 100, price: 1500, description: "Popular.", features: [], validityDays: null, recommended: true },
+  { key: "enterprise", name: "Enterprise Bundle", stampsCount: 500, price: 6000, description: "Bulk.", features: [], validityDays: null, recommended: false },
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
   apiClient.get.mockImplementation((url) => {
@@ -51,6 +57,9 @@ beforeEach(() => {
     }
     if (url === "/orders") {
       return Promise.resolve({ data: { data: { items: mockOrders, total: 1 } } });
+    }
+    if (url === "/estamp-packages") {
+      return Promise.resolve({ data: { data: mockPackages } });
     }
     return Promise.reject(new Error(`Unhandled URL: ${url}`));
   });
@@ -87,7 +96,7 @@ describe("EStampWorkspace Component", () => {
     fireEvent.click(buyButtons[0]);
 
     expect(await screen.findByText(/Buy E-Stamps & Add Balance/i)).toBeInTheDocument();
-    expect(screen.getByText(/Starter E-Stamp Pack/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Starter E-Stamp Pack/i)).toBeInTheDocument();
     expect(screen.getByText(/Enterprise Bundle/i)).toBeInTheDocument();
     expect(screen.getByText(/Custom Amount Top-Up/i)).toBeInTheDocument();
   });

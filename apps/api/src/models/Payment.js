@@ -18,6 +18,10 @@ const paymentSchema = new mongoose_1.Schema({
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
     plan: { type: String, default: "Wallet Top-up & E-Stamping Balance" },
     stampsCount: { type: Number, default: 0 },
+    // Set only when the order was created from a catalog EstampPackage
+    // (never from arbitrary client input) - lets the frontend derive real
+    // subscription validity/expiry instead of guessing from the plan string.
+    packageKey: { type: String, default: null },
     invoiceNumber: { type: String },
     // Ledger flow: a verified Razorpay payment does NOT credit the wallet.
     // It waits as PENDING_CREDIT until the assigned Assistant Master Admin

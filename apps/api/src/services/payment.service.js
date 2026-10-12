@@ -8,6 +8,10 @@ const ApiError_1 = require("../utils/ApiError");
 const wallet_service_1 = require("./wallet.service");
 const payment_providers_1 = require("./payment-providers");
 const notification_service_1 = require("./notification.service");
+// Rupees-per-stamp conversion rate for a custom top-up (no catalog package
+// selected) - kept server-side so the frontend's displayed "~N E-Stamps
+// equivalent" is never just a client-side estimate the server then ignores.
+const RUPEES_PER_CUSTOM_STAMP = 15;
 // Dedicated Razorpay payment service. The frontend NEVER determines payment
 // success - only server-side signature verification (checkout flow) or
 // server-side webhook signature verification does. The business logic here
@@ -78,6 +82,10 @@ async function notifyPendingCredit(payment) {
     if (org?.assignedAssistantId) {
         await (0, notification_service_1.notifyUser)({ ...base, recipientId: org.assignedAssistantId.toString(), recipientRole: shared_1.Role.ASSISTANT_MASTER_ADMIN });
     }
+    // Also tell the purchasing organization's own Super Admin/Admin users -
+    // eventKey's per-recipient suffix (applied inside notifyOrgAdmins) keeps
+    // this exactly-once per admin even under webhook/checkout-path races.
+    await (0, notification_service_1.notifyOrgAdmins)(payment.organizationId.toString(), base);
 }
 // Centralized here (not in the controller) so BOTH the checkout-verify path
 // and the webhook path notify exactly once per payment, regardless of which
@@ -168,6 +176,9 @@ exports.PaymentService = {
         if (!Number.isFinite(params.amount) || params.amount <= 0) {
             throw ApiError_1.ApiError.badRequest("Invalid payment amount", "INVALID_AMOUNT");
         }
+        const stampsCount = params.packageKey
+            ? params.stampsCount || 0
+            : (params.stampsCount || Math.floor(params.amount / RUPEES_PER_CUSTOM_STAMP));
         const provider = (0, payment_providers_1.getPaymentProvider)();
         const { razorpayOrderId } = await provider.createOrder({ organizationId: params.organizationId, amount: params.amount });
         const invoiceYear = new Date().getFullYear();
@@ -179,7 +190,8 @@ exports.PaymentService = {
             status: shared_1.PaymentStatus.CREATED,
             createdBy: params.userId,
             plan: params.plan || "Wallet Top-up & E-Stamping Balance",
-            stampsCount: params.stampsCount || 0,
+            stampsCount,
+            packageKey: params.packageKey || null,
             invoiceNumber: `INV-${invoiceYear}-${invoiceSuffix}`,
         });
         return { razorpayOrderId, amount: params.amount, paymentId: payment._id, keyId: env_1.env.RAZORPAY_KEY_ID || null };

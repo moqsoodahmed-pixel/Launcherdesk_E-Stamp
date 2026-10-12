@@ -27,8 +27,26 @@ exports.createRazorpayOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) 
         throw ApiError_1.ApiError.badRequest("organizationId is required");
     if (isInternalActor(req))
         await (0, orgAccess_1.assertCanActOnOrganization)(req, organizationId);
-    const { amount, plan, stampsCount } = req.body;
-    const result = await payment_service_1.PaymentService.createOrder({ organizationId, userId: req.user.id, amount, plan, stampsCount });
+    const { packageKey, amount, plan, stampsCount } = req.body;
+    let orderParams = { organizationId, userId: req.user.id, amount, plan, stampsCount };
+    // A catalog purchase NEVER trusts client-supplied amount/plan/stampsCount -
+    // the server looks the package up and uses only its own price/name/count,
+    // so a tampered client can never pay less than the real price or claim
+    // more stamps than the package actually grants.
+    if (packageKey) {
+        const pkg = await models_1.EstampPackage.findOne({ key: String(packageKey).toLowerCase().trim(), isActive: true });
+        if (!pkg)
+            throw ApiError_1.ApiError.badRequest("Unknown or inactive package", "INVALID_PACKAGE");
+        orderParams = {
+            organizationId,
+            userId: req.user.id,
+            amount: pkg.price,
+            plan: `${pkg.name} (${pkg.stampsCount} E-Stamps)`,
+            stampsCount: pkg.stampsCount,
+            packageKey: pkg.key,
+        };
+    }
+    const result = await payment_service_1.PaymentService.createOrder(orderParams);
     await (0, audit_service_1.recordAudit)({
         actorId: req.user.id,
         actorRole: req.user.role,

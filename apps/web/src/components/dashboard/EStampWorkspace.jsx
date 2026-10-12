@@ -10,6 +10,23 @@ import BuyMoreModal from "./BuyMoreModal";
 import InvoiceModal from "./InvoiceModal";
 import ContactSupportModal from "./ContactSupportModal";
 
+// EStampOrder.paymentStatus uses its own vocabulary (PENDING/PAID/FAILED),
+// distinct from Payment.status (CREATED/SUCCESS/FAILED/REFUNDED) that
+// PaymentStatusBadge renders - kept as a separate small badge rather than
+// reusing PaymentStatusBadge with the wrong label set.
+const ORDER_PAYMENT_STATUS_STYLES = {
+  PAID: "bg-emerald-50 text-emerald-700",
+  PENDING: "bg-amber-50 text-amber-700",
+  FAILED: "bg-red-50 text-red-700",
+};
+function OrderPaymentStatusBadge({ status }) {
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${ORDER_PAYMENT_STATUS_STYLES[status] || "bg-slate-100 text-slate-600"}`}>
+      {status || "UNKNOWN"}
+    </span>
+  );
+}
+
 export default function EStampWorkspace({ user, onStateChanged }) {
   const [balance, setBalance] = useState(null);
   const [payments, setPayments] = useState([]);
@@ -23,8 +40,10 @@ export default function EStampWorkspace({ user, onStateChanged }) {
 
   // Modals
   const [showBuyMore, setShowBuyMore] = useState(false);
+  const [buyMoreIntent, setBuyMoreIntent] = useState("buy");
   const [selectedInvoicePayment, setSelectedInvoicePayment] = useState(null);
   const [showSupport, setShowSupport] = useState(false);
+  const [packages, setPackages] = useState([]);
 
   const ordersRef = useRef(null);
 
@@ -33,10 +52,11 @@ export default function EStampWorkspace({ user, onStateChanged }) {
     setError(null);
 
     try {
-      const [balRes, payRes, ordRes] = await Promise.allSettled([
+      const [balRes, payRes, ordRes, pkgRes] = await Promise.allSettled([
         apiClient.get("/wallet/balance"),
         apiClient.get("/payments", { params: { limit: 20 } }),
         apiClient.get("/orders", { params: { limit: 20 } }),
+        apiClient.get("/estamp-packages"),
       ]);
 
       if (balRes.status === "fulfilled") {
@@ -47,6 +67,9 @@ export default function EStampWorkspace({ user, onStateChanged }) {
       }
       if (ordRes.status === "fulfilled") {
         setOrders(ordRes.value.data.data?.items || []);
+      }
+      if (pkgRes.status === "fulfilled") {
+        setPackages(pkgRes.value.data.data || []);
       }
     } catch (err) {
       setError(actionErrorMessage(err, "Failed to load E-Stamp workspace data."));
@@ -71,17 +94,33 @@ export default function EStampWorkspace({ user, onStateChanged }) {
     };
   }, [loadAll, onStateChanged]);
 
-  // Derived subscription stats
+  // Derived subscription stats - there is no separate Subscription entity;
+  // "current plan" is always derived from the latest successful Payment.
   const successfulPayments = payments.filter((p) => p.status === "SUCCESS");
-  const latestSuccessful = successfulPayments[0] || payments[0] || null;
-  const currentPlan = latestSuccessful?.plan || "Pro Business Plan";
+  const latestSuccessful = successfulPayments[0] || null;
+  const currentPlan = latestSuccessful?.plan || "No active package";
 
-  // Calculate total stamps purchased
+  // Calculate total stamps purchased - honest 0 when there have been no
+  // successful purchases, rather than a hardcoded fallback value.
   const totalStampsPurchased = successfulPayments.reduce((acc, p) => {
     if (p.stampsCount && p.stampsCount > 0) return acc + p.stampsCount;
     const match = (p.plan || "").match(/(\d+)\s*E-Stamp/i);
     return acc + (match ? parseInt(match[1], 10) : 0);
-  }, 0) || 100;
+  }, 0);
+
+  // Expiry is derived from the matched catalog package's validityDays (set
+  // only for packages that actually expire) + the purchase date. A custom
+  // top-up or a package with no validityDays is treated as lifetime.
+  const matchedPackage = latestSuccessful?.packageKey
+    ? packages.find((pkg) => pkg.key === latestSuccessful.packageKey)
+    : null;
+  const expiryLabel = (() => {
+    if (!latestSuccessful) return "No active package";
+    if (!matchedPackage?.validityDays) return "Never Expires";
+    const purchaseDate = new Date(latestSuccessful.createdAt);
+    const expiry = new Date(purchaseDate.getTime() + matchedPackage.validityDays * 24 * 60 * 60 * 1000);
+    return expiry.toLocaleDateString();
+  })();
 
   // Used balance / completed orders
   const usedCount = orders.filter((o) => o.eStampStatus === "ISSUED" || o.status === "COMPLETED").length;
@@ -107,8 +146,14 @@ export default function EStampWorkspace({ user, onStateChanged }) {
     if (latestSuccessful) {
       setSelectedInvoicePayment(latestSuccessful);
     } else {
+      setBuyMoreIntent("buy");
       setShowBuyMore(true);
     }
+  }
+
+  function openBuyMore(intent) {
+    setBuyMoreIntent(intent);
+    setShowBuyMore(true);
   }
 
   return (
@@ -126,7 +171,7 @@ export default function EStampWorkspace({ user, onStateChanged }) {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowBuyMore(true)}
+            onClick={() => openBuyMore("buy")}
             className="px-5 py-2.5 rounded-xl bg-white text-brand-900 font-semibold text-sm hover:bg-brand-50 shadow-md transition-all flex items-center gap-2"
           >
             <span>⚡</span> Buy More E-Stamps
@@ -135,9 +180,9 @@ export default function EStampWorkspace({ user, onStateChanged }) {
       </div>
 
       {/* Quick Actions Panel */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <button
-          onClick={() => setShowBuyMore(true)}
+          onClick={() => openBuyMore("buy")}
           className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-500 hover:shadow-sm transition text-left group"
         >
           <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-lg group-hover:scale-105 transition-transform">
@@ -146,6 +191,32 @@ export default function EStampWorkspace({ user, onStateChanged }) {
           <div>
             <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-600">Buy More E-Stamps</div>
             <div className="text-xs text-slate-500">Add packages or funds</div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => openBuyMore("upgrade")}
+          className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-500 hover:shadow-sm transition text-left group"
+        >
+          <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg group-hover:scale-105 transition-transform">
+            🚀
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-600">Upgrade Plan</div>
+            <div className="text-xs text-slate-500">Move to a bigger bundle</div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => openBuyMore("renew")}
+          className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-500 hover:shadow-sm transition text-left group"
+        >
+          <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-lg group-hover:scale-105 transition-transform">
+            🔄
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-600">Renew Plan</div>
+            <div className="text-xs text-slate-500">Top up your current bundle</div>
           </div>
         </button>
 
@@ -229,8 +300,10 @@ export default function EStampWorkspace({ user, onStateChanged }) {
 
           <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 col-span-2 lg:col-span-1">
             <dt className="text-xs text-slate-500 font-medium">Expiry Date</dt>
-            <dd className="text-base font-semibold text-slate-900 mt-1">Never Expires</dd>
-            <dd className="text-[11px] text-emerald-600 mt-0.5">Lifetime bundle validity</dd>
+            <dd className="text-base font-semibold text-slate-900 mt-1">{expiryLabel}</dd>
+            <dd className="text-[11px] text-emerald-600 mt-0.5">
+              {matchedPackage?.validityDays ? `${matchedPackage.validityDays}-day bundle validity` : "Lifetime bundle validity"}
+            </dd>
           </div>
         </div>
       </section>
@@ -288,30 +361,46 @@ export default function EStampWorkspace({ user, onStateChanged }) {
                   <th className="p-3">Status</th>
                   <th className="p-3">Amount</th>
                   <th className="p-3">Payment Status</th>
+                  <th className="p-3">Invoice</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredOrders.map((ord) => (
-                  <tr key={ord._id} className="hover:bg-slate-50/70 transition">
-                    <td className="p-3 font-mono font-medium text-brand-600">
-                      <Link to={`/orders/${ord._id}`} className="hover:underline">
-                        {ord.orderNumber || ord._id.slice(-8)}
-                      </Link>
-                    </td>
-                    <td className="p-3 text-slate-600">
-                      {ord.createdAt ? new Date(ord.createdAt).toLocaleDateString() : "-"}
-                    </td>
-                    <td className="p-3">
-                      <StatusBadge status={ord.eStampStatus || ord.status} />
-                    </td>
-                    <td className="p-3 font-medium text-slate-900">{formatCurrency(ord.amount)}</td>
-                    <td className="p-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700">
-                        Paid (Wallet)
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {filteredOrders.map((ord) => {
+                  const linkedPayment = payments.find(
+                    (p) => p.plan && ord.orderNumber && p.createdAt && Math.abs(new Date(p.createdAt) - new Date(ord.createdAt)) < 5 * 60 * 1000 && p.status === "SUCCESS"
+                  );
+                  return (
+                    <tr key={ord._id} className="hover:bg-slate-50/70 transition">
+                      <td className="p-3 font-mono font-medium text-brand-600">
+                        <Link to={`/orders/${ord._id}`} className="hover:underline">
+                          {ord.orderNumber || ord._id.slice(-8)}
+                        </Link>
+                      </td>
+                      <td className="p-3 text-slate-600">
+                        {ord.createdAt ? new Date(ord.createdAt).toLocaleDateString() : "-"}
+                      </td>
+                      <td className="p-3">
+                        <StatusBadge status={ord.eStampStatus || ord.status} />
+                      </td>
+                      <td className="p-3 font-medium text-slate-900">{formatCurrency(ord.amount)}</td>
+                      <td className="p-3">
+                        <OrderPaymentStatusBadge status={ord.paymentStatus} />
+                      </td>
+                      <td className="p-3">
+                        {linkedPayment ? (
+                          <button
+                            onClick={() => setSelectedInvoicePayment(linkedPayment)}
+                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] transition"
+                          >
+                            📄 View
+                          </button>
+                        ) : (
+                          <span className="text-slate-300 text-[11px]">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -400,6 +489,8 @@ export default function EStampWorkspace({ user, onStateChanged }) {
       {/* Modals */}
       {showBuyMore && (
         <BuyMoreModal
+          intent={buyMoreIntent}
+          currentPackageKey={latestSuccessful?.packageKey || null}
           onClose={() => setShowBuyMore(false)}
           onSuccess={() => {
             loadAll();

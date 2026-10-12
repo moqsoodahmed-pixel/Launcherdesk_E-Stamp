@@ -1,7 +1,30 @@
-import { formatCurrency } from "../../utils/format";
+import { useState } from "react";
+import { apiClient } from "../../api/client";
+import { formatCurrency, actionErrorMessage } from "../../utils/format";
 
 export default function InvoiceModal({ payment, organizationName, userName, userEmail, onClose }) {
+  const [txDetail, setTxDetail] = useState(null);
+  const [txLoading, setTxLoading] = useState(false);
+  const [txError, setTxError] = useState(null);
+
   if (!payment) return null;
+
+  async function handleViewTransaction() {
+    if (txDetail) {
+      setTxDetail(null);
+      return;
+    }
+    setTxLoading(true);
+    setTxError(null);
+    try {
+      const { data } = await apiClient.get(`/payments/${payment._id}`);
+      setTxDetail(data.data);
+    } catch (err) {
+      setTxError(actionErrorMessage(err, "Failed to load transaction details."));
+    } finally {
+      setTxLoading(false);
+    }
+  }
 
   const invNumber =
     payment.invoiceNumber ||
@@ -71,7 +94,35 @@ export default function InvoiceModal({ payment, organizationName, userName, user
           <p>
             Status: <span className="text-green-700 font-semibold">{payment.status || "SUCCESS"}</span>
           </p>
+          <button
+            onClick={handleViewTransaction}
+            className="text-brand-600 hover:underline font-medium mt-1"
+          >
+            {txLoading ? "Loading transaction..." : txDetail ? "Hide transaction details" : "View Transaction →"}
+          </button>
         </div>
+
+        {txError && (
+          <div className="rounded-lg bg-red-50 text-red-700 text-xs px-3 py-2 border border-red-200">{txError}</div>
+        )}
+
+        {txDetail && (
+          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-[11px] text-slate-600 space-y-1.5 font-mono">
+            <div className="flex justify-between"><span>Razorpay Order ID</span><span>{txDetail.razorpayOrderId || "-"}</span></div>
+            <div className="flex justify-between"><span>Razorpay Payment ID</span><span>{txDetail.razorpayPaymentId || "-"}</span></div>
+            <div className="flex justify-between"><span>Verified At</span><span>{txDetail.verifiedAt ? new Date(txDetail.verifiedAt).toLocaleString("en-IN") : "-"}</span></div>
+            <div className="flex justify-between">
+              <span>Wallet Effect</span>
+              <span>
+                {txDetail.walletEffect?.credited === false
+                  ? "Not yet credited"
+                  : txDetail.walletEffect
+                  ? `${txDetail.walletEffect.type} ₹${txDetail.walletEffect.amount}`
+                  : "Not available"}
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
           <button

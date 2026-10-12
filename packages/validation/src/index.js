@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyRazorpayPaymentSchema = exports.createRazorpayOrderSchema = exports.createEStampRequestSchema = exports.updateAssistantAdminPermissionsSchema = exports.createAssistantAdminSchema = exports.createUserSchema = exports.createOrganizationSchema = exports.changePasswordSchema = exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.verifyOtpSchema = exports.loginSchema = void 0;
+exports.updateEstampPackageSchema = exports.createEstampPackageSchema = exports.verifyRazorpayPaymentSchema = exports.createRazorpayOrderSchema = exports.createEStampRequestSchema = exports.updateAssistantAdminPermissionsSchema = exports.createAssistantAdminSchema = exports.createUserSchema = exports.createOrganizationSchema = exports.changePasswordSchema = exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.verifyOtpSchema = exports.loginSchema = void 0;
 const zod_1 = require("zod");
 const shared_1 = require("@launcherdesk/shared");
 exports.loginSchema = zod_1.z.object({
@@ -189,15 +189,46 @@ exports.calculatePreviewSchema = zod_1.z.object({
 // the authenticated session (or, for internal actors, a separate trusted
 // param), never this body.
 exports.createRazorpayOrderSchema = zod_1.z.object({
+    // packageKey selects a catalog EstampPackage, whose price/plan/stampsCount
+    // are resolved server-side (see payment.controller.js) - amount/plan/
+    // stampsCount below are then ignored for a catalog purchase and only
+    // actually used for a custom top-up (packageKey omitted).
+    packageKey: zod_1.z.string().min(1).max(100).optional(),
     amount: zod_1.z
         .number()
         .finite()
         .positive()
         .max(1000000)
-        .refine((v) => Math.round(v * 100) === v * 100, "Amount must have at most 2 decimal places"),
+        .refine((v) => Math.round(v * 100) === v * 100, "Amount must have at most 2 decimal places")
+        .optional(),
     plan: zod_1.z.string().max(200).optional(),
     stampsCount: zod_1.z.number().int().nonnegative().optional(),
     organizationId: zod_1.z.string().optional(), // only ever honored for internal actors, see resolveOrgId
+}).strict().refine((d) => d.packageKey || d.amount !== undefined, {
+    message: "Either packageKey or amount is required",
+    path: ["amount"],
+});
+exports.createEstampPackageSchema = zod_1.z.object({
+    key: zod_1.z.string().min(2).max(100),
+    name: zod_1.z.string().min(2).max(200),
+    description: zod_1.z.string().max(500).optional(),
+    stampsCount: zod_1.z.number().int().nonnegative(),
+    price: zod_1.z.number().finite().nonnegative(),
+    features: zod_1.z.array(zod_1.z.string().max(200)).optional(),
+    validityDays: zod_1.z.number().int().positive().nullable().optional(),
+    recommended: zod_1.z.boolean().optional(),
+    sortOrder: zod_1.z.number().int().optional(),
+}).strict();
+exports.updateEstampPackageSchema = zod_1.z.object({
+    name: zod_1.z.string().min(2).max(200).optional(),
+    description: zod_1.z.string().max(500).optional(),
+    stampsCount: zod_1.z.number().int().nonnegative().optional(),
+    price: zod_1.z.number().finite().nonnegative().optional(),
+    features: zod_1.z.array(zod_1.z.string().max(200)).optional(),
+    validityDays: zod_1.z.number().int().positive().nullable().optional(),
+    recommended: zod_1.z.boolean().optional(),
+    isActive: zod_1.z.boolean().optional(),
+    sortOrder: zod_1.z.number().int().optional(),
 }).strict();
 exports.verifyRazorpayPaymentSchema = zod_1.z.object({
     razorpay_order_id: zod_1.z.string().min(1),

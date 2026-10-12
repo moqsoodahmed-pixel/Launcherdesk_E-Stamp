@@ -21,6 +21,7 @@ __exportStar(require("./RefreshToken"), exports);
 __exportStar(require("./Article"), exports);
 __exportStar(require("./Wallet"), exports);
 __exportStar(require("./Payment"), exports);
+__exportStar(require("./EstampPackage"), exports);
 __exportStar(require("./EStampRequest"), exports);
 __exportStar(require("./EStampOrder"), exports);
 __exportStar(require("./FileAsset"), exports);
