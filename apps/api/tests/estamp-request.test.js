@@ -433,3 +433,54 @@ describe("Phase 22: GET /estamps list filters", () => {
     expect(res.body.data.items.length).toBe(0); // no requestNumber literally contains this string
   });
 });
+
+describe("Calculation preview - published price breakdown", () => {
+  it("returns the full fee breakdown alongside the duty, matching the audited Rs.500 summary", async () => {
+    const { org, article } = await makeOrgWithArticle({ fixedAmount: 500 });
+    const user = await User.create({ name: "P", email: `p-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.USER, organizationId: org._id });
+    const req = reqAsUser(user, {
+      body: { stateCode: "KA", articleId: article._id.toString(), considerationPrice: 0, numberOfEStamps: 1 },
+    });
+
+    const { res, error } = await runController(estampController.previewCalculation, req, makeRes());
+
+    expect(error).toBeNull();
+    // `amount` is untouched - still the only figure the wallet reserves.
+    expect(res.body.data.amount).toBe(500);
+    expect(res.body.data.pricing).toMatchObject({
+      stampDuty: 500,
+      convenienceFee: 0,
+      procurementFee: 99,
+      gst: 17.82,
+      governmentFees: 500,
+      totalAmount: 616.82,
+    });
+  });
+
+  it("reports a null total (shown as 'At Actuals') when the article's duty is not configured", async () => {
+    const creator = new mongoose.Types.ObjectId();
+    const org = await Organization.create({
+      name: "Unpriced Co",
+      contactEmail: `unpriced-${new mongoose.Types.ObjectId()}@example.com`,
+      contactPhone: "9999999999",
+      createdBy: creator,
+      status: OrganizationStatus.ACTIVE,
+      isEstampServiceEnabled: true,
+    });
+    const article = await Article.create({ stateCode: "KA", articleCode: `CUSTOM-${new mongoose.Types.ObjectId()}`, title: "Unpriced Article", createdBy: creator, currentVersion: 1 });
+    await ArticleVersion.create({ articleId: article._id, versionNumber: 1, calculationRule: { type: "CUSTOM" }, createdBy: creator });
+    const user = await User.create({ name: "Q", email: `q-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.USER, organizationId: org._id });
+    const req = reqAsUser(user, {
+      body: { stateCode: "KA", articleId: article._id.toString(), considerationPrice: 0, numberOfEStamps: 1 },
+    });
+
+    const { res, error } = await runController(estampController.previewCalculation, req, makeRes());
+
+    expect(error).toBeNull();
+    expect(res.body.data.amount).toBe(0);
+    expect(res.body.data.pricing.totalAmount).toBeNull();
+    // The fees themselves are still exact and knowable even when duty is not.
+    expect(res.body.data.pricing.procurementFee).toBe(99);
+    expect(res.body.data.pricing.gst).toBe(17.82);
+  });
+});

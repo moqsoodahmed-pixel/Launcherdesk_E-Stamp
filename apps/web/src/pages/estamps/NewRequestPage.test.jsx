@@ -96,7 +96,28 @@ describe("NewRequestPage - State & Article step uses the full state master", () 
 });
 
 describe("NewRequestPage - Review & Submit", () => {
-  function mockFullFlow({ submitError } = {}) {
+  // The exact breakdown the backend returns for a ₹500 duty (and the exact
+  // figures captured in LauncherDesk's own published price summary).
+  const PRICING_500 = {
+    stampDuty: 500,
+    convenienceFee: 0,
+    procurementFee: 99,
+    feeTotal: 99,
+    gst: 17.82,
+    governmentFees: 500,
+    totalAmount: 616.82,
+  };
+  const PRICING_UNKNOWN = {
+    stampDuty: 0,
+    convenienceFee: 0,
+    procurementFee: 99,
+    feeTotal: 99,
+    gst: 17.82,
+    governmentFees: 0,
+    totalAmount: null,
+  };
+
+  function mockFullFlow({ submitError, amount = 0, pricing = PRICING_UNKNOWN, calcError } = {}) {
     apiClient.get.mockImplementation((url, config) => {
       if (url === "/wallet/balance") return Promise.resolve({ data: { data: { balance: 1000 } } });
       if (url === "/states") return Promise.resolve({ data: { data: [{ code: "KA", name: "Karnataka" }] } });
@@ -109,14 +130,18 @@ describe("NewRequestPage - Review & Submit", () => {
       return Promise.resolve({ data: { data: [] } });
     });
     apiClient.post.mockImplementation((url) => {
-      if (url === "/estamps/calculate") return Promise.resolve({ data: { data: { amount: 0, articleVersionUsed: 1 } } });
+      if (url === "/estamps/calculate") {
+        return calcError ? Promise.reject(calcError) : Promise.resolve({ data: { data: { amount, articleVersionUsed: 1, pricing } } });
+      }
       if (url === "/estamps") {
-        return submitError ? Promise.reject(submitError) : Promise.resolve({ data: { data: { request: { _id: "r1", requestNumber: "LDE-REQ-1", calculatedStampDuty: 0 } } } });
+        return submitError ? Promise.reject(submitError) : Promise.resolve({ data: { data: { request: { _id: "r1", requestNumber: "LDE-REQ-1", calculatedStampDuty: amount } } } });
       }
       return Promise.resolve({ data: { data: {} } });
     });
   }
 
+  // Four steps now - there is no Calculation step to click through; the
+  // price is worked out automatically on arriving at Review.
   async function navigateToReview() {
     renderPage();
     const inputs = screen.getAllByRole("textbox");
@@ -137,11 +162,25 @@ describe("NewRequestPage - Review & Submit", () => {
     fireEvent.click(await screen.findByText("Alice (First Party)"));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
-    fireEvent.click(await screen.findByRole("button", { name: "Calculate Stamp Duty" }));
-    await screen.findByText("Estimated stamp duty:");
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Create Request");
   }
+
+  it("has no Calculation step - the wizard is four steps ending at Review & Submit", async () => {
+    mockFullFlow();
+    renderPage();
+    await screen.findByText("1. Basic Details");
+    expect(screen.queryByText(/Calculation/)).not.toBeInTheDocument();
+    expect(screen.getByText("4. Review & Submit")).toBeInTheDocument();
+    expect(screen.queryByText("5. Review & Submit")).not.toBeInTheDocument();
+  });
+
+  it("calculates automatically on reaching Review - no Calculate button to press", async () => {
+    mockFullFlow({ amount: 500, pricing: PRICING_500 });
+    await navigateToReview();
+    expect(await screen.findByText("Price summary")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Calculate/ })).not.toBeInTheDocument();
+    expect(apiClient.post).toHaveBeenCalledWith("/estamps/calculate", expect.objectContaining({ stateCode: "KA", articleId: "a1" }));
+  });
 
   it("shows the selected Article and State by full name on the review screen", async () => {
     mockFullFlow();
@@ -150,15 +189,49 @@ describe("NewRequestPage - Review & Submit", () => {
     expect(screen.getByText("Karnataka")).toBeInTheDocument();
   });
 
-  it("warns clearly when the calculated duty is ₹0 instead of silently showing it as a normal amount", async () => {
-    mockFullFlow();
+  it("renders the full published breakdown verbatim from the server for a ₹500 duty", async () => {
+    mockFullFlow({ amount: 500, pricing: PRICING_500 });
     await navigateToReview();
-    expect(screen.getByText(/stamp duty rate has not been configured yet/)).toBeInTheDocument();
+    await screen.findByText("Price summary");
+    expect(screen.getByText("Convenience Fee")).toBeInTheDocument();
+    expect(screen.getByText("Procurement Charge")).toBeInTheDocument();
+    expect(screen.getByText("GST (18%)")).toBeInTheDocument();
+    expect(screen.getByText("₹99")).toBeInTheDocument();
+    expect(screen.getByText("₹17.82")).toBeInTheDocument();
+    expect(screen.getByText("Total payable")).toBeInTheDocument();
+    expect(screen.getByText("₹616.82")).toBeInTheDocument();
+    expect(screen.queryByText("At Actuals")).not.toBeInTheDocument();
+  });
+
+  it("shows 'At Actuals' instead of ₹0 when the duty is not configured, and leaves the total blank", async () => {
+    mockFullFlow({ amount: 0, pricing: PRICING_UNKNOWN });
+    await navigateToReview();
+    await screen.findByText("Price summary");
+    // Both the Stamp duty and Government Fees rows read "At Actuals" rather
+    // than a bare ₹0 that would look like a real, settled price.
+    expect(screen.getAllByText("At Actuals")).toHaveLength(2);
+    expect(screen.getByText("Stamp duty").parentElement).toHaveTextContent("At Actuals");
+    expect(screen.getByText("Government Fees").parentElement).toHaveTextContent("At Actuals");
+    // The total is never invented when the government charge is unknown.
+    expect(screen.getByText("Total payable").parentElement).toHaveTextContent("-");
+    expect(screen.getByText("Total payable").parentElement).not.toHaveTextContent("₹");
+    // The known fees are still quoted exactly, even with the duty unknown.
+    expect(screen.getByText("Procurement Charge").parentElement).toHaveTextContent("₹99");
+    expect(screen.getByText(/billed at the real government charge/)).toBeInTheDocument();
+  });
+
+  it("offers a Retry instead of looping forever when the price lookup fails", async () => {
+    mockFullFlow({ calcError: { response: { status: 500, data: { message: "Pricing service down" } } } });
+    await navigateToReview();
+    expect(await screen.findByRole("button", { name: "Retry" })).toBeInTheDocument();
+    const callsAfterFailure = apiClient.post.mock.calls.filter((c) => c[0] === "/estamps/calculate").length;
+    expect(callsAfterFailure).toBe(1);
   });
 
   it("shows the backend's real reason on a submission 403, not a generic permission message", async () => {
-    mockFullFlow({ submitError: { response: { status: 403, data: { message: "E-Stamp service is not enabled for your organization" } } } });
+    mockFullFlow({ amount: 500, pricing: PRICING_500, submitError: { response: { status: 403, data: { message: "E-Stamp service is not enabled for your organization" } } } });
     await navigateToReview();
+    await screen.findByText("Price summary");
     fireEvent.click(screen.getByRole("button", { name: "Create Request" }));
     expect(await screen.findByText("E-Stamp service is not enabled for your organization")).toBeInTheDocument();
     expect(screen.queryByText("You do not have permission to view this.")).not.toBeInTheDocument();

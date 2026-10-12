@@ -12,6 +12,7 @@ const email_service_1 = require("../services/email.service");
 const shared_1 = require("@launcherdesk/shared");
 const mongoose_1 = require("mongoose");
 const orgAccess_1 = require("../utils/orgAccess");
+const estampPricing_1 = require("../utils/estampPricing");
 function resolveOrgId(req) {
     const isInternal = req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
     return isInternal ? req.query.organizationId || req.body.organizationId : req.user.organizationId;
@@ -68,7 +69,13 @@ exports.previewCalculation = (0, asyncHandler_1.asyncHandler)(async (req, res) =
         considerationPrice: req.body.considerationPrice,
         numberOfEStamps: req.body.numberOfEStamps,
     });
-    return (0, ApiResponse_1.ok)(res, result);
+    // The full published price breakdown (procurement charge, convenience
+    // fee, GST) alongside the duty, computed server-side from the one shared
+    // fee model the bulk flow already uses - the client never does this
+    // arithmetic itself, so the two can never drift apart. `amount` is left
+    // exactly as-is: it remains the only figure the wallet reserves.
+    const pricing = (0, estampPricing_1.calculateEstampFees)(result.amount);
+    return (0, ApiResponse_1.ok)(res, { ...result, pricing });
 });
 exports.listRequests = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const isInternal = (0, orgAccess_1.isInternalRole)(req.user.role);

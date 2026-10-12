@@ -15,6 +15,7 @@ const audit_service_1 = require("./audit.service");
 const notification_service_1 = require("./notification.service");
 const fileSignature_1 = require("../utils/fileSignature");
 const indianStates_1 = require("../utils/indianStates");
+const estampPricing_1 = require("../utils/estampPricing");
 // Phase 11 - Bulk E-Stamp Request Management.
 //
 // Core reuse principle: this module NEVER calculates, debits a wallet, or
@@ -343,11 +344,11 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
             duty = 100 * qty;
         }
     }
-    const convenienceFee = duty > 500 ? Math.round(duty * 0.05 * 100) / 100 : 0;
-    const procurementFee = 99;
-    const feeTotal = convenienceFee + procurementFee;
-    const gst = Math.round(feeTotal * 0.18 * 100) / 100;
-    const totalAmount = Math.round((duty + feeTotal + gst) * 100) / 100;
+    // Shared with the single-request preview so both flows quote the same
+    // published pricing from one place (see utils/estampPricing.js). `duty`
+    // is always > 0 by this point thanks to the fallback above, so the
+    // helper's "unknown duty" null total never applies here.
+    const { convenienceFee, procurementFee, feeTotal, gst, totalAmount } = (0, estampPricing_1.calculateEstampFees)(duty);
     return {
         stampDuty: duty,
         convenienceFee,

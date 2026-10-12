@@ -8,7 +8,12 @@ import { formatCurrency, errorMessage } from "../../utils/format";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 
-const STEPS = ["Basic Details", "State & Article", "Financial Details", "Calculation", "Review & Submit"];
+// The Calculation step is deliberately absent: the duty is a server-computed
+// figure the user cannot influence, so making them click "Calculate" was a
+// dead step. It now runs automatically on reaching Review, and the result is
+// presented as a price summary there.
+const STEPS = ["Basic Details", "State & Article", "Financial Details", "Review & Submit"];
+const REVIEW_STEP = STEPS.length - 1;
 
 // Fields validated (via handleSubmit-style trigger) before each step can
 // advance. Mirrors createEStampRequestSchema's exact field set - split
@@ -17,7 +22,6 @@ const STEP_FIELDS = [
   ["firstParty", "secondParty", "descriptionOfDocument", "propertyDescription"],
   ["stateCode", "articleId"],
   ["considerationPrice", "stampDutyPaidBy", "numberOfEStamps"],
-  [],
   [],
 ];
 
@@ -51,6 +55,7 @@ export default function NewRequestPage() {
   const [calculatedForKey, setCalculatedForKey] = useState(null);
   const [calculating, setCalculating] = useState(false);
   const [calcError, setCalcError] = useState(null);
+  const [attemptedKey, setAttemptedKey] = useState(null);
 
   // Generated once per visit and resent unchanged on every submit attempt
   // (including retries) - the backend recognizes this to avoid a duplicate
@@ -132,6 +137,21 @@ export default function NewRequestPage() {
     setStep((s) => Math.max(s - 1, 0));
   }
 
+  // Runs the price preview once per distinct set of inputs as soon as the
+  // user reaches Review. `attemptedKey` is what makes this safe: without it a
+  // failed call would leave `isFresh` false forever and the effect would
+  // retry in a tight loop. A failure is surfaced with an explicit Retry
+  // instead.
+  useEffect(() => {
+    if (step !== REVIEW_STEP) return;
+    if (!values.stateCode || !values.articleId) return;
+    if (isFresh || calculating) return;
+    if (attemptedKey === currentKey) return;
+    setAttemptedKey(currentKey);
+    runCalculation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, values.stateCode, values.articleId, currentKey, isFresh, calculating, attemptedKey]);
+
   async function runCalculation() {
     setCalcError(null);
     setCalculating(true);
@@ -156,8 +176,7 @@ export default function NewRequestPage() {
   async function onSubmit(formValues) {
     setServerError(null);
     if (!isFresh) {
-      setServerError("Please recalculate before submitting - the entered details have changed since the last calculation.");
-      setStep(3);
+      setServerError("The price is still being worked out for the details you entered. Wait for the summary below, then submit.");
       return;
     }
     setSubmitting(true);
@@ -319,32 +338,18 @@ export default function NewRequestPage() {
           </div>
         )}
 
-        {step === 3 && (
-          <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              This calculation is a live preview from the backend's rules for the selected state and article. It does not reserve any
-              balance - the final amount is independently recalculated on submission.
-            </p>
-            <button type="button" onClick={runCalculation} disabled={calculating} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-              {calculating ? "Calculating..." : calculation ? "Recalculate" : "Calculate Stamp Duty"}
-            </button>
-            {calcError && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{calcError}</div>}
-            {calculation && (
-              <div className={`rounded-lg border px-4 py-3 text-sm ${isFresh ? "bg-slate-50 border-slate-200" : "bg-amber-50 border-amber-200"}`}>
-                <p className="text-slate-500 mb-1">Estimated stamp duty:</p>
-                <p className="text-lg font-semibold text-slate-900">{formatCurrency(calculation.amount)}</p>
-                {!isFresh && (
-                  <p className="text-amber-700 mt-2">
-                    The details have changed since this was calculated. Please recalculate before continuing.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 4 && (
-          <ReviewStep values={values} calculation={isFresh ? calculation : null} balance={balance} canOpenWallet={canOpenWallet} articles={articles} states={states} />
+        {step === REVIEW_STEP && (
+          <ReviewStep
+            values={values}
+            calculation={isFresh ? calculation : null}
+            balance={balance}
+            canOpenWallet={canOpenWallet}
+            articles={articles}
+            states={states}
+            calculating={calculating}
+            calcError={calcError}
+            onRetryCalculation={runCalculation}
+          />
         )}
 
         <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between">
@@ -419,16 +424,14 @@ function AddFundsHint({ canOpenWallet }) {
   );
 }
 
-function ReviewStep({ values, calculation, balance, canOpenWallet, articles, states }) {
+function ReviewStep({ values, calculation, balance, canOpenWallet, articles, states, calculating, calcError, onRetryCalculation }) {
   const insufficientBalance = calculation && typeof balance === "number" && balance < calculation.amount;
   const selectedArticle = articles.find((a) => a._id === values.articleId);
   const selectedState = states.find((s) => s.code === values.stateCode);
-  // A real stamp duty amount is never ₹0 in practice - a calculation that
-  // resolves to exactly 0 almost always means this article's duty rule
-  // hasn't been configured yet (the system deliberately never guesses a
-  // legal amount, see CalculationService's CUSTOM rule type), not that the
-  // duty is genuinely free. Surface that clearly instead of a bare "₹0"
-  // that looks like a normal, correct value.
+  // A duty of exactly 0 means this article's rule is not configured, never
+  // that the stamp is genuinely free - the engine deliberately refuses to
+  // guess a legal amount. Shown as "At Actuals" (billed at the real
+  // government charge) rather than a bare "₹0" that reads as a real price.
   const dutyNotConfigured = calculation && calculation.amount === 0;
   return (
     <div className="space-y-4 text-sm">
@@ -444,22 +447,13 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
         <Row label="No. of E-Stamps" value={values.numberOfEStamps} />
       </div>
 
-      <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
-        {calculation ? (
-          <>
-            <Row label="Stamp Duty to be Reserved" value={formatCurrency(calculation.amount)} />
-            <Row label="Available Balance" value={formatCurrency(balance)} />
-            <p className="text-xs text-slate-500 pt-1">The amount is reserved when you submit and charged when the 20-minute window ends.</p>
-          </>
-        ) : (
-          <p className="text-amber-700">Go back to the Calculation step and recalculate before submitting.</p>
-        )}
-      </div>
+      <PriceSummary calculation={calculation} calculating={calculating} calcError={calcError} onRetry={onRetryCalculation} balance={balance} />
 
       {dutyNotConfigured && (
         <div className="rounded-lg bg-amber-50 text-amber-800 px-3 py-2">
-          This article's stamp duty rate has not been configured yet, so ₹0 is shown rather than a guessed amount.
-          Contact your Master Admin to set the rate for "{selectedArticle ? selectedArticle.title : "this article"}" before submitting, or choose a different article.
+          This article has no fixed duty in the official rate list, so the stamp duty is shown "At Actuals" - it is billed at the real
+          government charge rather than a guessed amount. Ask your Master Admin to set the rate for "
+          {selectedArticle ? selectedArticle.title : "this article"}" if it should be a fixed figure.
         </div>
       )}
 
@@ -469,6 +463,66 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
           <AddFundsHint canOpenWallet={canOpenWallet} />
         </div>
       )}
+    </div>
+  );
+}
+
+// The published price breakdown, laid out like the public e-Stamp site's
+// "Price summary" card. Every figure comes from the server's own pricing
+// response - nothing is computed here - so the portal and the public site can
+// never quote different numbers. An unknown government charge reads "At
+// Actuals" and the total stays "-" rather than being invented.
+function PriceSummary({ calculation, calculating, calcError, onRetry, balance }) {
+  if (calcError) {
+    return (
+      <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+        <p className="text-red-700">{calcError}</p>
+        <button type="button" onClick={onRetry} className="mt-2 text-sm font-medium text-red-700 underline">
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (!calculation) {
+    return (
+      <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-slate-500">
+        {calculating ? "Working out the price..." : "Preparing the price summary..."}
+      </div>
+    );
+  }
+  const pricing = calculation.pricing;
+  if (!pricing) {
+    return (
+      <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+        <Row label="Stamp Duty to be Reserved" value={formatCurrency(calculation.amount)} />
+        <Row label="Available Balance" value={formatCurrency(balance)} />
+      </div>
+    );
+  }
+  const atActuals = pricing.stampDuty === 0;
+  const dutyDisplay = atActuals ? "At Actuals" : formatCurrency(pricing.stampDuty);
+  return (
+    <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+      <p className="font-medium text-slate-900 mb-2">Price summary</p>
+      <Row label="Stamp duty" value={dutyDisplay} />
+      <Row label="Convenience Fee" value={formatCurrency(pricing.convenienceFee)} />
+      <Row label="Procurement Charge" value={formatCurrency(pricing.procurementFee)} />
+      <Row label="GST (18%)" value={formatCurrency(pricing.gst)} />
+      <Row label="Government Fees" value={dutyDisplay} />
+      <div className="flex justify-between pt-2 mt-1 border-t border-slate-300">
+        <span className="font-semibold text-slate-900">Total payable</span>
+        <span className="font-semibold text-slate-900">{pricing.totalAmount === null ? "-" : formatCurrency(pricing.totalAmount)}</span>
+      </div>
+      <p className="text-xs text-slate-500 pt-2">
+        All taxes included. GST applies to the fees, not to the government stamp duty.
+      </p>
+      <div className="mt-2 pt-2 border-t border-slate-200">
+        <Row label="Reserved from your balance now" value={formatCurrency(calculation.amount)} />
+        <Row label="Available Balance" value={formatCurrency(balance)} />
+        <p className="text-xs text-slate-500 pt-1">
+          Only the stamp duty is reserved when you submit and charged when the 20-minute window ends. Fees are billed separately.
+        </p>
+      </div>
     </div>
   );
 }
