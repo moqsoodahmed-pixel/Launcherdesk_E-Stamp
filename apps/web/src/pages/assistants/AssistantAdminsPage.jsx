@@ -7,6 +7,7 @@ import PageHeader from "../../components/common/PageHeader";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
+import TemporaryPasswordCell from "../../components/common/TemporaryPasswordCell";
 
 const LIMIT = 20;
 const inputClass = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
@@ -157,6 +158,7 @@ export default function AssistantAdminsPage() {
                 <th className="text-left px-4 py-3">Email</th>
                 <th className="text-left px-4 py-3">Status</th>
                 <th className="text-left px-4 py-3">Permissions</th>
+                <th className="text-left px-4 py-3">Password</th>
                 <th className="px-4 py-3">
                   <span className="sr-only">Actions</span>
                 </th>
@@ -173,6 +175,9 @@ export default function AssistantAdminsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{(u.permissions || []).length}</td>
+                  <td className="px-4 py-3">
+                    <TemporaryPasswordCell userId={u._id} passwordState={u.passwordState} label={`password for ${u.name}`} />
+                  </td>
                   <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
                     <button type="button" onClick={() => setEditing(u)} className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50">
                       Edit permissions

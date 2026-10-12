@@ -83,6 +83,10 @@ describe("Full lifecycle - real endpoints end to end", () => {
       name: "Full Chain Pvt Ltd",
       contactEmail: `full-chain-${new mongoose.Types.ObjectId()}@example.com`,
       contactPhone: "9876500000",
+      superAdminName: "Chain Owner",
+      // Keep the separate activation / service-enable steps below meaningful.
+      activateNow: false,
+      enableEstampService: false,
     });
     const createOrgResult = await runController(
       orgController.createOrganization,
@@ -90,8 +94,13 @@ describe("Full lifecycle - real endpoints end to end", () => {
       makeRes()
     );
     expect(createOrgResult.error).toBeNull();
-    const orgId = createOrgResult.res.body.data._id.toString();
-    expect(createOrgResult.res.body.data.status).toBe(OrganizationStatus.PENDING_APPROVAL);
+    const orgId = createOrgResult.res.body.data.organization._id.toString();
+    expect(createOrgResult.res.body.data.organization.status).toBe(OrganizationStatus.PENDING_APPROVAL);
+    // One-step onboarding already created the Super Admin. Remove it to
+    // simulate an organization created before one-step onboarding, so the
+    // legacy two-step provisioning path below is still exercised end to end.
+    expect(createOrgResult.res.body.data.superAdmin.email).toBe(createOrgBody.contactEmail.toLowerCase());
+    await User.deleteOne({ _id: createOrgResult.res.body.data.superAdmin._id });
 
     // A wallet must exist immediately, at zero balance - never created lazily
     // later, and never pre-funded.

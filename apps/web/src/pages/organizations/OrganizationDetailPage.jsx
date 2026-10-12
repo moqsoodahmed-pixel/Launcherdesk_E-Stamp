@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { formatCurrency } from "../../utils/format";
 import { getErrorMessage } from "../../utils/errors";
 import { useAuth } from "../../context/AuthContext";
 import AssignedAssistantSelect from "../../components/organizations/AssignedAssistantSelect";
+import TemporaryPasswordCell from "../../components/common/TemporaryPasswordCell";
+import { CopyButton } from "../../components/vendor/vendorUi";
 
 const STATUS_OPTIONS = ["ACTIVE", "PENDING_APPROVAL", "RESTRICTED", "SUSPENDED", "DEACTIVATED"];
 
@@ -28,7 +30,9 @@ export default function OrganizationDetailPage() {
   const [assignBusy, setAssignBusy] = useState(false);
   const [assignError, setAssignError] = useState(null);
 
-  const [showProvision, setShowProvision] = useState(false);
+  // "Create login" from the organizations list opens the provisioning form.
+  const [searchParams] = useSearchParams();
+  const [showProvision, setShowProvision] = useState(searchParams.get("provision") === "1");
   const [provisionForm, setProvisionForm] = useState({ name: "", email: "", phone: "" });
   const [provisionResult, setProvisionResult] = useState(null);
   const [provisionBusy, setProvisionBusy] = useState(false);
@@ -210,6 +214,14 @@ export default function OrganizationDetailPage() {
               <Row label="Name" value={superAdmin.name} />
               <Row label="Email" value={superAdmin.email} />
               <Row label="Status" value={superAdmin.isActive ? "Active" : "Inactive"} />
+              {user?.role === "MASTER_ADMIN" && superAdmin._id && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-slate-500">Password</dt>
+                  <dd>
+                    <TemporaryPasswordCell userId={superAdmin._id} passwordState={superAdmin.passwordState} setByLabel="Set by user" label={`password for ${superAdmin.email}`} />
+                  </dd>
+                </div>
+              )}
             </dl>
           ) : (
             <div>
@@ -233,7 +245,10 @@ export default function OrganizationDetailPage() {
               {provisionResult && (
                 <div className="rounded-lg bg-amber-50 text-amber-800 text-sm px-3 py-2 space-y-1">
                   <p>Super Admin created. Share this temporary password securely - it will not be shown again:</p>
-                  <p className="font-mono font-semibold">{provisionResult.tempPassword}</p>
+                  <p className="font-mono font-semibold">
+                    {provisionResult.tempPassword}
+                    <CopyButton value={provisionResult.tempPassword} label="temporary password" />
+                  </p>
                 </div>
               )}
             </div>

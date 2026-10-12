@@ -103,6 +103,7 @@ export default function OrganizationsListPage() {
               <th className="text-left px-4 py-3">Contact Email</th>
               <th className="text-left px-4 py-3">Phone</th>
               <th className="text-left px-4 py-3">Status</th>
+              <th className="text-left px-4 py-3">Login</th>
               <th className="text-left px-4 py-3">Created</th>
               <th className="text-left px-4 py-3"></th>
             </tr>
@@ -110,14 +111,14 @@ export default function OrganizationsListPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
                   Loading...
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && !error && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
                   No organizations found.
                 </td>
               </tr>
@@ -129,6 +130,18 @@ export default function OrganizationsListPage() {
                 <td className="px-4 py-3 text-slate-600">{org.contactPhone}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${statusBadgeClass(org.status)}`}>{org.status.replace(/_/g, " ")}</span>
+                </td>
+                <td className="px-4 py-3">
+                  {org.hasSuperAdmin ? (
+                    <span className="text-xs text-green-700">Ready</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block rounded-full px-2 py-0.5 text-xs bg-red-50 text-red-700">No login</span>
+                      <Link to={`/organizations/${org._id}?provision=1`} className="text-xs text-brand-600 hover:underline" aria-label={`Create login for ${org.name}`}>
+                        Create login
+                      </Link>
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-slate-500">{new Date(org.createdAt).toLocaleDateString()}</td>
                 <td className="px-4 py-3">

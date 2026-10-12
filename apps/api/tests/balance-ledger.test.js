@@ -269,12 +269,12 @@ describe("Assistant scoping (tenant isolation for internal staff)", () => {
   it("Master Admin can assign at creation; an assistant creating a client is assigned to it", async () => {
     const { token: master } = await makeUser(Role.MASTER_ADMIN);
     const { user: assistant, token: assistantToken } = await makeAssistant({ permissions: [...ASSISTANT_PERMS, Permission.CLIENT_MANAGE] });
-    const body = (n) => ({ name: `Created ${n}`, contactEmail: `c-${uid()}@example.com`, contactPhone: "9999999999" });
+    const body = (n) => ({ name: `Created ${n}`, contactEmail: `c-${uid()}@example.com`, contactPhone: "9999999999", superAdminName: "Client Owner" });
     const byMaster = await call("POST", "/organizations", master, { ...body(1), assignedAssistantId: assistant._id.toString() });
     expect(byMaster.status).toBe(201);
-    expect(byMaster.body.data.assignedAssistantId).toBe(assistant._id.toString());
+    expect(byMaster.body.data.organization.assignedAssistantId).toBe(assistant._id.toString());
     const byAssistant = await call("POST", "/organizations", assistantToken, body(2));
-    expect(byAssistant.body.data.assignedAssistantId).toBe(assistant._id.toString());
+    expect(byAssistant.body.data.organization.assignedAssistantId).toBe(assistant._id.toString());
   });
 });
 

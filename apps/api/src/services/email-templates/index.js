@@ -206,6 +206,17 @@ const TEMPLATES = {
     }),
     // Vendor account welcome. Never contains a password: the vendor sets one
     // through "Forgot password" with this email address.
+    // Client Super Admin welcome (one-step organization onboarding). Never
+    // contains a password or a code.
+    clientWelcome: (data) => ({
+        subject: "Your LauncherDesk account is ready",
+        html: layout(`
+      <h2 style="margin-top:0;">Welcome${data.name ? `, ${escapeHtml(data.name)}` : ""}</h2>
+      <p>The LauncherDesk account for <b>${escapeHtml(data.organizationName || "your organization")}</b> is ready. You are its Super Admin, and this email address is your login.</p>
+      <p>Sign in at <a href="${escapeHtml(data.loginUrl)}">${escapeHtml(data.loginUrl)}</a> with the temporary password your LauncherDesk administrator will share with you privately; you will be asked to choose your own password.</p>
+      <p>Or choose <b>Forgot password</b> on the login page and enter this email address to set your own password with a code we email you.</p>
+    `),
+    }),
     vendorWelcome: (data) => ({
         subject: "Your LauncherDesk vendor account",
         html: layout(`

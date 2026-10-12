@@ -105,6 +105,12 @@ exports.EmailService = {
     async sendSecurityAlertEmail(to, message) {
         await dispatch(to, "securityAlert", { message });
     },
+    // Returns whether the email was handed to the provider (false when sending
+    // failed), so onboarding can tell the admin to share the login another way.
+    async sendClientWelcomeEmail(to, data, eventKey) {
+        const log = await dispatch(to, "clientWelcome", data, eventKey);
+        return !!log && log.status !== "FAILED";
+    },
     async sendVendorWelcomeEmail(to, name, eventKey) {
         await dispatch(to, "vendorWelcome", { name }, eventKey);
     },

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.vendorAdminLimiter = exports.vendorUploadLimiter = exports.passwordChangeLimiter = exports.providerSyncLimiter = exports.documentUploadLimiter = exports.bulkUploadLimiter = exports.paymentLimiter = exports.refreshLimiter = exports.globalApiLimiter = exports.passwordResetLimiter = exports.otpVerifyLimiter = exports.otpRequestLimiter = exports.loginLimiter = void 0;
+exports.credentialRevealLimiter = exports.vendorAdminLimiter = exports.vendorUploadLimiter = exports.passwordChangeLimiter = exports.providerSyncLimiter = exports.documentUploadLimiter = exports.bulkUploadLimiter = exports.paymentLimiter = exports.refreshLimiter = exports.globalApiLimiter = exports.passwordResetLimiter = exports.otpVerifyLimiter = exports.otpRequestLimiter = exports.loginLimiter = void 0;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 // Phase 19 - tag every limiter middleware with a stable, introspectable
 // `.limiterName` so tests can assert "this exact named limiter is wired to
@@ -119,4 +119,13 @@ exports.vendorAdminLimiter = tag("vendorAdminLimiter", (0, express_rate_limit_1.
     legacyHeaders: false,
     keyGenerator: (req) => `vendor-admin:${req.user?.id || req.ip}`,
     message: { success: false, message: "Too many vendor account changes. Please wait and try again.", code: "RATE_LIMITED" },
+}));
+// Temporary-password reveal: keyed per ACTOR (runs after authenticate).
+exports.credentialRevealLimiter = tag("credentialRevealLimiter", (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => `credential-reveal:${req.user?.id || req.ip}`,
+    message: { success: false, message: "Too many password reveals. Please wait and try again.", code: "RATE_LIMITED" },
 }));

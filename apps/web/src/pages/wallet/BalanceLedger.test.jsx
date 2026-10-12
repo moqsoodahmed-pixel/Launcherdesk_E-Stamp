@@ -153,7 +153,7 @@ describe("assigned assistant", () => {
   it("Master Admin can set the assistant when creating an organization", async () => {
     mockUser = { role: "MASTER_ADMIN", permissions: Object.values(PERMISSIONS) };
     apiClient.get.mockReturnValue(ok({ items: ASSISTANTS }));
-    apiClient.post.mockReturnValue(ok({ _id: "new1" }));
+    apiClient.post.mockReturnValue(ok({ organization: { _id: "new1", name: "New Co", status: "ACTIVE", isEstampServiceEnabled: true }, superAdmin: { email: "n@new.test" }, tempPassword: "Tmp-1", emailSent: true }));
     render(
       <MemoryRouter>
         <CreateOrganizationPage />
@@ -162,6 +162,7 @@ describe("assigned assistant", () => {
     await userEvent.type(screen.getByLabelText("Organization name"), "New Co");
     await userEvent.type(screen.getByLabelText("Contact email"), "n@new.test");
     await userEvent.type(screen.getByLabelText("Contact phone"), "9999999999");
+    await userEvent.type(screen.getByLabelText("Super Admin name"), "New Owner");
     await screen.findByRole("option", { name: /Ravi/ });
     await userEvent.selectOptions(screen.getByLabelText("Assigned assistant"), "a1");
     await userEvent.click(screen.getByRole("button", { name: "Create organization" }));

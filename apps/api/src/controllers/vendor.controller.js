@@ -16,6 +16,7 @@ const audit_service_1 = require("../services/audit.service");
 const email_service_1 = require("../services/email.service");
 const file_service_1 = require("../services/file.service");
 const fulfilment_service_1 = require("../services/fulfilment.service");
+const credentialVault_1 = require("../utils/credentialVault");
 function escapeRegex(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -34,8 +35,14 @@ exports.listVendors = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             { email: { $regex: escapeRegex(req.query.search), $options: "i" } },
         ];
     }
-    const vendors = await models_1.User.find(filter).sort({ name: 1 }).limit(500).select(VENDOR_LIST_FIELDS);
-    return (0, ApiResponse_1.ok)(res, { items: vendors, total: vendors.length });
+    const vendors = await models_1.User.find(filter).sort({ name: 1 }).limit(500).select(`${VENDOR_LIST_FIELDS} +tempPasswordExpiresAt`);
+    // passwordState only - never the password or its expiry.
+    const items = vendors.map((v) => {
+        const plain = v.toObject();
+        delete plain.tempPasswordExpiresAt;
+        return { ...plain, passwordState: (0, credentialVault_1.passwordStateOf)(v) };
+    });
+    return (0, ApiResponse_1.ok)(res, { items, total: items.length });
 });
 // Same pattern as createAssistantAdmin: the temp password is returned ONCE
 // in this response and never emailed - the welcome email only points the
@@ -66,6 +73,7 @@ exports.createVendor = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         metadata: { role: shared_1.Role.VENDOR },
         req,
     });
+    await (0, credentialVault_1.storeTemporaryPassword)(user._id, tempPassword);
     await email_service_1.EmailService.sendVendorWelcomeEmail(user.email, user.name, `vendor-welcome:${user._id.toString()}`);
     return (0, ApiResponse_1.created)(res, { user: { ...user.toObject(), passwordHash: undefined }, tempPassword });
 });
@@ -107,6 +115,7 @@ exports.resetVendorPassword = (0, asyncHandler_1.asyncHandler)(async (req, res) 
     const tempPassword = crypto_1.default.randomBytes(9).toString("base64url");
     await models_1.User.updateOne({ _id: target._id }, { $set: { passwordHash: await auth_service_1.AuthService.hashPassword(tempPassword), mustChangePassword: true, failedLoginAttempts: 0, lockedUntil: null } });
     await auth_service_1.AuthService.invalidateAllSessions(target._id.toString());
+    await (0, credentialVault_1.storeTemporaryPassword)(target._id, tempPassword);
     await (0, audit_service_1.recordAudit)({
         actorId: req.user.id,
         actorRole: req.user.role,
@@ -143,7 +152,7 @@ exports.deleteVendor = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         await models_1.User.deleteOne({ _id: id });
     }
     else {
-        await models_1.User.updateOne({ _id: id }, { $set: { isActive: false, deletedAt: new Date(), email: `deleted+${id.toString()}@deleted.invalid` } });
+        await models_1.User.updateOne({ _id: id }, { $set: { isActive: false, deletedAt: new Date(), email: `deleted+${id.toString()}@deleted.invalid` }, $unset: { initialPasswordEnc: "", tempPasswordExpiresAt: "" } });
         await auth_service_1.AuthService.invalidateAllSessions(id.toString());
     }
     await (0, audit_service_1.recordAudit)({

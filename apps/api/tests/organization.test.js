@@ -37,25 +37,30 @@ describe("Organization creation", () => {
       name: "Acme Pvt Ltd",
       contactEmail: "acme-create@example.com",
       contactPhone: "9876543210",
+      superAdminName: "Acme Owner",
     });
     const req = masterAdminReq({ body });
     const { res, error } = await runController(orgController.createOrganization, req, makeRes());
     expect(error).toBeNull();
-    expect(res.body.data.name).toBe("Acme Pvt Ltd");
-    expect(res.body.data.status).toBe(OrganizationStatus.PENDING_APPROVAL);
+    const org = res.body.data.organization;
+    expect(org.name).toBe("Acme Pvt Ltd");
+    // One-step onboarding defaults: active, E-Stamp service on.
+    expect(org.status).toBe(OrganizationStatus.ACTIVE);
+    expect(org.isEstampServiceEnabled).toBe(true);
+    expect(res.body.data.superAdmin.email).toBe("acme-create@example.com");
 
-    const wallet = await Wallet.findOne({ organizationId: res.body.data._id });
+    const wallet = await Wallet.findOne({ organizationId: org._id });
     expect(wallet).not.toBeNull();
     expect(wallet.balance).toBe(0);
 
-    const auditEntry = await AuditLog.findOne({ action: AuditAction.ORG_CREATED, entityId: res.body.data._id.toString() });
+    const auditEntry = await AuditLog.findOne({ action: AuditAction.ORG_CREATED, entityId: org._id.toString() });
     expect(auditEntry).not.toBeNull();
   });
 
   it("rejects a duplicate contactEmail", async () => {
     const email = `dup-${new mongoose.Types.ObjectId()}@example.com`;
     await makeActiveOrg({ contactEmail: email });
-    const body = createOrganizationSchema.parse({ name: "Another Co", contactEmail: email, contactPhone: "1234567890" });
+    const body = createOrganizationSchema.parse({ name: "Another Co", contactEmail: email, contactPhone: "1234567890", superAdminName: "Another Owner" });
     const req = masterAdminReq({ body });
     const { error } = await runController(orgController.createOrganization, req, makeRes());
     expect(error).not.toBeNull();
@@ -73,14 +78,18 @@ describe("Organization creation", () => {
         name: "Sneaky Co",
         contactEmail: `sneaky-${new mongoose.Types.ObjectId()}@example.com`,
         contactPhone: "9999999999",
+        superAdminName: "Sneaky Owner",
+        activateNow: false,
+        enableEstampService: false,
         status: OrganizationStatus.ACTIVE, // attempted spoof
         isEstampServiceEnabled: true, // attempted spoof
       },
     });
     const { res, error } = await runController(orgController.createOrganization, req, makeRes());
     expect(error).toBeNull();
-    expect(res.body.data.status).toBe(OrganizationStatus.PENDING_APPROVAL);
-    expect(res.body.data.isEstampServiceEnabled).toBe(false);
+    // Only the explicit activateNow / enableEstampService flags decide these.
+    expect(res.body.data.organization.status).toBe(OrganizationStatus.PENDING_APPROVAL);
+    expect(res.body.data.organization.isEstampServiceEnabled).toBe(false);
   });
 });
 
@@ -246,16 +255,16 @@ describe("Assistant Master Admin: organization permissions are explicit, not rol
     const { threw } = await runMiddleware(requirePermission(Permission.CLIENT_MANAGE), req, makeRes());
     expect(threw).toBeNull();
 
-    const body = createOrganizationSchema.parse({ name: "Assistant Created Co", contactEmail: `assistant-created-${new mongoose.Types.ObjectId()}@example.com`, contactPhone: "9999999999" });
+    const body = createOrganizationSchema.parse({ name: "Assistant Created Co", contactEmail: `assistant-created-${new mongoose.Types.ObjectId()}@example.com`, contactPhone: "9999999999", superAdminName: "Assistant Client Owner" });
     const createReq = assistantReq([Permission.CLIENT_MANAGE], { body });
     const { res, error } = await runController(orgController.createOrganization, createReq, makeRes());
     expect(error).toBeNull();
 
-    const auditEntry = await AuditLog.findOne({ action: AuditAction.ORG_CREATED, entityId: res.body.data._id.toString() });
+    const auditEntry = await AuditLog.findOne({ action: AuditAction.ORG_CREATED, entityId: res.body.data.organization._id.toString() });
     expect(auditEntry).not.toBeNull();
     expect(auditEntry.actorRole).toBe(Role.ASSISTANT_MASTER_ADMIN);
 
-    const notification = await Notification.findOne({ recipientId: master._id, organizationId: res.body.data._id.toString() });
+    const notification = await Notification.findOne({ recipientId: master._id, organizationId: res.body.data.organization._id.toString() });
     expect(notification).not.toBeNull();
     expect(notification.type).toBe("ASSISTANT_ADMIN_ACTIVITY");
   });

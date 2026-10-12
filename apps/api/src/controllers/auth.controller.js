@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.changePassword = exports.resetPassword = exports.forgotPassword = exports.me = exports.logout = exports.refreshToken = exports.verifyLoginOtp = exports.login = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
+const credentialVault_1 = require("../utils/credentialVault");
 const ApiResponse_1 = require("../utils/ApiResponse");
 const auth_service_1 = require("../services/auth.service");
 const otp_service_1 = require("../services/otp.service");
@@ -77,8 +78,10 @@ exports.resetPassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     user.passwordHash = await auth_service_1.AuthService.hashPassword(newPassword);
     user.mustChangePassword = false;
     await user.save();
-    // Invalidate all existing sessions/tokens on password reset.
+    // Invalidate all existing sessions/tokens on password reset; the user now
+    // has their own password, so any revealable temporary one is purged.
     await auth_service_1.AuthService.invalidateAllSessions(user._id.toString());
+    await (0, credentialVault_1.purgeTemporaryPassword)(user._id);
     await (0, audit_service_1.recordAudit)({ actorId: user._id.toString(), actorRole: user.role, action: shared_1.AuditAction.PASSWORD_RESET_COMPLETED, req });
     return (0, ApiResponse_1.ok)(res, { message: "Password reset successful. Please log in again." });
 });
@@ -99,6 +102,7 @@ exports.changePassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     user.mustChangePassword = false;
     await user.save();
     await auth_service_1.AuthService.invalidateAllSessions(user._id.toString());
+    await (0, credentialVault_1.purgeTemporaryPassword)(user._id);
     await (0, audit_service_1.recordAudit)({ actorId: user._id.toString(), actorRole: user.role, organizationId: user.organizationId, action: shared_1.AuditAction.PASSWORD_CHANGED, req });
     const fresh = await models_1.User.findById(user._id);
     const tokens = await auth_service_1.AuthService.issueTokens(fresh, req);

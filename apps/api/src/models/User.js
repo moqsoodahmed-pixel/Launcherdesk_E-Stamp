@@ -22,6 +22,15 @@ const userSchema = new mongoose_1.Schema({
     // Soft delete (vendors only today): the account is inactive, its email is
     // released, and the id is kept so historical references still resolve.
     deletedAt: { type: Date, default: null },
+    // System-generated TEMPORARY password, AES-256-GCM encrypted (see
+    // utils/credentialVault.js); never a user-chosen password. Purged on any
+    // password change/reset, on deletion and after 7 days.
+    initialPasswordEnc: {
+        type: new mongoose_1.Schema({ ciphertext: String, iv: String, tag: String, createdAt: Date }, { _id: false }),
+        select: false,
+        default: undefined,
+    },
+    tempPasswordExpiresAt: { type: Date, default: undefined, select: false, index: { sparse: true } },
 }, { timestamps: true });
 // Compound index: fast tenant-scoped user listing
 userSchema.index({ organizationId: 1, role: 1 });

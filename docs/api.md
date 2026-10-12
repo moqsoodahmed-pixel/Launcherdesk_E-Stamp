@@ -33,9 +33,29 @@ assigned to it) · `GET /` list · `GET /:id` detail (now includes `assignedAssi
 `PATCH /:id/assigned-assistant` `{ assistantId | null }` (Master Admin only): target must be an active
 Assistant Master Admin; audited as `ORG_MODIFIED`, the assistant is notified
 
+**One-step onboarding** — `POST /` body: `name`, `contactEmail`, `contactPhone`, `gstin?`, `address?`,
+`assignedAssistantId?` (Master Admin only), **`superAdminName`** (required, 2-150), `activateNow` (default `true` →
+`ACTIVE`, else `PENDING_APPROVAL`), `enableEstampService` (default `true`). Creates, all-or-nothing, the
+Organization, its Wallet (balance 0, reserved 0) and its **SUPER_ADMIN** user (login email = `contactEmail`,
+phone = `contactPhone`, random temporary password, `mustChangePassword: true`). 409 `EMAIL_IN_USE` (nothing
+created) when any user already has that email. Audited `ORG_CREATED` + `USER_CREATED`. Response 201
+`{ organization, superAdmin, tempPassword, emailSent }`; a welcome email (template `clientWelcome`, login URL, no
+password or code) is sent once per Super Admin — if it fails everything is still created and `emailSent` is
+`false`. **Breaking:** the response was previously the bare organization.
+- `GET /` items add `hasSuperAdmin` (the UI's "Login" column).
+- `GET /:id` `superAdmin` adds `_id`, and `passwordState` for Master Admin.
+- `POST /:id/super-admin` (unchanged) still provisions a Super Admin for an organization that has none.
+
 ## Users — `/users` (tenant-scoped)
 `POST /` create (role must be strictly below creator's authority) · `GET /` list (scoped to caller's org,
 or filterable by `organizationId` for internal roles) · `PATCH /:id/status` activate/deactivate
+- `GET /` for **Master Admin** adds `passwordState` per user: `"TEMPORARY"` (a revealable system-generated
+  password exists) or `"SET_BY_USER"`. Never the password or anything derived from it.
+- `GET /:id/temporary-password` — **MASTER_ADMIN only** (403 otherwise; also 403 for a MASTER_ADMIN target).
+  `{ tempPassword, expiresAt }`, `Cache-Control: no-store`, audited `CREDENTIAL_REVEALED` without the password,
+  rate-limited per actor (30 / 15 min). 404 `NO_TEMPORARY_PASSWORD` once the user set their own password, after
+  deletion or after 7 days; 404 `CREDENTIAL_REVEAL_UNAVAILABLE` when `CREDENTIAL_ENCRYPTION_KEY` is not set.
+  See [credentials.md](credentials.md).
 
 ## Profile — `/profile` (any authenticated user, own data only)
 `GET /organization` the caller's own organization (`name contactEmail contactPhone gstin address status
@@ -151,7 +171,8 @@ See [vendor-workflow.md](vendor-workflow.md) for the status diagram.
   (released certificates are organization-wide), in addition to their own requests.
 
 ## Vendors — `/vendors` (MASTER_ADMIN only)
-- `GET /` `?status=active|inactive&search=` → `{ items, total }`.
+- `GET /` `?status=active|inactive&search=` → `{ items, total }`; each item has `passwordState` (`TEMPORARY` /
+  `SET_BY_USER`). Vendor creation and **Reset password** store a revealable temporary password (credentials.md).
 - `POST /` `{ name, email, phone? }` → 201 `{ user, tempPassword }` (temp password shown once, never emailed;
   `mustChangePassword: true`; welcome email tells the vendor to use **Forgot password**).
 - `PATCH /:id/status` `{ isActive }` — deactivation ends live sessions immediately.

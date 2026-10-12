@@ -104,4 +104,8 @@ exports.env = {
     SEED_MASTER_ADMIN_EMAIL: process.env.SEED_MASTER_ADMIN_EMAIL || "master@launcherdesk.local",
     SEED_MASTER_ADMIN_PASSWORD: process.env.SEED_MASTER_ADMIN_PASSWORD || "",
     SEED_DEMO_ORG_NAME: process.env.SEED_DEMO_ORG_NAME || "Demo Client Pvt Ltd",
+    // 32 random bytes, base64. Enables Master Admin reveal of SYSTEM-GENERATED
+    // temporary passwords (utils/credentialVault.js). Optional: missing or
+    // invalid only disables that feature (startup warning, never a crash).
+    CREDENTIAL_ENCRYPTION_KEY: process.env.CREDENTIAL_ENCRYPTION_KEY || "",
 };

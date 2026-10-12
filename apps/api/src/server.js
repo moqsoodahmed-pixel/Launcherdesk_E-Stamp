@@ -5,6 +5,7 @@ const db_1 = require("./config/db");
 const env_1 = require("./config/env");
 const logger_1 = require("./utils/logger");
 const lockExpiredRequests_job_1 = require("./jobs/lockExpiredRequests.job");
+const credentialVault_1 = require("./utils/credentialVault");
 async function main() {
     await (0, db_1.connectDB)();
     const app = (0, app_1.createApp)();
@@ -16,6 +17,12 @@ async function main() {
     setInterval(() => {
         (0, lockExpiredRequests_job_1.runLockExpiredRequestsJob)().catch((err) => logger_1.logger.error("lockExpiredRequests job failed", { message: err.message }));
     }, 60 * 1000);
+    // Temporary-password reveal: warn once at startup if disabled, and purge
+    // values older than 7 days every hour (also checked lazily on read).
+    (0, credentialVault_1.isEnabled)();
+    setInterval(() => {
+        (0, credentialVault_1.purgeExpiredTemporaryPasswords)().catch((err) => logger_1.logger.error("purgeExpiredTemporaryPasswords job failed", { message: err.message }));
+    }, 60 * 60 * 1000);
 }
 main().catch((err) => {
     logger_1.logger.error("Fatal startup error", { message: err.message });

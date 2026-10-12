@@ -1,17 +1,20 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { getErrorMessage } from "../../utils/errors";
 import { useAuth } from "../../context/AuthContext";
 import AssignedAssistantSelect from "../../components/organizations/AssignedAssistantSelect";
+import { CopyButton } from "../../components/vendor/vendorUi";
 
 export default function CreateOrganizationPage() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   // Only a Master Admin picks the assistant; an assistant creating a client
   // is assigned to it automatically by the server.
   const canAssign = user?.role === "MASTER_ADMIN";
-  const [form, setForm] = useState({ name: "", contactEmail: "", contactPhone: "", gstin: "", address: "" });
+  const [form, setForm] = useState({ name: "", contactEmail: "", contactPhone: "", gstin: "", address: "", superAdminName: "", activateNow: true, enableEstampService: true });
+  // One-step onboarding result (organization + Super Admin + one-time
+  // temporary password). Lives only in this component's state.
+  const [result, setResult] = useState(null);
   const [assistantId, setAssistantId] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -27,7 +30,7 @@ export default function CreateOrganizationPage() {
     try {
       const body = canAssign && assistantId ? { ...form, assignedAssistantId: assistantId } : form;
       const { data } = await apiClient.post("/organizations", body);
-      navigate(`/organizations/${data.data._id}`, { state: { created: true } });
+      setResult(data.data);
     } catch (err) {
       const flat = err?.response?.data?.details;
       if (flat?.fieldErrors) {
@@ -39,6 +42,46 @@ export default function CreateOrganizationPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (result) {
+    return (
+      <div className="max-w-2xl space-y-4">
+        <h1 className="text-xl font-semibold text-slate-900">Organization created</h1>
+        <section aria-label="Organization created" className="bg-white rounded-2xl border border-slate-200 p-6 space-y-3 text-sm">
+          <p>
+            <b>{result.organization.name}</b> is {result.organization.status === "ACTIVE" ? "active" : "pending approval"}
+            {result.organization.isEstampServiceEnabled ? " with the E-Stamp service enabled." : "; the E-Stamp service is off."}
+          </p>
+          <p>
+            Super Admin login: <b>{result.superAdmin.email}</b>
+          </p>
+          {result.emailSent ? (
+            <p className="text-green-700">A welcome email was sent to {result.superAdmin.email} (it contains no password).</p>
+          ) : (
+            <p role="alert" className="text-amber-700">
+              The welcome email could not be sent. Share the login details with the client another way.
+            </p>
+          )}
+          <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3">
+            <p className="font-medium text-amber-900">Temporary password</p>
+            <p className="mt-1">
+              <code className="font-mono text-base text-amber-950">{result.tempPassword}</code>
+              <CopyButton value={result.tempPassword} label="temporary password" />
+            </p>
+            <p className="text-xs text-amber-800 mt-1">Share it privately; they must change it at first login. They can also use Forgot password.</p>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Link to={`/organizations/${result.organization._id}`} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
+              Open organization
+            </Link>
+            <Link to="/organizations" className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+              Back to list
+            </Link>
+          </div>
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -72,6 +115,23 @@ export default function CreateOrganizationPage() {
             </label>
             <input id="create-org-phone" required minLength={6} value={form.contactPhone} onChange={(e) => update("contactPhone", e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
           </div>
+        </div>
+        <div>
+          <label htmlFor="create-org-super-admin" className="block text-sm font-medium text-slate-700 mb-1">
+            Super Admin name
+          </label>
+          <input id="create-org-super-admin" required minLength={2} maxLength={150} value={form.superAdminName} onChange={(e) => update("superAdminName", e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <p className="text-xs text-slate-500 mt-1">The contact email becomes this person's login. They receive a welcome email and log in with a one-time code.</p>
+        </div>
+        <div className="flex flex-wrap gap-6 text-sm text-slate-700">
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" checked={form.activateNow} onChange={(e) => update("activateNow", e.target.checked)} />
+            Activate now
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" checked={form.enableEstampService} onChange={(e) => update("enableEstampService", e.target.checked)} />
+            Enable E-Stamp service
+          </label>
         </div>
         <div>
           <label htmlFor="create-org-gstin" className="block text-sm font-medium text-slate-700 mb-1">

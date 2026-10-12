@@ -7,6 +7,7 @@ import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 import { CopyButton } from "../../components/vendor/vendorUi";
+import TemporaryPasswordCell from "../../components/common/TemporaryPasswordCell";
 
 const inputClass = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
 
@@ -180,13 +181,14 @@ export default function VendorsPage() {
       )}
       {!loading && !error && vendors.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-          <table className="w-full text-sm min-w-[640px]">
+          <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
               <tr>
                 <th className="text-left px-4 py-3">Name</th>
                 <th className="text-left px-4 py-3">Email</th>
                 <th className="text-left px-4 py-3">Status</th>
                 <th className="text-left px-4 py-3">Last login</th>
+                <th className="text-left px-4 py-3">Password</th>
                 <th className="px-4 py-3">
                   <span className="sr-only">Actions</span>
                 </th>
@@ -199,7 +201,11 @@ export default function VendorsPage() {
                   <td className="px-4 py-3 text-slate-600">{v.email}</td>
                   <td className="px-4 py-3">{v.isActive ? <span className="text-green-700">Active</span> : <span className="text-slate-500">Inactive</span>}</td>
                   <td className="px-4 py-3 text-slate-500">{v.lastLoginAt ? new Date(v.lastLoginAt).toLocaleString() : "Never"}</td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap space-x-2">
+                  <td className="px-4 py-3">
+                    <TemporaryPasswordCell userId={v._id} passwordState={v.passwordState} setByLabel="Set by vendor" label={`password for ${v.name}`} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap justify-end gap-2" role="group" aria-label={`Actions for ${v.name}`}>
                     <button type="button" disabled={busyId === v._id} onClick={() => setActive(v, !v.isActive)} className="rounded-lg border border-slate-300 px-3 py-1 text-xs disabled:opacity-50" aria-label={`${v.isActive ? "Deactivate" : "Activate"} ${v.name}`}>
                       {v.isActive ? "Deactivate" : "Activate"}
                     </button>
@@ -209,6 +215,7 @@ export default function VendorsPage() {
                     <button type="button" disabled={busyId === v._id} onClick={() => startDelete(v)} className="rounded-lg border border-red-300 text-red-700 px-3 py-1 text-xs disabled:opacity-50" aria-label={`Delete ${v.name}`}>
                       Delete
                     </button>
+                    </div>
                   </td>
                 </tr>
               ))}

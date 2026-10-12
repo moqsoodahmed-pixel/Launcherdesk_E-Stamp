@@ -34,6 +34,11 @@ exports.createOrganizationSchema = zod_1.z.object({
     address: zod_1.z.string().optional(),
     // Optional at creation (Master Admin only - enforced in the controller).
     assignedAssistantId: zod_1.z.string().regex(/^[a-f0-9]{24}$/i).nullable().optional(),
+    // One-step onboarding: the organization's Super Admin is created with it
+    // (login email = contactEmail, phone = contactPhone).
+    superAdminName: zod_1.z.string().trim().min(2).max(150),
+    activateNow: zod_1.z.boolean().default(true),
+    enableEstampService: zod_1.z.boolean().default(true),
 });
 // Partial update - only fields an organization's own profile actually owns.
 // Deliberately excludes status/isEstampServiceEnabled (their own dedicated,

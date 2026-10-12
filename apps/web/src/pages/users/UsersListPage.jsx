@@ -8,12 +8,15 @@ import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 import { manageableRoles, creatableRoles, ROLE_LABELS } from "../../utils/roles";
 import PageHeader from "../../components/common/PageHeader";
 import ErrorState from "../../components/common/ErrorState";
+import TemporaryPasswordCell from "../../components/common/TemporaryPasswordCell";
 
 const LIMIT = 10;
 const TITLES = { SUPER_ADMIN: "Super Admins", ADMIN: "Admins", USER: "Users" };
 
 export default function UsersListPage() {
   const { user: me } = useAuth();
+  // Temporary-password column: Master Admin only (the API enforces it too).
+  const isMaster = me?.role === "MASTER_ADMIN";
   // The URL is the single source of truth for every filter, so the sidebar's
   // /users?role=USER vs /users?role=ADMIN links (and back/forward) always
   // drive the dropdown, the request and the title together.
@@ -136,20 +139,21 @@ export default function UsersListPage() {
               <th className="text-left px-4 py-3">Role</th>
               <th className="text-left px-4 py-3">Status</th>
               <th className="text-left px-4 py-3">Created</th>
+              {isMaster && <th className="text-left px-4 py-3">Password</th>}
               <th className="text-left px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={isMaster ? 8 : 7} className="px-4 py-6 text-center text-slate-400">
                   Loading...
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && !error && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={isMaster ? 8 : 7} className="px-4 py-6 text-center text-slate-400">
                   No users found.
                 </td>
               </tr>
@@ -168,6 +172,11 @@ export default function UsersListPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-slate-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+                {isMaster && (
+                  <td className="px-4 py-3">
+                    {u.role === "MASTER_ADMIN" ? <span className="text-xs text-slate-400">-</span> : <TemporaryPasswordCell userId={u._id} passwordState={u.passwordState} label={`password for ${u.name}`} />}
+                  </td>
+                )}
                 <td className="px-4 py-3 space-x-3">
                   <Link to={`/users/${u._id}`} className="text-brand-600 hover:underline">
                     Edit
