@@ -20,10 +20,11 @@ describe("Role/permission model", () => {
     expect(DEFAULT_ROLE_PERMISSIONS[Role.ADMIN]).not.toContain(Permission.SETTINGS_MANAGE);
   });
 
-  it("no sixth administrative role exists", () => {
+  it("no sixth administrative role exists (VENDOR is an external partner role, not administrative)", () => {
     expect(Object.values(Role).sort()).toEqual(
-      [Role.MASTER_ADMIN, Role.ASSISTANT_MASTER_ADMIN, Role.SUPER_ADMIN, Role.ADMIN, Role.USER].sort()
+      [Role.MASTER_ADMIN, Role.ASSISTANT_MASTER_ADMIN, Role.SUPER_ADMIN, Role.ADMIN, Role.USER, Role.VENDOR].sort()
     );
+    expect(DEFAULT_ROLE_PERMISSIONS[Role.VENDOR]).toEqual([Permission.NOTIFICATION_VIEW]);
   });
 
   it("order.view / order.manage permissions exist and are assigned sensibly", () => {

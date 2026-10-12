@@ -114,7 +114,7 @@ describe("NotificationsPage - filters sent to the real backend contract", () => 
     await screen.findByText("You're all caught up. No new notifications.");
     const select = screen.getByLabelText("Type");
     const values = Array.from(select.querySelectorAll("option")).map((o) => o.value);
-    expect(values).toEqual(["", "ASSISTANT_ADMIN_ACTIVITY", "SECURITY_ALERT", "ESTAMP_STATUS", "PAYMENT", "GENERAL"]);
+    expect(values).toEqual(["", "ASSISTANT_ADMIN_ACTIVITY", "SECURITY_ALERT", "ESTAMP_STATUS", "PAYMENT", "GENERAL", "VENDOR_ACTIVITY"]);
   });
 
   it("paginates server-side with Previous/Next, never loading an unbounded list", async () => {

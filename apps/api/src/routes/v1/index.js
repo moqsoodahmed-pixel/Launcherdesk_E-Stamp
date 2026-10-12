@@ -23,6 +23,7 @@ const estamp_provider_routes_1 = __importDefault(require("./estamp-provider.rout
 const bulk_estamp_routes_1 = __importDefault(require("./bulk-estamp.routes"));
 const policy_routes_1 = __importDefault(require("./policy.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
+const vendor_routes_1 = require("./vendor.routes");
 const router = (0, express_1.Router)();
 router.use("/auth", auth_routes_1.default);
 router.use("/organizations", organization_routes_1.default);
@@ -43,4 +44,6 @@ router.use("/estamp-provider", estamp_provider_routes_1.default);
 router.use("/bulk-estamps", bulk_estamp_routes_1.default);
 router.use("/policies", policy_routes_1.default);
 router.use("/profile", profile_routes_1.default);
+router.use("/vendors", vendor_routes_1.vendorAdminRouter);
+router.use("/vendor", vendor_routes_1.vendorSelfRouter);
 exports.default = router;

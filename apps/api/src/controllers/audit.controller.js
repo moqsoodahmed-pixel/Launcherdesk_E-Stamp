@@ -129,6 +129,15 @@ exports.listAuditLogs = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const dateRange = parseDateRange(req.query);
     if (dateRange)
         filter.createdAt = dateRange;
+    // Client actors never see the internal vendor stage of their orders
+    // (vendor identity, dispatch/review events).
+    const internalActor = req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
+    if (!internalActor) {
+        filter.$and = [
+            { actorRole: { $ne: shared_1.Role.VENDOR } },
+            { action: { $nin: [shared_1.AuditAction.ORDER_DISPATCHED, shared_1.AuditAction.ORDER_RECALLED, shared_1.AuditAction.VENDOR_ORDER_ACCEPTED, shared_1.AuditAction.VENDOR_UPLOADED, shared_1.AuditAction.VENDOR_DECLINED, shared_1.AuditAction.VENDOR_UPLOAD_REJECTED, shared_1.AuditAction.VENDOR_UPLOAD_APPROVED] } },
+        ];
+    }
     const { page, limit } = parsePagination(req.query);
     const sort = parseSort(req.query);
     const [items, total] = await Promise.all([

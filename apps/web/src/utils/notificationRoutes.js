@@ -12,6 +12,9 @@ export function safeRouteFor(notification) {
   if (!notification?.entityId) return null;
   switch (notification.entityType) {
     case "EStampOrder":
+      // Vendor notifications go to the vendor's own order page (the only
+      // order route a vendor can open).
+      if (notification.type === "VENDOR_ACTIVITY") return `/vendor/orders/${notification.entityId}`;
       return `/orders/${notification.entityId}`;
     case "Payment":
       return `/payments/${notification.entityId}`;
@@ -31,6 +34,7 @@ export const NOTIFICATION_TYPE_LABELS = {
   ESTAMP_STATUS: "E-Stamp status",
   PAYMENT: "Payment",
   GENERAL: "General",
+  VENDOR_ACTIVITY: "Vendor",
 };
 
 export const NOTIFICATION_TYPES = Object.keys(NOTIFICATION_TYPE_LABELS);

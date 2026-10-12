@@ -20,12 +20,15 @@ const MASTER_ADMIN_SECTIONS = [
   section("CLIENTS", [
     { to: "/organizations", label: "Clients / Organizations", permission: PERMISSIONS.CLIENT_VIEW },
     { to: "/assistant-admins", label: "Assistant Master Admins", permission: PERMISSIONS.USER_MANAGE },
+    { to: "/vendors", label: "Vendors" },
     { to: "/users", label: "Users", permission: PERMISSIONS.USER_VIEW },
   ]),
   section("OPERATIONS", [
     { to: "/estamps/requests", label: "E-Stamp Requests", permission: PERMISSIONS.ESTAMP_VIEW },
     { to: "/estamps/bulk", label: "Bulk Requests", permission: PERMISSIONS.ESTAMP_BULK_CREATE },
     { to: "/orders/fulfil", label: "Orders to fulfil", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
+    { to: "/orders/dispatch", label: "Send to vendor", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
+    { to: "/orders/vendor-review", label: "Vendor review", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
     { to: "/orders", label: "Orders", permission: PERMISSIONS.ORDER_VIEW },
     { to: "/estamps", label: "E-Stamps", permission: PERMISSIONS.ESTAMP_VIEW },
     { to: "/estamp-provider", label: "E-Stamp Provider", permission: PERMISSIONS.ESTAMP_PROVIDER_VIEW, mode: "provider" },
@@ -63,6 +66,8 @@ const ASSISTANT_MASTER_ADMIN_SECTIONS = [
   section("OPERATIONS", [
     { to: "/estamps/requests", label: "E-Stamp Requests", permission: PERMISSIONS.ESTAMP_VIEW },
     { to: "/orders/fulfil", label: "Orders to fulfil", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
+    { to: "/orders/dispatch", label: "Send to vendor", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
+    { to: "/orders/vendor-review", label: "Vendor review", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
     { to: "/orders", label: "Orders", permission: PERMISSIONS.ORDER_VIEW },
     { to: "/estamps", label: "E-Stamps", permission: PERMISSIONS.ESTAMP_VIEW },
   ]),
@@ -157,8 +162,18 @@ const USER_SECTIONS = [
   ]),
 ];
 
+// VENDOR: only its own work. The API fences a vendor out of every other
+// route, so nothing else (not even Profile/Policies pages that call other
+// endpoints) is linked.
+const VENDOR_SECTIONS = [
+  section("ACCOUNT", [{ to: "/dashboard", label: "Dashboard" }]),
+  section("OPERATIONS", [{ to: "/vendor/orders", label: "My Orders" }]),
+];
+
 function sectionsFor(role) {
   switch (role) {
+    case "VENDOR":
+      return VENDOR_SECTIONS;
     case "MASTER_ADMIN":
       return MASTER_ADMIN_SECTIONS;
     case "ASSISTANT_MASTER_ADMIN":

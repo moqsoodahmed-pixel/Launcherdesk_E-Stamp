@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFulfilmentSummary = exports.failOrder = exports.fulfilOrder = exports.startFulfilment = exports.providerWebhook = exports.retryOrder = exports.syncOrder = exports.processOrder = exports.getOrderSummary = exports.getOrder = exports.listOrders = void 0;
+exports.listDispatchVendors = exports.vendorApproveMany = exports.vendorRejectOrder = exports.vendorApproveOrder = exports.getVendorUpload = exports.recallOrder = exports.dispatchOrders = exports.getFulfilmentSummary = exports.failOrder = exports.fulfilOrder = exports.startFulfilment = exports.providerWebhook = exports.retryOrder = exports.syncOrder = exports.processOrder = exports.getOrderSummary = exports.getOrder = exports.listOrders = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const dateRange_1 = require("../utils/dateRange");
 const ApiResponse_1 = require("../utils/ApiResponse");
@@ -14,6 +14,7 @@ const sanitizeFilename_1 = require("../utils/sanitizeFilename");
 const orgAccess_1 = require("../utils/orgAccess");
 const fulfilment_service_1 = require("../services/fulfilment.service");
 const settings_service_1 = require("../services/settings.service");
+const file_service_1 = require("../services/file.service");
 // Assistant Master Admins only reach orders of organizations assigned to
 // them; same "not found" as a missing order so ids are never confirmed.
 async function assertOrderAccess(req, orderId) {
@@ -107,8 +108,10 @@ async function buildOrderFilter(req) {
     // Manual fulfilment queue: orders still to stamp (CREATED/PROCESSING)
     // whose request has left its window and been CHARGED - never in-window,
     // CANCELLED or SHORTFALL. Internal actors only, inside their scope.
+    // Vendor review queue: vendor uploads awaiting an assistant's decision
+    // (vendorStatus UPLOADED), same scoping. Internal actors only.
     if (req.query.queue !== undefined) {
-        if (req.query.queue !== "fulfil")
+        if (req.query.queue !== "fulfil" && req.query.queue !== "vendor-review")
             throw ApiError_1.ApiError.badRequest("Invalid queue filter", "INVALID_QUEUE");
         if (!isInternalActor(req))
             throw ApiError_1.ApiError.forbidden("Only LauncherDesk staff can view the fulfilment queue");
@@ -118,6 +121,13 @@ async function buildOrderFilter(req) {
         const requests = await models_1.EStampRequest.find(requestFilter).select("_id");
         filter.requestId = { $in: requests.map((r) => r._id) };
         filter.eStampStatus = { $in: fulfilment_service_1.FULFILLABLE_ORDER_STATUSES };
+        if (req.query.queue === "vendor-review")
+            filter.vendorStatus = (0, fulfilment_service_1.vendorStatusIn)([shared_1.VendorStatus.UPLOADED]);
+        else if (req.query.vendorStatus !== undefined) {
+            if (!Object.values(shared_1.VendorStatus).includes(req.query.vendorStatus))
+                throw ApiError_1.ApiError.badRequest("Invalid vendorStatus filter", "INVALID_STATUS");
+            filter.vendorStatus = (0, fulfilment_service_1.vendorStatusIn)([req.query.vendorStatus]);
+        }
     }
     if (search) {
         // Only fields actually present on EStampOrder itself - never an
@@ -158,20 +168,28 @@ exports.listOrders = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     ]);
     const requestNumberById = new Map(requests.map((r) => [r._id.toString(), r.requestNumber]));
     const lockedAtById = new Map(requests.map((r) => [r._id.toString(), r.lockedAt]));
-    const isQueue = req.query.queue === "fulfil";
+    const isQueue = req.query.queue === "fulfil" || req.query.queue === "vendor-review";
     const articles = isQueue && items.length ? await models_1.Article.find({ _id: { $in: [...new Set(items.map((o) => o.articleId.toString()))] } }).select("title articleCode") : [];
     const articleById = new Map(articles.map((a) => [a._id.toString(), a]));
     const orgNameById = new Map(orgs.map((o) => [o._id.toString(), o.name]));
+    // Vendor names for internal actors only (clients never see the vendor).
+    const vendorIds = isInternalActor(req) ? [...new Set(items.filter((o) => o.vendorId).map((o) => o.vendorId.toString()))] : [];
+    const vendors = vendorIds.length ? await models_1.User.find({ _id: { $in: vendorIds }, role: shared_1.Role.VENDOR }).select("name") : [];
+    const vendorNameById = new Map(vendors.map((v) => [v._id.toString(), v.name]));
     const enriched = items.map((o) => {
-        const plain = o.toObject();
+        const plain = isInternalActor(req) ? o.toObject() : (0, models_1.stripVendorFields)(o);
         plain.requestNumber = requestNumberById.get(o.requestId.toString()) ?? null;
         if (isQueue) {
             plain.lockedAt = lockedAtById.get(o.requestId.toString()) ?? null;
             const article = articleById.get(o.articleId.toString());
             plain.articleTitle = article ? article.title : null;
         }
-        if (isInternalActor(req))
+        if (isInternalActor(req)) {
             plain.organizationName = orgNameById.get(o.organizationId.toString()) ?? null;
+            plain.vendorName = o.vendorId ? vendorNameById.get(o.vendorId.toString()) ?? null : null;
+            const pending = [...(o.vendorUploads || [])].reverse().find((u) => u.status === shared_1.VendorUploadStatus.PENDING);
+            plain.pendingVendorUpload = pending ? { _id: pending._id, stampReference: pending.stampReference, notes: pending.notes || null, uploadedAt: pending.uploadedAt } : null;
+        }
         return plain;
     });
     return (0, ApiResponse_1.ok)(res, { items: enriched, total, page: pageNum, limit: limitNum });
@@ -221,7 +239,7 @@ function manualTimeline(order, request, document) {
 // organization (assigned assistant or Master Admin), and only when the
 // request is locked AND charged.
 async function computeManualActions(req, order, request) {
-    const none = { process: false, sync: false, retry: false, start: false, fulfil: false, fail: false };
+    const none = { process: false, sync: false, retry: false, start: false, fulfil: false, fail: false, dispatch: false, recall: false, vendorReview: false };
     const canManage = req.user.permissions.includes(shared_1.Permission.ORDER_MANAGE) && isInternalActor(req);
     if (!canManage || !request || !(await (0, orgAccess_1.canAccessOrganization)(req, order.organizationId)))
         return none;
@@ -232,7 +250,30 @@ async function computeManualActions(req, order, request) {
         start: open && charged && order.eStampStatus === shared_1.EStampOrderProcessingStatus.CREATED,
         fulfil: open && charged,
         fail: open,
+        dispatch: open && charged && fulfilment_service_1.DISPATCHABLE_VENDOR_STATUSES.includes(order.vendorStatus || shared_1.VendorStatus.NOT_SENT),
+        recall: open && fulfilment_service_1.RECALLABLE_VENDOR_STATUSES.includes(order.vendorStatus || shared_1.VendorStatus.NOT_SENT),
+        vendorReview: open && charged && order.vendorStatus === shared_1.VendorStatus.UPLOADED,
     };
+}
+// Client view of the order: no vendor-stage actions or audit entries.
+const VENDOR_AUDIT_ACTIONS = [shared_1.AuditAction.ORDER_DISPATCHED, shared_1.AuditAction.ORDER_RECALLED, shared_1.AuditAction.VENDOR_ORDER_ACCEPTED, shared_1.AuditAction.VENDOR_UPLOADED, shared_1.AuditAction.VENDOR_DECLINED, shared_1.AuditAction.VENDOR_UPLOAD_REJECTED, shared_1.AuditAction.VENDOR_UPLOAD_APPROVED];
+function clientManualActions(actions) {
+    const { dispatch, recall, vendorReview, ...rest } = actions;
+    return rest;
+}
+function clientSafeHistory(entries) {
+    if (!entries)
+        return entries;
+    return entries.filter((e) => !VENDOR_AUDIT_ACTIONS.includes(e.action) && e.actorRole !== shared_1.Role.VENDOR).map((e) => {
+        const plain = typeof e.toObject === "function" ? e.toObject() : { ...e };
+        if (plain.metadata) {
+            const { vendorId, vendorStatus, ...metadata } = plain.metadata;
+            if (metadata.stage === "vendor_approval")
+                metadata.stage = "manual_fulfilment";
+            plain.metadata = metadata;
+        }
+        return plain;
+    });
 }
 function computeAvailableActions(req, order, request) {
     const canManage = req.user.permissions.includes(shared_1.Permission.ORDER_MANAGE);
@@ -285,8 +326,13 @@ exports.getOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         document && { label: "Certificate document attached", at: document.createdAt },
         order.eStampStatus === shared_1.EStampOrderProcessingStatus.FAILED && { label: "Failed", at: order.updatedAt, reason: order.failureReason },
     ].filter(Boolean);
+    const internal = isInternalActor(req);
+    const vendor = internal && order.vendorId ? await models_1.User.findById(order.vendorId).select("name email isActive") : null;
     return (0, ApiResponse_1.ok)(res, {
-        order,
+        // Clients never see the vendor stage: vendor fields are stripped and
+        // the timeline keeps its existing wording.
+        order: internal ? order : (0, models_1.stripVendorFields)(order),
+        ...(internal ? { vendor: vendor ? { _id: vendor._id, name: vendor.name, email: vendor.email, isActive: vendor.isActive } : null } : {}),
         request: request ? {
             _id: request._id,
             requestNumber: request.requestNumber,
@@ -328,10 +374,11 @@ exports.getOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             fileType: { $ne: "ESTAMP_DOCUMENT" },
         }).select("_id originalFileName mimeType sizeBytes createdAt fileType"),
         timeline,
-        availableActions: fulfilmentMode === "manual" ? await computeManualActions(req, order, request) : computeAvailableActions(req, order, request),
+        availableActions: internal || fulfilmentMode !== "manual" ? (fulfilmentMode === "manual" ? await computeManualActions(req, order, request) : computeAvailableActions(req, order, request)) : clientManualActions(await computeManualActions(req, order, request)),
         fulfilmentMode,
-        // Audit history is only returned to an actor holding AUDIT_VIEW.
-        history: historyEntries,
+        // Audit history is only returned to an actor holding AUDIT_VIEW; a
+        // client never sees the vendor stage in it.
+        history: internal ? historyEntries : clientSafeHistory(historyEntries),
     });
 });
 // Operational actions below (process/sync/retry) are gated by ORDER_MANAGE
@@ -400,6 +447,106 @@ exports.failOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const result = await fulfilment_service_1.FulfilmentService.fail(order, request, req.user, { reason: req.body?.reason, refundBalance: req.body?.refundBalance }, req);
     return (0, ApiResponse_1.ok)(res, { order: result.order, request: result.request, refund: result.refund }, "Order marked failed");
 });
+// ---- Vendor stage (assigned assistant or Master Admin) ---------------------
+// GET /orders/vendors - active vendors for the dispatch picker: id and name
+// only (vendor account management stays Master-Admin-only on /vendors).
+exports.listDispatchVendors = (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+    const vendors = await models_1.User.find({ role: shared_1.Role.VENDOR, isActive: true }).sort({ name: 1 }).limit(500).select("name");
+    return (0, ApiResponse_1.ok)(res, { items: vendors.map((v) => ({ _id: v._id, name: v.name })) });
+});
+// POST /orders/dispatch { orderIds, vendorId } - per-order results. An
+// assistant asking for any order of an organization not assigned to them
+// gets 403 for the whole call (nothing is dispatched).
+exports.dispatchOrders = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const orderIds = [...new Set(req.body.orderIds)];
+    const vendor = await models_1.User.findOne({ _id: req.body.vendorId, role: shared_1.Role.VENDOR });
+    if (!vendor)
+        throw ApiError_1.ApiError.notFound("Vendor not found");
+    if (!vendor.isActive)
+        throw ApiError_1.ApiError.conflict("This vendor account is deactivated", "VENDOR_INACTIVE");
+    const orders = await models_1.EStampOrder.find({ _id: { $in: orderIds } });
+    for (const order of orders) {
+        if (!(await (0, orgAccess_1.canAccessOrganization)(req, order.organizationId))) {
+            throw ApiError_1.ApiError.forbidden("This organization is not assigned to you");
+        }
+    }
+    const requests = await models_1.EStampRequest.find({ _id: { $in: orders.map((o) => o.requestId) } });
+    const requestById = new Map(requests.map((r) => [r._id.toString(), r]));
+    const orderById = new Map(orders.map((o) => [o._id.toString(), o]));
+    const results = [];
+    for (const id of orderIds) {
+        const order = orderById.get(id);
+        if (!order) {
+            results.push({ orderId: id, ok: false, reason: "NOT_FOUND" });
+            continue;
+        }
+        const result = await fulfilment_service_1.FulfilmentService.dispatchOne(order, requestById.get(order.requestId.toString()), vendor, req.user, req);
+        results.push({ ...result, orderNumber: order.orderNumber });
+    }
+    const newlySent = results.filter((r) => r.ok && !r.alreadySent).map((r) => r.orderId);
+    await fulfilment_service_1.FulfilmentService.notifyVendorDispatched(vendor, newlySent);
+    const sent = results.filter((r) => r.ok).length;
+    return (0, ApiResponse_1.ok)(res, { results, sent, failed: results.length - sent }, `${sent} of ${results.length} sent to ${vendor.name}`);
+});
+exports.recallOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { order } = await loadForFulfilment(req);
+    const result = await fulfilment_service_1.FulfilmentService.recall(order, req.user, req);
+    return (0, ApiResponse_1.ok)(res, result, "Order recalled from vendor");
+});
+// GET /orders/:id/vendor-upload[?uploadId=] - signed URL to view the
+// vendor's latest (or a specific) upload. Staff only; never a client route.
+exports.getVendorUpload = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { order } = await loadForFulfilment(req);
+    const uploads = order.vendorUploads || [];
+    const upload = req.query.uploadId ? uploads.find((u) => u._id.toString() === String(req.query.uploadId)) : uploads[uploads.length - 1];
+    if (!upload)
+        throw ApiError_1.ApiError.notFound("No vendor upload for this order");
+    const asset = await models_1.FileAsset.findById(upload.fileAssetId);
+    if (!asset)
+        throw ApiError_1.ApiError.notFound("Underlying file not found");
+    const url = await file_service_1.FileService.getSignedUrl(asset.cloudinaryPublicId);
+    return (0, ApiResponse_1.ok)(res, {
+        url,
+        filename: asset.originalFileName,
+        contentType: asset.mimeType,
+        fileSize: asset.sizeBytes,
+        upload: { _id: upload._id, stampReference: upload.stampReference, notes: upload.notes || null, uploadedAt: upload.uploadedAt, status: upload.status, reviewNotes: upload.reviewNotes || null },
+    });
+});
+exports.vendorApproveOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { order, request } = await loadForFulfilment(req);
+    const result = await fulfilment_service_1.FulfilmentService.vendorApprove(order, request, req.user, req);
+    return (0, ApiResponse_1.ok)(res, { order: result.order, request: result.request, documentId: result.document?._id ?? null, alreadyApproved: !!result.alreadyApproved }, result.alreadyApproved ? "Already approved" : "Certificate approved and released");
+});
+exports.vendorRejectOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { order } = await loadForFulfilment(req);
+    const result = await fulfilment_service_1.FulfilmentService.vendorReject(order, req.user, { reason: req.body.reason }, req);
+    return (0, ApiResponse_1.ok)(res, result, "Sent back to the vendor");
+});
+// POST /orders/vendor-approve-many { orderIds } - per-order results; an
+// order outside the caller's organizations is reported, never approved.
+exports.vendorApproveMany = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const results = [];
+    for (const id of [...new Set(req.body.orderIds)]) {
+        const order = await models_1.EStampOrder.findById(id);
+        if (!order || !(await (0, orgAccess_1.canAccessOrganization)(req, order.organizationId))) {
+            results.push({ orderId: id, ok: false, reason: "NOT_FOUND" });
+            continue;
+        }
+        try {
+            const request = await models_1.EStampRequest.findById(order.requestId);
+            const result = await fulfilment_service_1.FulfilmentService.vendorApprove(order, request, req.user, req);
+            results.push({ orderId: id, orderNumber: order.orderNumber, ok: true, alreadyApproved: !!result.alreadyApproved });
+        }
+        catch (err) {
+            if (!(err instanceof ApiError_1.ApiError))
+                throw err;
+            results.push({ orderId: id, orderNumber: order.orderNumber, ok: false, reason: err.code || "ERROR", message: err.message });
+        }
+    }
+    const approved = results.filter((r) => r.ok).length;
+    return (0, ApiResponse_1.ok)(res, { results, approved, failed: results.length - approved }, `${approved} of ${results.length} approved`);
+});
 // GET /orders/fulfilment-summary - queue size, oldest age and (for the
 // caller's scope) orders fulfilled today. Internal actors only.
 exports.getFulfilmentSummary = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
@@ -424,5 +571,5 @@ exports.verifyDocuments = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         req
     );
     const updatedOrder = await models_1.EStampOrder.findById(order._id);
-    return (0, ApiResponse_1.ok)(res, { order: updatedOrder, request });
+    return (0, ApiResponse_1.ok)(res, { order: isInternal ? updatedOrder : (0, models_1.stripVendorFields)(updatedOrder), request });
 });

@@ -130,7 +130,7 @@ export default function DashboardLayout() {
           >
             <span className="text-xl leading-none">☰</span>
           </button>
-          <GlobalSearch />
+          {user?.role !== "VENDOR" && <GlobalSearch />}
           <div className="flex-1" />
           <NotificationBell />
         </div>

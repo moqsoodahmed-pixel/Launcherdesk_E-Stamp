@@ -7,6 +7,7 @@ import { formatCurrency, errorMessage } from "../../utils/format";
 import KpiCard from "../../components/dashboard/KpiCard";
 import PaymentCreditsCard from "../../components/dashboard/PaymentCreditsCard";
 import FulfilmentSummaryCard from "../../components/dashboard/FulfilmentSummaryCard";
+import VendorStageCard from "../../components/dashboard/VendorStageCard";
 import { isManualFulfilment } from "../../utils/fulfilment";
 import { KpiSkeleton } from "../../components/dashboard/LoadingSkeleton";
 import ChartCard from "../../components/dashboard/ChartCard";
@@ -140,6 +141,7 @@ export default function AssistantDashboard() {
       </div>
 
       {isManualFulfilment(user) && hasPermission(user, PERMISSIONS.ORDER_MANAGE) && <FulfilmentSummaryCard />}
+      {isManualFulfilment(user) && hasPermission(user, PERMISSIONS.ORDER_MANAGE) && <VendorStageCard />}
       {hasPermission(user, PERMISSIONS.WALLET_MANAGE) && hasPermission(user, PERMISSIONS.PAYMENT_VIEW) && <PaymentCreditsCard variant="assistant" />}
 
       {!canReport && (

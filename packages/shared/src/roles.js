@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TENANT_ROLES = exports.INTERNAL_ROLES = exports.ROLE_LEVEL = exports.Role = void 0;
+exports.VENDOR_ROLES = exports.TENANT_ROLES = exports.INTERNAL_ROLES = exports.ROLE_LEVEL = exports.Role = void 0;
 // Canonical role hierarchy. Levels: lower number = higher authority.
 var Role;
 (function (Role) {
@@ -9,6 +9,9 @@ var Role;
     Role["SUPER_ADMIN"] = "SUPER_ADMIN";
     Role["ADMIN"] = "ADMIN";
     Role["USER"] = "USER";
+    // External stamping partner (organizationId null). Created by Master
+    // Admin only; sees nothing but orders dispatched to them (/vendor/*).
+    Role["VENDOR"] = "VENDOR";
 })(Role || (exports.Role = Role = {}));
 exports.ROLE_LEVEL = {
     [Role.MASTER_ADMIN]: 1,
@@ -16,8 +19,12 @@ exports.ROLE_LEVEL = {
     [Role.SUPER_ADMIN]: 3,
     [Role.ADMIN]: 4,
     [Role.USER]: 5,
+    // Lowest authority: requireMinLevel() never admits a vendor.
+    [Role.VENDOR]: 6,
 };
 // Roles that belong to OUR company (internal), not a client organization.
 exports.INTERNAL_ROLES = [Role.MASTER_ADMIN, Role.ASSISTANT_MASTER_ADMIN];
 // Roles that belong to a client organization (must have organizationId).
 exports.TENANT_ROLES = [Role.SUPER_ADMIN, Role.ADMIN, Role.USER];
+// External partner roles: neither internal nor a client organization.
+exports.VENDOR_ROLES = [Role.VENDOR];

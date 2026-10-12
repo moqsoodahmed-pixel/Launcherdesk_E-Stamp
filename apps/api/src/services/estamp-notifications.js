@@ -4,6 +4,7 @@ exports.notifyOrderIssued = notifyOrderIssued;
 exports.notifyCertificateAvailable = notifyCertificateAvailable;
 exports.notifyOrderFailed = notifyOrderFailed;
 exports.notifyOrderToFulfil = notifyOrderToFulfil;
+exports.notifyOrderStaff = notifyOrderStaff;
 const models_1 = require("../models");
 const shared_1 = require("@launcherdesk/shared");
 const notification_service_1 = require("./notification.service");
@@ -82,6 +83,26 @@ async function notifyOrderToFulfil(order) {
         entityType: "EStampOrder",
         entityId: order._id,
         eventKey: `estamp-order:${order._id.toString()}:to-fulfil`,
+    };
+    if (org?.assignedAssistantId) {
+        await (0, notification_service_1.notifyUser)({ ...base, recipientId: org.assignedAssistantId.toString(), recipientRole: shared_1.Role.ASSISTANT_MASTER_ADMIN });
+    }
+    else {
+        await (0, notification_service_1.notifyAllMasterAdmins)(base);
+    }
+}
+// Vendor workflow: tells whoever reviews this client's orders (the assigned
+// assistant, or every Master Admin if none) about a vendor event.
+async function notifyOrderStaff(order, { title, message, eventKey }) {
+    const org = await models_1.Organization.findById(order.organizationId).select("assignedAssistantId");
+    const base = {
+        type: shared_1.NotificationType.ESTAMP_STATUS,
+        title,
+        message,
+        organizationId: order.organizationId.toString(),
+        entityType: "EStampOrder",
+        entityId: order._id,
+        eventKey,
     };
     if (org?.assignedAssistantId) {
         await (0, notification_service_1.notifyUser)({ ...base, recipientId: org.assignedAssistantId.toString(), recipientRole: shared_1.Role.ASSISTANT_MASTER_ADMIN });

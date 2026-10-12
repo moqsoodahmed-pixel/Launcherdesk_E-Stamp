@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AuditAction = exports.NotificationType = exports.OrganizationStatus = exports.PaymentStatus = exports.WalletTransactionType = exports.OrderStatus = exports.EStampRequestStatus = exports.BulkBatchStatus = void 0;
+exports.VendorUploadStatus = exports.VendorStatus = exports.AuditAction = exports.NotificationType = exports.OrganizationStatus = exports.PaymentStatus = exports.WalletTransactionType = exports.OrderStatus = exports.EStampRequestStatus = exports.BulkBatchStatus = void 0;
 var EStampRequestStatus;
 (function (EStampRequestStatus) {
     EStampRequestStatus["DRAFT"] = "DRAFT";
@@ -45,6 +45,26 @@ var EStampOrderProcessingStatus;
 // a legitimate PREVIEW_READY outcome. PARTIALLY_FAILED/COMPLETED/FAILED
 // (post-confirm) are terminal, decided from the per-row outcome counts
 // once the confirm loop finishes; CANCELLED is only reachable pre-confirm.
+// Vendor stage of an order (EStampOrder.vendorStatus). Internal-only: never
+// shown to a client role (clients keep the existing "Being prepared by
+// LauncherDesk" wording).
+var VendorStatus;
+(function (VendorStatus) {
+    VendorStatus["NOT_SENT"] = "NOT_SENT";
+    VendorStatus["SENT"] = "SENT";
+    VendorStatus["ACCEPTED"] = "ACCEPTED";
+    VendorStatus["UPLOADED"] = "UPLOADED";
+    VendorStatus["REJECTED"] = "REJECTED";
+    VendorStatus["APPROVED"] = "APPROVED";
+})(VendorStatus || (exports.VendorStatus = VendorStatus = {}));
+// One entry of EStampOrder.vendorUploads (the upload history).
+var VendorUploadStatus;
+(function (VendorUploadStatus) {
+    VendorUploadStatus["SUPERSEDED"] = "SUPERSEDED";
+    VendorUploadStatus["PENDING"] = "PENDING";
+    VendorUploadStatus["APPROVED"] = "APPROVED";
+    VendorUploadStatus["REJECTED"] = "REJECTED";
+})(VendorUploadStatus || (exports.VendorUploadStatus = VendorUploadStatus = {}));
 var BulkBatchStatus;
 (function (BulkBatchStatus) {
     BulkBatchStatus["UPLOADED"] = "UPLOADED";
@@ -86,6 +106,7 @@ var NotificationType;
     NotificationType["ESTAMP_STATUS"] = "ESTAMP_STATUS";
     NotificationType["PAYMENT"] = "PAYMENT";
     NotificationType["GENERAL"] = "GENERAL";
+    NotificationType["VENDOR_ACTIVITY"] = "VENDOR_ACTIVITY";
 })(NotificationType || (exports.NotificationType = NotificationType = {}));
 var AuditAction;
 (function (AuditAction) {
@@ -146,4 +167,13 @@ var AuditAction;
     AuditAction["POLICY_CREATED"] = "POLICY_CREATED";
     AuditAction["POLICY_PUBLISHED"] = "POLICY_PUBLISHED";
     AuditAction["POLICY_ACKNOWLEDGED"] = "POLICY_ACKNOWLEDGED";
+    // Vendor workflow. Metadata carries ids, statuses, stampReference and
+    // reasons only - never file contents.
+    AuditAction["ORDER_DISPATCHED"] = "ORDER_DISPATCHED";
+    AuditAction["ORDER_RECALLED"] = "ORDER_RECALLED";
+    AuditAction["VENDOR_ORDER_ACCEPTED"] = "VENDOR_ORDER_ACCEPTED";
+    AuditAction["VENDOR_UPLOADED"] = "VENDOR_UPLOADED";
+    AuditAction["VENDOR_DECLINED"] = "VENDOR_DECLINED";
+    AuditAction["VENDOR_UPLOAD_REJECTED"] = "VENDOR_UPLOAD_REJECTED";
+    AuditAction["VENDOR_UPLOAD_APPROVED"] = "VENDOR_UPLOAD_APPROVED";
 })(AuditAction || (exports.AuditAction = AuditAction = {}));

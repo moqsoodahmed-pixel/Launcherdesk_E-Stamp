@@ -204,6 +204,16 @@ const TEMPLATES = {
         subject: "Security alert - LauncherDesk",
         html: layout(`<p>${escapeHtml(data.message)}</p>`),
     }),
+    // Vendor account welcome. Never contains a password: the vendor sets one
+    // through "Forgot password" with this email address.
+    vendorWelcome: (data) => ({
+        subject: "Your LauncherDesk vendor account",
+        html: layout(`
+      <h2 style="margin-top:0;">Welcome${data.name ? `, ${escapeHtml(data.name)}` : ""}</h2>
+      <p>A LauncherDesk vendor account has been created for this email address.</p>
+      <p>To sign in, open the LauncherDesk login page, choose <b>Forgot password</b> and enter this email address to set your password. You will then sign in with a one-time code sent to this email.</p>
+    `),
+    }),
     assistantActivity: (data) => ({
         subject: "Assistant Master Admin activity",
         html: layout(`<p>${escapeHtml(data.message)}</p>`),

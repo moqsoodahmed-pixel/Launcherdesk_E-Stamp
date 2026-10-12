@@ -9,6 +9,7 @@
 | 3 | SUPER_ADMIN | Client organization (owner) |
 | 4 | ADMIN | Client organization |
 | 5 | USER | Client organization (employee) |
+| 6 | VENDOR | External stamping partner (no organization). Only `notification.view`; reaches only `/vendor/*` (own dispatched orders), its session, notifications and profile. Created by Master Admin via `/vendors`. See [vendor-workflow.md](vendor-workflow.md). |
 
 `organizationId` is `null` for internal roles and required for tenant roles. This is enforced at the model
 level (`User.organizationId`) and checked by `requireOrganizationAccess` on every tenant-scoped route.
