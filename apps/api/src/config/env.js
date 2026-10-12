@@ -27,6 +27,12 @@ function required(name, fallback) {
 exports.env = {
     NODE_ENV: process.env.NODE_ENV || "development",
     PORT: parseInt(process.env.PORT || "5000", 10),
+    // FRONTEND_URL may be a comma-separated list (one allowed origin for
+    // CORS per entry, e.g. the production domain and a staging/preview one).
+    // app.js checks the whole list; anything that builds a link for a human
+    // (emails, redirects) should use PRIMARY_FRONTEND_URL below instead, which
+    // is always a single address - put the real production domain FIRST in
+    // FRONTEND_URL so links point there rather than at a staging address.
     FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
     MONGODB_URI: required("MONGODB_URI", "mongodb://localhost:27017/launcherdesk_estamping"),
     JWT_SECRET: required("JWT_SECRET", "dev_only_insecure_secret_change_me"),
@@ -84,28 +90,4 @@ exports.env = {
     // ESTAMP_FULFILMENT setting (a Master Admin override in Settings wins).
     ESTAMP_FULFILMENT: process.env.ESTAMP_FULFILMENT === "provider" ? "provider" : "manual",
     ESTAMP_PROVIDER: process.env.ESTAMP_PROVIDER || "mock",
-    ESTAMP_API_BASE_URL: process.env.ESTAMP_API_BASE_URL || "",
-    ESTAMP_API_KEY: process.env.ESTAMP_API_KEY || "",
-    ESTAMP_API_SECRET: process.env.ESTAMP_API_SECRET || "",
-    ESTAMP_API_TIMEOUT_MS: parseInt(process.env.ESTAMP_API_TIMEOUT_MS || "15000", 10),
-    ESTAMP_PROVIDER_WEBHOOK_SECRET: process.env.ESTAMP_PROVIDER_WEBHOOK_SECRET || "",
-    // Compared only against a MEANINGFUL provider balance (status AVAILABLE) -
-    // never evaluated when the provider is unconfigured/unavailable. Left
-    // unset means "no threshold configured", not "always low".
-    ESTAMP_PROVIDER_LOW_BALANCE_THRESHOLD: process.env.ESTAMP_PROVIDER_LOW_BALANCE_THRESHOLD
-        ? parseFloat(process.env.ESTAMP_PROVIDER_LOW_BALANCE_THRESHOLD)
-        : null,
-    // Phase 11 - bulk E-Stamp request upload guardrails. MAX_ROWS caps how
-    // many spreadsheet rows a single batch may contain (exceeding it rejects
-    // the whole upload, never a silent truncation); MAX_FILE_SIZE_MB feeds
-    // multer's own limit, same convention as file.routes.js.
-    BULK_ESTAMP_MAX_ROWS: parseInt(process.env.BULK_ESTAMP_MAX_ROWS || "500", 10),
-    BULK_ESTAMP_MAX_FILE_SIZE_MB: parseInt(process.env.BULK_ESTAMP_MAX_FILE_SIZE_MB || "10", 10),
-    SEED_MASTER_ADMIN_EMAIL: process.env.SEED_MASTER_ADMIN_EMAIL || "master@launcherdesk.local",
-    SEED_MASTER_ADMIN_PASSWORD: process.env.SEED_MASTER_ADMIN_PASSWORD || "",
-    SEED_DEMO_ORG_NAME: process.env.SEED_DEMO_ORG_NAME || "Demo Client Pvt Ltd",
-    // 32 random bytes, base64. Enables Master Admin reveal of SYSTEM-GENERATED
-    // temporary passwords (utils/credentialVault.js). Optional: missing or
-    // invalid only disables that feature (startup warning, never a crash).
-    CREDENTIAL_ENCRYPTION_KEY: process.env.CREDENTIAL_ENCRYPTION_KEY || "",
-};
+    ESTAMP_API_BASE_URL:
