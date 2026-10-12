@@ -169,7 +169,13 @@ export default function NewRequestPage() {
         state: { notice: `Request ${request.requestNumber} created. ${formatCurrency(request.calculatedStampDuty)} is reserved from your available balance and charged when the 20-minute window ends. Cancel within the window and nothing is charged.` },
       });
     } catch (err) {
-      setServerError(errorMessage(err, "Failed to create request"));
+      // A 403 here is very often a real, specific business reason (e.g.
+      // "E-Stamp service is not enabled for your organization") rather than
+      // a missing RBAC permission - errorMessage()'s blanket "You do not
+      // have permission..." rewrite would hide that and make a
+      // configuration problem look like an access-control bug. Submission
+      // failures always show the backend's own message when it sent one.
+      setServerError(err?.response?.data?.message || errorMessage(err, "Failed to create request"));
     } finally {
       setSubmitting(false);
     }
@@ -338,7 +344,7 @@ export default function NewRequestPage() {
         )}
 
         {step === 4 && (
-          <ReviewStep values={values} calculation={isFresh ? calculation : null} balance={balance} canOpenWallet={canOpenWallet} />
+          <ReviewStep values={values} calculation={isFresh ? calculation : null} balance={balance} canOpenWallet={canOpenWallet} articles={articles} states={states} />
         )}
 
         <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between">
@@ -413,8 +419,17 @@ function AddFundsHint({ canOpenWallet }) {
   );
 }
 
-function ReviewStep({ values, calculation, balance, canOpenWallet }) {
+function ReviewStep({ values, calculation, balance, canOpenWallet, articles, states }) {
   const insufficientBalance = calculation && typeof balance === "number" && balance < calculation.amount;
+  const selectedArticle = articles.find((a) => a._id === values.articleId);
+  const selectedState = states.find((s) => s.code === values.stateCode);
+  // A real stamp duty amount is never ₹0 in practice - a calculation that
+  // resolves to exactly 0 almost always means this article's duty rule
+  // hasn't been configured yet (the system deliberately never guesses a
+  // legal amount, see CalculationService's CUSTOM rule type), not that the
+  // duty is genuinely free. Surface that clearly instead of a bare "₹0"
+  // that looks like a normal, correct value.
+  const dutyNotConfigured = calculation && calculation.amount === 0;
   return (
     <div className="space-y-4 text-sm">
       <div className="space-y-2">
@@ -422,7 +437,8 @@ function ReviewStep({ values, calculation, balance, canOpenWallet }) {
         <Row label="Second Party" value={values.secondParty} />
         <Row label="Description" value={values.descriptionOfDocument} />
         <Row label="Property Description" value={values.propertyDescription || "-"} />
-        <Row label="State" value={values.stateCode} />
+        <Row label="State" value={selectedState ? selectedState.name : values.stateCode} />
+        <Row label="Article" value={selectedArticle ? `${selectedArticle.articleCode} - ${selectedArticle.title}` : "-"} />
         <Row label="Consideration Price" value={formatCurrency(values.considerationPrice)} />
         <Row label="Stamp Duty Paid By" value={values.stampDutyPaidBy} />
         <Row label="No. of E-Stamps" value={values.numberOfEStamps} />
@@ -439,6 +455,13 @@ function ReviewStep({ values, calculation, balance, canOpenWallet }) {
           <p className="text-amber-700">Go back to the Calculation step and recalculate before submitting.</p>
         )}
       </div>
+
+      {dutyNotConfigured && (
+        <div className="rounded-lg bg-amber-50 text-amber-800 px-3 py-2">
+          This article's stamp duty rate has not been configured yet, so ₹0 is shown rather than a guessed amount.
+          Contact your Master Admin to set the rate for "{selectedArticle ? selectedArticle.title : "this article"}" before submitting, or choose a different article.
+        </div>
+      )}
 
       {insufficientBalance && (
         <div className="rounded-lg bg-red-50 text-red-700 px-3 py-2">

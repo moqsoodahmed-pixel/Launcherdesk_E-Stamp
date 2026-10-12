@@ -95,6 +95,76 @@ describe("NewRequestPage - State & Article step uses the full state master", () 
   });
 });
 
+describe("NewRequestPage - Review & Submit", () => {
+  function mockFullFlow({ submitError } = {}) {
+    apiClient.get.mockImplementation((url, config) => {
+      if (url === "/wallet/balance") return Promise.resolve({ data: { data: { balance: 1000 } } });
+      if (url === "/states") return Promise.resolve({ data: { data: [{ code: "KA", name: "Karnataka" }] } });
+      if (url === "/articles") {
+        if (config?.params?.stateCode === "KA") {
+          return Promise.resolve({ data: { data: [{ _id: "a1", articleCode: "5", title: "General Agreement" }] } });
+        }
+        return Promise.resolve({ data: { data: [] } });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    apiClient.post.mockImplementation((url) => {
+      if (url === "/estamps/calculate") return Promise.resolve({ data: { data: { amount: 0, articleVersionUsed: 1 } } });
+      if (url === "/estamps") {
+        return submitError ? Promise.reject(submitError) : Promise.resolve({ data: { data: { request: { _id: "r1", requestNumber: "LDE-REQ-1", calculatedStampDuty: 0 } } } });
+      }
+      return Promise.resolve({ data: { data: {} } });
+    });
+  }
+
+  async function navigateToReview() {
+    renderPage();
+    const inputs = screen.getAllByRole("textbox");
+    fireEvent.change(inputs[0], { target: { value: "Alice" } });
+    fireEvent.change(inputs[1], { target: { value: "Bob" } });
+    fireEvent.change(inputs[2], { target: { value: "Agreement for testing purposes only" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    const stateSelect = await screen.findByRole("combobox", { name: /state/i });
+    fireEvent.change(stateSelect, { target: { value: "KA" } });
+    const articleSelect = await screen.findByRole("combobox", { name: /article/i });
+    await waitFor(() => expect(screen.getByRole("option", { name: /5 - General Agreement/ })).toBeInTheDocument());
+    fireEvent.change(articleSelect, { target: { value: "a1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    const considerationInput = await screen.findByLabelText(/Consideration Price/);
+    fireEvent.change(considerationInput, { target: { value: "100" } });
+    fireEvent.click(await screen.findByText("Alice (First Party)"));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Calculate Stamp Duty" }));
+    await screen.findByText("Estimated stamp duty:");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Create Request");
+  }
+
+  it("shows the selected Article and State by full name on the review screen", async () => {
+    mockFullFlow();
+    await navigateToReview();
+    expect(screen.getByText("5 - General Agreement")).toBeInTheDocument();
+    expect(screen.getByText("Karnataka")).toBeInTheDocument();
+  });
+
+  it("warns clearly when the calculated duty is ₹0 instead of silently showing it as a normal amount", async () => {
+    mockFullFlow();
+    await navigateToReview();
+    expect(screen.getByText(/stamp duty rate has not been configured yet/)).toBeInTheDocument();
+  });
+
+  it("shows the backend's real reason on a submission 403, not a generic permission message", async () => {
+    mockFullFlow({ submitError: { response: { status: 403, data: { message: "E-Stamp service is not enabled for your organization" } } } });
+    await navigateToReview();
+    fireEvent.click(screen.getByRole("button", { name: "Create Request" }));
+    expect(await screen.findByText("E-Stamp service is not enabled for your organization")).toBeInTheDocument();
+    expect(screen.queryByText("You do not have permission to view this.")).not.toBeInTheDocument();
+  });
+});
+
 describe("NewRequestPage - available balance (ledger flow)", () => {
   it("uses the AVAILABLE balance (balance minus reserved) and warns with links to Wallet and Payments when it is zero", async () => {
     apiClient.get.mockImplementation((url) => {
