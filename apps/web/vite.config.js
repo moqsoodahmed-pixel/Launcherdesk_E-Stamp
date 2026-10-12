@@ -6,6 +6,10 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  // Served behind launcherdesk.com/e-stamp (proxied by a Cloudflare Worker),
+  // not at this app's own domain root — tells the build to write asset URLs
+  // as /e-stamp/assets/... instead of /assets/...
+  base: "/e-stamp/",
   plugins: [react()],
   resolve: {
     alias: {
