@@ -96,6 +96,7 @@ exports.DEFAULT_ROLE_PERMISSIONS = {
         Permission.ESTAMP_VIEW,
         Permission.ESTAMP_UPLOAD,
         Permission.ESTAMP_DOWNLOAD,
+        Permission.ESTAMP_BULK_CREATE,
         Permission.ORDER_VIEW,
         Permission.REPORT_VIEW,
         Permission.ARTICLE_VIEW,

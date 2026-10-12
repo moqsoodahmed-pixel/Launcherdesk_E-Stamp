@@ -101,7 +101,9 @@ export default function BulkUploadWizard() {
     setConfirming(true);
     setError(null);
     try {
-      await apiClient.post(`/bulk-estamps/${batch._id}/confirm`);
+      await apiClient.post(`/bulk-estamps/${batch._id}/confirm`, {
+        organizationId: batch.organizationId,
+      });
       // The batch detail page owns all post-confirm display (including
       // PROCESSING polling) - never a second copy of that logic here.
       navigate(`/estamps/bulk/${batch._id}`);

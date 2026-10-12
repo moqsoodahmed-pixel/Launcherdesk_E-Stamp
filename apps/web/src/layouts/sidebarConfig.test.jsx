@@ -38,6 +38,12 @@ describe("sidebarConfig - permission filtering", () => {
     expect(tos).toContain("/audit");
   });
 
+  it("ASSISTANT_MASTER_ADMIN sees Bulk Requests and Users when granted those permissions", () => {
+    const tos = flatTos("ASSISTANT_MASTER_ADMIN", [PERMISSIONS.ESTAMP_BULK_CREATE, PERMISSIONS.USER_VIEW]);
+    expect(tos).toContain("/estamps/bulk");
+    expect(tos).toContain("/users");
+  });
+
   it("SUPER_ADMIN never sees Settings, Organizations list, or User management - those aren't in the role's own section array at all", () => {
     const tos = flatTos("SUPER_ADMIN", Object.values(PERMISSIONS));
     expect(tos).not.toContain("/settings");

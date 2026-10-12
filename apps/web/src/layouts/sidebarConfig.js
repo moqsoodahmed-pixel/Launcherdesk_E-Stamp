@@ -57,7 +57,10 @@ const MASTER_ADMIN_SECTIONS = [
 
 const ASSISTANT_MASTER_ADMIN_SECTIONS = [
   section("ACCOUNT", [{ to: "/dashboard", label: "Dashboard" }]),
-  section("CLIENTS", [{ to: "/organizations", label: "Clients", permission: PERMISSIONS.CLIENT_VIEW }]),
+  section("CLIENTS", [
+    { to: "/organizations", label: "Clients", permission: PERMISSIONS.CLIENT_VIEW },
+    { to: "/users", label: "Users", permission: PERMISSIONS.USER_VIEW },
+  ]),
   section("FINANCE", [
     { to: "/payments/credit-queue", label: "Payments to credit", permission: PERMISSIONS.WALLET_MANAGE },
     { to: "/wallet", label: "Client Balances", permission: PERMISSIONS.WALLET_VIEW },
@@ -65,14 +68,17 @@ const ASSISTANT_MASTER_ADMIN_SECTIONS = [
   ]),
   section("OPERATIONS", [
     { to: "/estamps/requests", label: "E-Stamp Requests", permission: PERMISSIONS.ESTAMP_VIEW },
+    { to: "/estamps/bulk", label: "Bulk Requests", permission: PERMISSIONS.ESTAMP_BULK_CREATE },
     { to: "/orders/fulfil", label: "Orders to fulfil", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
     { to: "/orders/dispatch", label: "Send to vendor", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
     { to: "/orders/vendor-review", label: "Vendor review", permission: PERMISSIONS.ORDER_MANAGE, mode: "manual" },
     { to: "/orders", label: "Orders", permission: PERMISSIONS.ORDER_VIEW },
     { to: "/estamps", label: "E-Stamps", permission: PERMISSIONS.ESTAMP_VIEW },
+    { to: "/estamp-provider", label: "E-Stamp Provider", permission: PERMISSIONS.ESTAMP_PROVIDER_VIEW, mode: "provider" },
   ]),
   section("GOVERNANCE", [
     { to: "/reports", label: "Reports", permission: PERMISSIONS.REPORT_VIEW },
+    { to: "/notifications", label: "Notifications", permission: PERMISSIONS.NOTIFICATION_VIEW },
     { to: "/audit/mine", label: "Activity" },
     // AUDIT_VIEW, like SETTINGS_VIEW below, is never part of Assistant
     // Master Admin's role template - this only ever reaches the filter
