@@ -19,6 +19,9 @@ const userSchema = new mongoose_1.Schema({
     lastLoginAt: { type: Date, default: null },
     tokenVersion: { type: Number, default: 0 },
     mustChangePassword: { type: Boolean, default: false },
+    // Soft delete (vendors only today): the account is inactive, its email is
+    // released, and the id is kept so historical references still resolve.
+    deletedAt: { type: Date, default: null },
 }, { timestamps: true });
 // Compound index: fast tenant-scoped user listing
 userSchema.index({ organizationId: 1, role: 1 });

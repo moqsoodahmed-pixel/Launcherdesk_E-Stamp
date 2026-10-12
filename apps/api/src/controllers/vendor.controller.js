@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMyOrderFile = exports.cannotProcessMyOrder = exports.uploadMyOrder = exports.acceptMyOrder = exports.getMyOrder = exports.getMySummary = exports.listMyOrders = exports.updateVendorStatus = exports.createVendor = exports.listVendors = void 0;
+exports.deleteVendor = exports.resetVendorPassword = exports.getMyOrderFile = exports.cannotProcessMyOrder = exports.uploadMyOrder = exports.acceptMyOrder = exports.getMyOrder = exports.getMySummary = exports.listMyOrders = exports.updateVendorStatus = exports.createVendor = exports.listVendors = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const mongoose_1 = require("mongoose");
 const asyncHandler_1 = require("../utils/asyncHandler");
@@ -22,7 +22,8 @@ function escapeRegex(value) {
 const VENDOR_LIST_FIELDS = "name email phone isActive mustChangePassword lastLoginAt createdAt";
 // ---- Master Admin: vendor accounts ----------------------------------------
 exports.listVendors = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const filter = { role: shared_1.Role.VENDOR };
+    // Soft-deleted vendors are gone from every list.
+    const filter = { role: shared_1.Role.VENDOR, deletedAt: null };
     if (req.query.status === "active")
         filter.isActive = true;
     else if (req.query.status === "inactive")
@@ -68,10 +69,15 @@ exports.createVendor = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     await email_service_1.EmailService.sendVendorWelcomeEmail(user.email, user.name, `vendor-welcome:${user._id.toString()}`);
     return (0, ApiResponse_1.created)(res, { user: { ...user.toObject(), passwordHash: undefined }, tempPassword });
 });
-exports.updateVendorStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const target = mongoose_1.Types.ObjectId.isValid(req.params.id) ? await models_1.User.findOne({ _id: req.params.id, role: shared_1.Role.VENDOR }) : null;
+// A live (not deleted) VENDOR by :id, or 404 - never any other role.
+async function findVendor(id) {
+    const target = mongoose_1.Types.ObjectId.isValid(id) ? await models_1.User.findOne({ _id: id, role: shared_1.Role.VENDOR, deletedAt: null }) : null;
     if (!target)
         throw ApiError_1.ApiError.notFound("Vendor not found");
+    return target;
+}
+exports.updateVendorStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const target = await findVendor(req.params.id);
     const { isActive } = req.body;
     if (target.isActive !== isActive) {
         target.isActive = isActive;
@@ -92,6 +98,64 @@ exports.updateVendorStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) =
     }
     const user = await models_1.User.findById(target._id).select(VENDOR_LIST_FIELDS);
     return (0, ApiResponse_1.ok)(res, user);
+});
+// POST /vendors/:id/reset-password - a new temporary password (same
+// generator as createVendor), returned ONCE and never logged or emailed.
+// Every existing session ends (same helper as the password-reset flow).
+exports.resetVendorPassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const target = await findVendor(req.params.id);
+    const tempPassword = crypto_1.default.randomBytes(9).toString("base64url");
+    await models_1.User.updateOne({ _id: target._id }, { $set: { passwordHash: await auth_service_1.AuthService.hashPassword(tempPassword), mustChangePassword: true, failedLoginAttempts: 0, lockedUntil: null } });
+    await auth_service_1.AuthService.invalidateAllSessions(target._id.toString());
+    await (0, audit_service_1.recordAudit)({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        action: shared_1.AuditAction.PASSWORD_RESET_COMPLETED,
+        entityType: "User",
+        entityId: target._id.toString(),
+        metadata: { role: shared_1.Role.VENDOR, by: "master_admin" },
+        req,
+    });
+    return (0, ApiResponse_1.ok)(res, { tempPassword }, "Temporary password generated");
+});
+// DELETE /vendors/:id - 409 while orders are with the vendor; hard delete
+// when the account was never used; otherwise soft delete (inactive,
+// deletedAt, email released, id kept so old orders/uploads/audit resolve).
+const OPEN_VENDOR_STATUSES = [shared_1.VendorStatus.SENT, shared_1.VendorStatus.ACCEPTED, shared_1.VendorStatus.UPLOADED, shared_1.VendorStatus.REJECTED];
+exports.deleteVendor = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const target = await findVendor(req.params.id);
+    const id = target._id;
+    const open = await models_1.EStampOrder.countDocuments({ vendorId: id, vendorStatus: { $in: OPEN_VENDOR_STATUSES } });
+    if (open > 0) {
+        throw ApiError_1.ApiError.conflict(`${open} order${open === 1 ? " is" : "s are"} still with this vendor. Recall or reassign ${open === 1 ? "it" : "them"} first.`, "VENDOR_HAS_OPEN_ORDERS", { openOrders: open });
+    }
+    // History: any order ever dispatched to or uploaded by them (recall
+    // clears vendorId, so dispatch audits and upload entries count too),
+    // any file they own, or any audit entry they made.
+    const [orders, files, audits] = await Promise.all([
+        models_1.EStampOrder.exists({ $or: [{ vendorId: id }, { "vendorUploads.uploadedBy": id }] }),
+        models_1.FileAsset.exists({ ownerUserId: id }),
+        models_1.AuditLog.exists({ $or: [{ actorId: id }, { "metadata.vendorId": id.toString() }] }),
+    ]);
+    const hard = !orders && !files && !audits;
+    if (hard) {
+        await models_1.RefreshToken.deleteMany({ userId: id });
+        await models_1.User.deleteOne({ _id: id });
+    }
+    else {
+        await models_1.User.updateOne({ _id: id }, { $set: { isActive: false, deletedAt: new Date(), email: `deleted+${id.toString()}@deleted.invalid` } });
+        await auth_service_1.AuthService.invalidateAllSessions(id.toString());
+    }
+    await (0, audit_service_1.recordAudit)({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        action: shared_1.AuditAction.USER_DELETED,
+        entityType: "User",
+        entityId: id.toString(),
+        metadata: { role: shared_1.Role.VENDOR, deleted: hard ? "hard" : "soft" },
+        req,
+    });
+    return (0, ApiResponse_1.ok)(res, { id: id.toString(), deleted: hard ? "hard" : "soft" }, "Vendor deleted");
 });
 // ---- Vendor: own dispatched orders only -----------------------------------
 // Every lookup is scoped to vendorId = req.user.id. Another vendor's order,

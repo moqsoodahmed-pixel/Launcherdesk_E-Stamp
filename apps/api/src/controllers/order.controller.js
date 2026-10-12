@@ -451,7 +451,7 @@ exports.failOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 // GET /orders/vendors - active vendors for the dispatch picker: id and name
 // only (vendor account management stays Master-Admin-only on /vendors).
 exports.listDispatchVendors = (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
-    const vendors = await models_1.User.find({ role: shared_1.Role.VENDOR, isActive: true }).sort({ name: 1 }).limit(500).select("name");
+    const vendors = await models_1.User.find({ role: shared_1.Role.VENDOR, isActive: true, deletedAt: null }).sort({ name: 1 }).limit(500).select("name");
     return (0, ApiResponse_1.ok)(res, { items: vendors.map((v) => ({ _id: v._id, name: v.name })) });
 });
 // POST /orders/dispatch { orderIds, vendorId } - per-order results. An

@@ -155,6 +155,16 @@ See [vendor-workflow.md](vendor-workflow.md) for the status diagram.
 - `POST /` `{ name, email, phone? }` → 201 `{ user, tempPassword }` (temp password shown once, never emailed;
   `mustChangePassword: true`; welcome email tells the vendor to use **Forgot password**).
 - `PATCH /:id/status` `{ isActive }` — deactivation ends live sessions immediately.
+- `POST /:id/reset-password` → `{ tempPassword }` once (same generator as creation; only the hash is stored;
+  `mustChangePassword: true`; every session and refresh token revoked; audited `PASSWORD_RESET_COMPLETED` without the
+  password; never logged or emailed). Rate-limited per actor (20 / 15 min, shared with delete).
+- `DELETE /:id` → `{ id, deleted: "hard" | "soft" }`. 409 `VENDOR_HAS_OPEN_ORDERS` (with `details.openOrders`) while
+  any order is `SENT`/`ACCEPTED`/`UPLOADED`/`REJECTED` with the vendor — recall or reassign first. Never used (no order
+  ever dispatched to or uploaded by them, no files, no audit entries by them) → hard delete. Otherwise soft delete:
+  `isActive: false`, `deletedAt`, sessions revoked, email renamed to `deleted+<id>@deleted.invalid` (original email
+  reusable), id kept so old orders, uploads and audit entries still resolve. Audited `USER_DELETED`.
+- Every `/vendors/:id` action answers 404 for a non-vendor id or an already-deleted vendor. Deleted vendors are
+  hidden from `GET /vendors` and from the dispatch picker (`GET /orders/vendors`).
 
 ## Vendor — `/vendor` (VENDOR only; every lookup scoped to `vendorId = me`, anything else 404)
 A VENDOR is fenced out of every other route (403), except `/auth/*`, `/notifications`, `PATCH /profile` and

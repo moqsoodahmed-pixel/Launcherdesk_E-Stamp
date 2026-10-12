@@ -42,6 +42,8 @@ const vendorAdminRouter = (0, express_1.Router)();
 vendorAdminRouter.use(authenticate_1.authenticate, (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN));
 vendorAdminRouter.get("/", ctrl.listVendors);
 vendorAdminRouter.post("/", (0, validate_1.validateBody)(validation_1.createVendorSchema), ctrl.createVendor);
+vendorAdminRouter.post("/:id/reset-password", rateLimiters_1.vendorAdminLimiter, ctrl.resetVendorPassword);
+vendorAdminRouter.delete("/:id", rateLimiters_1.vendorAdminLimiter, ctrl.deleteVendor);
 vendorAdminRouter.patch("/:id/status", (0, validate_1.validateBody)(validation_1.updateVendorStatusSchema), ctrl.updateVendorStatus);
 exports.vendorAdminRouter = vendorAdminRouter;
 // /vendor - the vendor's own surface. requireRole(VENDOR) here; every

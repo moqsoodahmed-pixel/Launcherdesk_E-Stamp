@@ -122,6 +122,8 @@ var AuditAction;
     AuditAction["USER_CREATED"] = "USER_CREATED";
     AuditAction["USER_MODIFIED"] = "USER_MODIFIED";
     AuditAction["USER_DEACTIVATED"] = "USER_DEACTIVATED";
+    // Vendor account removal (hard or soft - see metadata.deleted).
+    AuditAction["USER_DELETED"] = "USER_DELETED";
     AuditAction["ORG_CREATED"] = "ORG_CREATED";
     AuditAction["ORG_VIEWED"] = "ORG_VIEWED";
     AuditAction["ORG_MODIFIED"] = "ORG_MODIFIED";

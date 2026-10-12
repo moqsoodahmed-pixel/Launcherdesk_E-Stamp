@@ -138,6 +138,7 @@ describe("AuditLogsPage - filters sent to the real backend contract", () => {
       "USER_CREATED",
       "USER_MODIFIED",
       "USER_DEACTIVATED",
+      "USER_DELETED",
       "PERMISSION_CHANGED",
       "ORG_CREATED",
       "ORG_VIEWED",
