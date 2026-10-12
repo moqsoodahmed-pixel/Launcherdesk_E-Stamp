@@ -9,16 +9,17 @@ const shared_1 = require("@launcherdesk/shared");
 const ExcelJS = require("exceljs");
 const models_1 = require("../models");
 const indianStates_1 = require("../utils/indianStates");
+const orgAccess_1 = require("../utils/orgAccess");
 function isInternalActor(req) {
     return req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
 }
 // Action routes (upload/confirm/cancel): organizationId is ALWAYS the
 // authenticated tenant actor's own organization. Internal roles act on
-// behalf of a client org and must pass it explicitly - same
-// resolveUploadOrgId pattern as file.controller.js, never invented anew.
+// behalf of a client org and must pass it explicitly on upload; on confirm/cancel
+// the existing batch already belongs to its organization.
 function resolveActionOrgId(req) {
     if (isInternalActor(req)) {
-        const organizationId = req.body.organizationId;
+        const organizationId = req.body?.organizationId || req.query?.organizationId;
         if (!organizationId)
             throw ApiError_1.ApiError.badRequest("organizationId is required when acting as an internal admin");
         return organizationId;
@@ -48,30 +49,46 @@ exports.uploadBatch = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     return (0, ApiResponse_1.created)(res, { batch, itemsCreated: items });
 });
 exports.listBatches = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const organizationId = resolveViewOrgId(req);
+    const isInternal = isInternalActor(req);
+    const filter = {};
+    if (isInternal) {
+        await (0, orgAccess_1.scopeOrganizationFilter)(req, filter, req.query.organizationId);
+    } else {
+        filter.organizationId = req.user.organizationId;
+    }
     const { page, limit, status } = req.query;
-    const result = await bulk_estamp_service_1.BulkEStampService.listBatches(organizationId, req.user.role, { page, limit, status });
+    const result = await bulk_estamp_service_1.BulkEStampService.listBatches(filter.organizationId, req.user.role, { page, limit, status });
     return (0, ApiResponse_1.ok)(res, result);
 });
 exports.getBatchDetail = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const organizationId = resolveViewOrgId(req);
     const { page, limit } = req.query;
     const result = await bulk_estamp_service_1.BulkEStampService.getBatchDetail(req.params.batchId, organizationId, req.user.role, { page, limit });
+    if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN && result?.batch?.organizationId) {
+        await (0, orgAccess_1.assertCanActOnOrganization)(req, result.batch.organizationId);
+    }
     return (0, ApiResponse_1.ok)(res, result);
 });
 exports.getBatchPreview = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const organizationId = resolveViewOrgId(req);
     const { page, limit } = req.query;
     const result = await bulk_estamp_service_1.BulkEStampService.getBatchPreview(req.params.batchId, organizationId, req.user.role, { page, limit });
+    if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN && result?.batch?.organizationId) {
+        await (0, orgAccess_1.assertCanActOnOrganization)(req, result.batch.organizationId);
+    }
     return (0, ApiResponse_1.ok)(res, result);
 });
 exports.confirmBatch = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const organizationId = resolveActionOrgId(req);
+    const organizationId = isInternalActor(req)
+        ? (req.body?.organizationId || req.query?.organizationId || null)
+        : req.user.organizationId;
     const result = await bulk_estamp_service_1.BulkEStampService.confirmBatch(req.params.batchId, organizationId, req.user.id, req.user.role, req);
     return (0, ApiResponse_1.ok)(res, result);
 });
 exports.cancelBatch = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const organizationId = resolveActionOrgId(req);
+    const organizationId = isInternalActor(req)
+        ? (req.body?.organizationId || req.query?.organizationId || null)
+        : req.user.organizationId;
     const batch = await bulk_estamp_service_1.BulkEStampService.cancelBatch(req.params.batchId, organizationId, req.user.id, req.user.role, req);
     return (0, ApiResponse_1.ok)(res, batch);
 });

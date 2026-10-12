@@ -82,7 +82,9 @@ export default function BulkBatchDetailPage() {
     setError(null);
     setNotice(null);
     try {
-      const { data } = await apiClient.post(`/bulk-estamps/${batch._id}/confirm`);
+      const { data } = await apiClient.post(`/bulk-estamps/${batch._id}/confirm`, {
+        organizationId: batch.organizationId,
+      });
       setBatch(data.data.batch);
       setItems(data.data.items || []);
       setNotice("Batch confirmed. Processing outcome shown below.");
@@ -103,7 +105,9 @@ export default function BulkBatchDetailPage() {
     if (!window.confirm("Cancel this batch? Nothing has been charged yet.")) return;
     setError(null);
     try {
-      const { data } = await apiClient.post(`/bulk-estamps/${batch._id}/cancel`);
+      const { data } = await apiClient.post(`/bulk-estamps/${batch._id}/cancel`, {
+        organizationId: batch.organizationId,
+      });
       setBatch(data.data);
       setNotice("Batch cancelled.");
     } catch (err) {

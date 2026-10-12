@@ -526,4 +526,53 @@ describe("Assistant Master Admin oversight", () => {
     expect(notification).not.toBeNull();
     expect(notification.type).toBe("ASSISTANT_ADMIN_ACTIVITY");
   });
+
+  it("Internal admin can confirm a batch without passing organizationId in the request body", async () => {
+    const { org, article } = await makeOrgWithArticle({ balance: 2000, fixedAmount: 500 });
+    const master = await User.create({ name: "Master Admin", email: `master-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.MASTER_ADMIN, organizationId: null });
+    const buffer = buildCsv([rowFor(article)]);
+    const { batch } = await BulkEStampService.uploadBatch({
+      organizationId: org._id, createdBy: master._id, actorRole: Role.MASTER_ADMIN,
+      fileBuffer: buffer, mimeType: "text/csv", originalFileName: "test.csv",
+    });
+    const req = makeReq({
+      user: master,
+      params: { batchId: batch._id.toString() },
+      body: {},
+    });
+    const res = makeRes();
+    await runController(bulkController.confirmBatch, req, res);
+    expect(res.statusCode).toBe(200);
+    expect(["PROCESSING", "COMPLETED"]).toContain(res.body.data.batch.status);
+  });
+
+  it("Assistant Master Admin lists only batches for assigned organizations", async () => {
+    const { org: org1, article } = await makeOrgWithArticle({ balance: 2000, fixedAmount: 500 });
+    const { org: org2 } = await makeOrgWithArticle({ balance: 2000, fixedAmount: 500 });
+    const assistant = await User.create({
+      name: "Assistant",
+      email: `ast-${new mongoose.Types.ObjectId()}@ld.local`,
+      passwordHash: "x",
+      role: Role.ASSISTANT_MASTER_ADMIN,
+      organizationId: null,
+      permissions: [Permission.ESTAMP_BULK_CREATE],
+    });
+    org1.assignedAssistantId = assistant._id;
+    await org1.save();
+    const buffer = buildCsv([rowFor(article)]);
+    await BulkEStampService.uploadBatch({
+      organizationId: org1._id, createdBy: assistant._id, actorRole: Role.ASSISTANT_MASTER_ADMIN,
+      fileBuffer: buffer, mimeType: "text/csv", originalFileName: "b1.csv",
+    });
+    await BulkEStampService.uploadBatch({
+      organizationId: org2._id, createdBy: assistant._id, actorRole: Role.ASSISTANT_MASTER_ADMIN,
+      fileBuffer: buffer, mimeType: "text/csv", originalFileName: "b2.csv",
+    });
+    const req = makeReq({ user: assistant, query: {} });
+    const res = makeRes();
+    await runController(bulkController.listBatches, req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.items.length).toBe(1);
+    expect(res.body.data.items[0].organizationId.toString()).toBe(org1._id.toString());
+  });
 });

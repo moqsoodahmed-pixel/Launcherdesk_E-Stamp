@@ -78,8 +78,15 @@ async function main() {
         { name: "User", email: "user@launcherdesk.com", role: "USER", organizationId: org._id },
     ];
 
+    let assistantId = null;
     for (const acc of accounts) {
-        await users.insertOne({ ...common, ...acc });
+        const ins = await users.insertOne({ ...common, ...acc });
+        if (acc.role === "ASSISTANT_MASTER_ADMIN") {
+            assistantId = ins.insertedId;
+        }
+    }
+    if (assistantId) {
+        await orgs.updateMany({}, { $set: { assignedAssistantId: assistantId } });
     }
 
     console.log(`Created ${accounts.length} fresh account(s) in organization "${ORG_NAME}" (${org._id}).`);
