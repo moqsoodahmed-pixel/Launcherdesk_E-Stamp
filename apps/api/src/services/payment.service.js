@@ -223,6 +223,42 @@ exports.PaymentService = {
         }
         return paid;
     },
+    // Reconciliation safety net for Master Admin / Assistant Master Admin:
+    // asks Razorpay directly whether a payment stuck at CREATED (browser
+    // closed or network dropped right after paying, before the checkout
+    // "verify" call completed) or wrongly marked FAILED (e.g. a signature
+    // mismatch from a key rotated between order creation and payment) was
+    // actually captured - something neither the checkout-verify call nor an
+    // unregistered/misconfigured webhook can recover from on their own.
+    // Never trusts anything the caller supplies about the outcome - the only
+    // source of truth here is Razorpay's own Orders API, queried
+    // server-to-server with our own credentials.
+    // `provider` is an internal test seam only (never passed by the
+    // controller) - production always resolves the real provider factory.
+    async reconcilePayment(paymentId, provider) {
+        const payment = await models_1.Payment.findById(paymentId);
+        if (!payment)
+            throw ApiError_1.ApiError.notFound("Payment not found");
+        if (payment.status === shared_1.PaymentStatus.SUCCESS) {
+            return { payment, reconciled: false, reason: "ALREADY_SUCCESS" };
+        }
+        const resolvedProvider = provider || (0, payment_providers_1.getPaymentProvider)();
+        const captured = await resolvedProvider.fetchCapturedPayment(payment.razorpayOrderId);
+        if (!captured) {
+            return { payment, reconciled: false, reason: "NO_CAPTURED_PAYMENT_FOUND" };
+        }
+        // Defense in depth: never credit a captured amount that doesn't match
+        // what we actually asked Razorpay to collect for this order.
+        if (Math.round(captured.amount * 100) !== Math.round(payment.amount * 100)) {
+            throw ApiError_1.ApiError.conflict(`Captured amount (₹${captured.amount}) does not match the expected order amount (₹${payment.amount}) - resolve manually`, "AMOUNT_MISMATCH");
+        }
+        const { payment: paid, won } = await markPaymentSucceeded(payment._id, captured.razorpayPaymentId);
+        if (won) {
+            await notifyPaymentOutcome(paid, "success");
+            await notifyPendingCredit(paid);
+        }
+        return { payment: paid, reconciled: won, reason: won ? "RECONCILED" : "ALREADY_SUCCESS" };
+    },
     // Processes an inbound Razorpay webhook event. Uses the webhook's own
     // signature scheme (HMAC over the raw body with RAZORPAY_WEBHOOK_SECRET),
     // completely independent of the checkout signature used by confirmPayment

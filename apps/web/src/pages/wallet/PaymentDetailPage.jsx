@@ -4,6 +4,9 @@ import { apiClient } from "../../api/client";
 import { actionErrorMessage, formatCurrency } from "../../utils/format";
 import PaymentStatusBadge from "../../components/payments/PaymentStatusBadge";
 import BalanceStatusBadge, { balanceStatusOf } from "../../components/payments/BalanceStatusBadge";
+import { useAuth } from "../../context/AuthContext";
+
+const INTERNAL_ROLES = ["MASTER_ADMIN", "ASSISTANT_MASTER_ADMIN"];
 
 function fmt(d) {
   return d ? new Date(d).toLocaleString() : "Not available";
@@ -11,10 +14,15 @@ function fmt(d) {
 
 export default function PaymentDetailPage() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const isInternalActor = INTERNAL_ROLES.includes(user?.role);
   const [payment, setPayment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileResult, setReconcileResult] = useState(null);
+  const [reconcileError, setReconcileError] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -29,6 +37,20 @@ export default function PaymentDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  function handleReconcile() {
+    setReconciling(true);
+    setReconcileError(null);
+    setReconcileResult(null);
+    apiClient
+      .post(`/payments/${id}/reconcile`)
+      .then((res) => {
+        setReconcileResult(res.data.data);
+        if (res.data.data.reconciled) load();
+      })
+      .catch((err) => setReconcileError(actionErrorMessage(err, "Could not check Razorpay for this payment.")))
+      .finally(() => setReconciling(false));
+  }
 
   if (loading) return <div className="p-8 text-center text-slate-500">Loading...</div>;
   if (error || !payment) {
@@ -87,6 +109,40 @@ export default function PaymentDetailPage() {
         <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-5">
           <h2 className="font-medium text-red-800">Payment Failed</h2>
           <p className="text-sm text-red-900 mt-1 break-words">{payment.failureReason || "Payment could not be completed."}</p>
+        </div>
+      )}
+
+      {isInternalActor && (payment.status === "CREATED" || payment.status === "FAILED") && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-3">
+          <div>
+            <h2 className="font-medium text-amber-900">Stuck or failed payment?</h2>
+            <p className="text-sm text-amber-800 mt-1">
+              If the customer's bank/card was actually charged but this record never reached "Success" - e.g. their
+              browser closed right after paying, before confirming with us - check directly with Razorpay. This never
+              trusts anything except Razorpay's own API.
+            </p>
+          </div>
+          <button
+            onClick={handleReconcile}
+            disabled={reconciling}
+            className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm disabled:opacity-50"
+          >
+            {reconciling ? "Checking Razorpay..." : "Check Razorpay for this payment"}
+          </button>
+          {reconcileError && (
+            <div role="alert" className="rounded-lg bg-red-50 text-red-700 text-xs px-3 py-2">
+              {reconcileError}
+            </div>
+          )}
+          {reconcileResult && !reconcileError && (
+            <div role="status" className={`rounded-lg text-xs px-3 py-2 ${reconcileResult.reconciled ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-600"}`}>
+              {reconcileResult.reconciled
+                ? "Razorpay confirms this payment was captured - marked successful and the admin has been notified."
+                : reconcileResult.reason === "NO_CAPTURED_PAYMENT_FOUND"
+                  ? "Razorpay has no captured payment for this order - the customer was not actually charged."
+                  : "No change."}
+            </div>
+          )}
         </div>
       )}
 

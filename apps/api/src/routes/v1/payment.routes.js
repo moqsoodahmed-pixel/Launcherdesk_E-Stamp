@@ -58,4 +58,8 @@ router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.PAYMEN
 // Internal roles only; the controller further limits an Assistant Master
 // Admin to organizations assigned to them.
 router.post("/:id/credit-balance", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN, shared_1.Role.ASSISTANT_MASTER_ADMIN), (0, authorize_1.requirePermission)(shared_1.Permission.WALLET_MANAGE), ctrl.creditBalance);
+// Recovery path for a payment Razorpay actually captured but that never
+// reached SUCCESS here (dropped checkout-verify call + a webhook that never
+// arrived). Same internal-role + organization-access gate as credit-balance.
+router.post("/:id/reconcile", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN, shared_1.Role.ASSISTANT_MASTER_ADMIN), (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_MANAGE), ctrl.reconcilePayment);
 exports.default = router;

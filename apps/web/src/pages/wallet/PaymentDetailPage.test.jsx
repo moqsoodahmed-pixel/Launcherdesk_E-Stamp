@@ -3,10 +3,21 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import PaymentDetailPage from "./PaymentDetailPage";
 import { apiClient } from "../../api/client";
+import { useAuth } from "../../context/AuthContext";
 
 vi.mock("../../api/client", () => ({
-  apiClient: { get: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn() },
 }));
+vi.mock("../../context/AuthContext", () => ({
+  useAuth: vi.fn(),
+}));
+
+function tenantUser() {
+  return { role: "SUPER_ADMIN" };
+}
+function internalUser() {
+  return { role: "MASTER_ADMIN" };
+}
 
 function renderAt(id, response) {
   apiClient.get.mockImplementation(() => (response.ok ? Promise.resolve({ data: { data: response.data } }) : Promise.reject(response.error)));
@@ -21,6 +32,7 @@ function renderAt(id, response) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useAuth.mockReturnValue({ user: tenantUser() });
 });
 
 describe("PaymentDetailPage - successful payment", () => {
@@ -144,5 +156,50 @@ describe("PaymentDetailPage - authorization / not found", () => {
   it("shows a generic not-found message for a cross-tenant or missing payment (backend returns 404, never distinguishing the two)", async () => {
     renderAt("p8", { ok: false, error: { response: { status: 404 }, message: "Not found" } });
     expect(await screen.findByText(/Payment not found|Failed to load payment/)).toBeInTheDocument();
+  });
+});
+
+describe("PaymentDetailPage - reconcile with Razorpay (stuck/failed payments)", () => {
+  function stuckPayment(status) {
+    return { _id: "p9", amount: 400, status, razorpayOrderId: "order_stuck", createdAt: "2026-01-01T10:00:00.000Z", walletEffect: null };
+  }
+
+  it("hides the reconcile control from a tenant actor (Super Admin)", async () => {
+    useAuth.mockReturnValue({ user: tenantUser() });
+    renderAt("p9", { ok: true, data: stuckPayment("CREATED") });
+    await screen.findByText("Provider");
+    expect(screen.queryByText("Check Razorpay for this payment")).not.toBeInTheDocument();
+  });
+
+  it("hides the reconcile control for an already-SUCCESS payment, even for an internal actor", async () => {
+    useAuth.mockReturnValue({ user: internalUser() });
+    renderAt("p9", { ok: true, data: stuckPayment("SUCCESS") });
+    await screen.findByText("Provider");
+    expect(screen.queryByText("Check Razorpay for this payment")).not.toBeInTheDocument();
+  });
+
+  it("shows the control to an internal actor for a CREATED payment, and reports a successful reconciliation", async () => {
+    useAuth.mockReturnValue({ user: internalUser() });
+    renderAt("p9", { ok: true, data: stuckPayment("CREATED") });
+    const button = await screen.findByText("Check Razorpay for this payment");
+
+    apiClient.post.mockResolvedValue({ data: { data: { reconciled: true, reason: "RECONCILED" } } });
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.click(button);
+
+    expect(await screen.findByText(/Razorpay confirms this payment was captured/)).toBeInTheDocument();
+    expect(apiClient.post).toHaveBeenCalledWith("/payments/p9/reconcile");
+  });
+
+  it("reports when Razorpay has no captured payment for a FAILED payment", async () => {
+    useAuth.mockReturnValue({ user: internalUser() });
+    renderAt("p9", { ok: true, data: stuckPayment("FAILED") });
+    const button = await screen.findByText("Check Razorpay for this payment");
+
+    apiClient.post.mockResolvedValue({ data: { data: { reconciled: false, reason: "NO_CAPTURED_PAYMENT_FOUND" } } });
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.click(button);
+
+    expect(await screen.findByText(/Razorpay has no captured payment for this order/)).toBeInTheDocument();
   });
 });

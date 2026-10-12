@@ -28,5 +28,13 @@ class MockPaymentProvider {
         const expected = crypto.createHmac("sha256", "mock_webhook_secret_dev_only").update(rawBody).digest("hex");
         return expected === signature;
     }
+    // Dev/test mirror of RazorpayPaymentProvider.fetchCapturedPayment - the
+    // mock gateway never actually captures anything out-of-band, so this
+    // always reports nothing found (reconciliation has nothing real to
+    // recover in dev/test; the normal checkout-verify path already covers it
+    // there).
+    async fetchCapturedPayment() {
+        return null;
+    }
 }
 exports.MockPaymentProvider = MockPaymentProvider;

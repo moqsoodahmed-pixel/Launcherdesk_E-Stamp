@@ -35,6 +35,21 @@ class RazorpayPaymentProvider {
         const expected = (0, crypto_1.createHmac)("sha256", env_1.env.RAZORPAY_WEBHOOK_SECRET).update(rawBody).digest("hex");
         return safeCompare(expected, signature);
     }
+    // Reconciliation safety net: asks Razorpay directly, server-to-server,
+    // whether an order actually has a captured payment against it. This is
+    // the only way to recover a payment that Razorpay genuinely captured but
+    // that never reached us through either the browser's checkout-verify
+    // call (closed tab, dropped network right after paying) or the webhook
+    // (not registered, wrong secret, Razorpay-side delivery failure) - a real
+    // gap: without this, captured money can sit invisible to the platform
+    // forever with the Payment record stuck at CREATED.
+    async fetchCapturedPayment(razorpayOrderId) {
+        const payments = await this.getClient().orders.fetchPayments(razorpayOrderId);
+        const captured = (payments?.items || []).find((p) => p.status === "captured");
+        if (!captured)
+            return null;
+        return { razorpayPaymentId: captured.id, amount: captured.amount / 100, status: captured.status };
+    }
 }
 exports.RazorpayPaymentProvider = RazorpayPaymentProvider;
 function safeCompare(a, b) {

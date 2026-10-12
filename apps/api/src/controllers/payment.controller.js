@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCreditSummary = exports.creditBalance = exports.razorpayWebhook = exports.getPayment = exports.listPayments = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
+exports.getCreditSummary = exports.reconcilePayment = exports.creditBalance = exports.razorpayWebhook = exports.getPayment = exports.listPayments = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const dateRange_1 = require("../utils/dateRange");
 const ApiResponse_1 = require("../utils/ApiResponse");
@@ -334,6 +334,36 @@ exports.creditBalance = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     }
     const wallet = await models_1.Wallet.findOne({ organizationId: payment.organizationId });
     return (0, ApiResponse_1.ok)(res, { payment, transaction, balance: wallet?.balance }, "Payment credited to balance");
+});
+// POST /payments/:id/reconcile - recovers a payment Razorpay actually
+// captured but that never reached SUCCESS here, because the browser's
+// checkout-verify call never completed (closed tab, dropped network right
+// after paying) and the webhook either isn't registered/misconfigured or
+// hasn't arrived yet. Queries Razorpay's own Orders API directly - never
+// trusts anything the caller supplies about the outcome. Internal roles
+// only (Master Admin / assigned Assistant Master Admin), same organization
+// access rule as credit-balance.
+exports.reconcilePayment = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    if (!mongoose_1.Types.ObjectId.isValid(req.params.id))
+        throw ApiError_1.ApiError.notFound("Payment not found");
+    const existing = await models_1.Payment.findById(req.params.id).select("organizationId");
+    if (!existing)
+        throw ApiError_1.ApiError.notFound("Payment not found");
+    await (0, orgAccess_1.assertCanActOnOrganization)(req, existing.organizationId);
+    const result = await payment_service_1.PaymentService.reconcilePayment(req.params.id);
+    if (result.reconciled) {
+        await (0, audit_service_1.recordAudit)({
+            actorId: req.user.id,
+            actorRole: req.user.role,
+            organizationId: result.payment.organizationId.toString(),
+            action: shared_1.AuditAction.PAYMENT_VERIFIED,
+            entityType: "Payment",
+            entityId: result.payment._id.toString(),
+            metadata: { source: "manual_reconciliation", result: result.reason },
+            req,
+        });
+    }
+    return (0, ApiResponse_1.ok)(res, result, result.reconciled ? "Payment reconciled with Razorpay and marked successful." : "No change - " + result.reason);
 });
 // GET /payments/credit-summary - "Razorpay received vs credited to
 // balances". Totals over SUCCESS payments, plus pending-credit amount per
