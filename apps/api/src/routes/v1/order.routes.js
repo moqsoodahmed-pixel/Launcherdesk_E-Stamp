@@ -64,6 +64,7 @@ router.get("/", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIE
 router.get("/summary", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getOrderSummary);
 // Vendor dispatch/review (assigned assistant or Master Admin; scope checked
 // in the controller). Registered before "/:id" so the literal paths win.
+router.get("/vendors", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, ctrl.listDispatchVendors);
 router.post("/dispatch", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, (0, validate_1.validateBody)(validation_1.dispatchOrdersSchema), ctrl.dispatchOrders);
 router.post("/vendor-approve-many", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, (0, validate_1.validateBody)(validation_1.vendorApproveManySchema), ctrl.vendorApproveMany);
 router.get("/fulfilment-summary", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getFulfilmentSummary);

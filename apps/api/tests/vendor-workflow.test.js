@@ -216,6 +216,19 @@ describe("dispatch", () => {
     expect(row.vendorName).toBe(vendor.name);
   });
 
+  it("staff list active vendors (id and name only) for the dispatch picker; others cannot", async () => {
+    const { token: staff } = await makeAssistant();
+    const { user: active } = await makeVendor({ name: "Active Co" });
+    await makeVendor({ name: "Gone Co", isActive: false });
+    const r = await call("GET", "/orders/vendors", staff);
+    expect(r.status).toBe(200);
+    expect(r.body.data.items).toEqual([{ _id: active._id.toString(), name: "Active Co" }]);
+    const { clientToken } = await makeOrg();
+    const { token: vendorToken } = await makeVendor();
+    expect((await call("GET", "/orders/vendors", clientToken)).status).toBe(403);
+    expect((await call("GET", "/orders/vendors", vendorToken)).status).toBe(403);
+  });
+
   it("an unassigned assistant gets 403 and nothing is dispatched; validation caps the batch", async () => {
     const { user: a } = await makeAssistant();
     const { token: otherStaff } = await makeAssistant();

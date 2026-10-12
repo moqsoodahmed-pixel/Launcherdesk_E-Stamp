@@ -6,6 +6,7 @@ import { formatCurrency, errorMessage } from "../../utils/format";
 import KpiCard from "../../components/dashboard/KpiCard";
 import PaymentCreditsCard from "../../components/dashboard/PaymentCreditsCard";
 import FulfilmentSummaryCard from "../../components/dashboard/FulfilmentSummaryCard";
+import VendorStageCard from "../../components/dashboard/VendorStageCard";
 import { isManualFulfilment } from "../../utils/fulfilment";
 import { KpiSkeleton } from "../../components/dashboard/LoadingSkeleton";
 import ChartCard from "../../components/dashboard/ChartCard";
@@ -260,6 +261,7 @@ export default function MasterAdminDashboard() {
       <AttentionPanel alerts={alerts} loading={summaryLoading} />
 
       {isManualFulfilment(user) && <FulfilmentSummaryCard showFulfilledToday />}
+      {isManualFulfilment(user) && <VendorStageCard />}
       <PaymentCreditsCard variant="master" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

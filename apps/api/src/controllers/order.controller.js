@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.vendorApproveMany = exports.vendorRejectOrder = exports.vendorApproveOrder = exports.getVendorUpload = exports.recallOrder = exports.dispatchOrders = exports.getFulfilmentSummary = exports.failOrder = exports.fulfilOrder = exports.startFulfilment = exports.providerWebhook = exports.retryOrder = exports.syncOrder = exports.processOrder = exports.getOrderSummary = exports.getOrder = exports.listOrders = void 0;
+exports.listDispatchVendors = exports.vendorApproveMany = exports.vendorRejectOrder = exports.vendorApproveOrder = exports.getVendorUpload = exports.recallOrder = exports.dispatchOrders = exports.getFulfilmentSummary = exports.failOrder = exports.fulfilOrder = exports.startFulfilment = exports.providerWebhook = exports.retryOrder = exports.syncOrder = exports.processOrder = exports.getOrderSummary = exports.getOrder = exports.listOrders = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const dateRange_1 = require("../utils/dateRange");
 const ApiResponse_1 = require("../utils/ApiResponse");
@@ -448,6 +448,12 @@ exports.failOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     return (0, ApiResponse_1.ok)(res, { order: result.order, request: result.request, refund: result.refund }, "Order marked failed");
 });
 // ---- Vendor stage (assigned assistant or Master Admin) ---------------------
+// GET /orders/vendors - active vendors for the dispatch picker: id and name
+// only (vendor account management stays Master-Admin-only on /vendors).
+exports.listDispatchVendors = (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+    const vendors = await models_1.User.find({ role: shared_1.Role.VENDOR, isActive: true }).sort({ name: 1 }).limit(500).select("name");
+    return (0, ApiResponse_1.ok)(res, { items: vendors.map((v) => ({ _id: v._id, name: v.name })) });
+});
 // POST /orders/dispatch { orderIds, vendorId } - per-order results. An
 // assistant asking for any order of an organization not assigned to them
 // gets 403 for the whole call (nothing is dispatched).

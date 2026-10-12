@@ -4,6 +4,7 @@ import AssistantDashboard from "./AssistantDashboard";
 import SuperAdminDashboard from "./SuperAdminDashboard";
 import AdminDashboard from "./AdminDashboard";
 import UserDashboard from "./UserDashboard";
+import VendorDashboard from "../vendor/VendorDashboard";
 
 // Phase 21 - replaces the single generic dashboard (one /reports/summary
 // call + 3 stat cards for every role) with a genuine role-specific
@@ -21,6 +22,8 @@ export default function DashboardPage() {
       return <SuperAdminDashboard />;
     case "ADMIN":
       return <AdminDashboard />;
+    case "VENDOR":
+      return <VendorDashboard />;
     default:
       return <UserDashboard />;
   }

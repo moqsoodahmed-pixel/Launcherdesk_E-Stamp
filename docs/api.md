@@ -121,6 +121,7 @@ never inside the 20-minute window, `CANCELLED` or `SHORTFALL` (409 `WINDOW_OPEN`
 
 ### Vendor stage (manual mode; Master Admin or the assigned assistant, `order.manage`; never a client role)
 See [vendor-workflow.md](vendor-workflow.md) for the status diagram.
+- `GET /vendors` — active vendors for the dispatch picker, `{ items: [{ _id, name }] }` only.
 - `POST /dispatch` `{ orderIds: [1..200], vendorId }` — per order, atomic and idempotent: only when the request is
   `LOCKED`/`PROCESSING` + `CHARGED`, the order is not `ISSUED`/`FAILED`, and `vendorStatus` is `NOT_SENT`/`REJECTED`.
   Sets `vendorStatus: SENT`, `eStampStatus: PROCESSING`, `vendorId`. Returns

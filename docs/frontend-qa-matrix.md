@@ -72,3 +72,19 @@ database (it stops once a Master Admin exists). For an existing database:
 - Audit metadata is redacted in the UI only; there is no server-side redaction.
 
 `/files/upload` and `/files/download` were removed in Phase 3: they duplicated Orders (upload) and E-Stamps (download).
+
+## Vendor workflow (manual fulfilment mode)
+
+Roles key addition: **VE** Vendor (external stamping partner; no organization). See [vendor-workflow.md](vendor-workflow.md).
+
+| Route | Page file | API endpoints | Permission (route guard = API) | Roles that see it | Status | Notes |
+|---|---|---|---|---|---|---|
+| `/dashboard` (VENDOR) | vendor/VendorDashboard.jsx + VendorQueue.jsx | GET /vendor/orders/summary, GET /vendor/orders `{status,search,limit}`, POST /vendor/orders/:id/accept, POST /vendor/orders/:id/upload | VENDOR role | VE | works / empty-by-data | Cards: To do, In progress, Awaiting review, Needs re-upload, Approved; oldest waiting age. Queue grouped by bulk batch with search + status filter, copy buttons, Accept and inline upload per row (rows stay mounted on refresh). |
+| `/vendor/orders` | vendor/VendorOrdersPage.jsx | as above | VENDOR role | VE | works / empty-by-data | Same queue without the cards. |
+| `/vendor/orders/:id` | vendor/VendorOrderDetailPage.jsx | GET /vendor/orders/:id, GET /vendor/orders/:id/files/:fileId, POST …/accept, POST …/upload, POST …/cannot-process | VENDOR role | VE | works | Details with copy buttons, client documents (signed URL, new tab), upload history with rejection reasons, replace upload (confirm), "Can't process" with reason (confirm). 404 for any order not sent to this vendor. |
+| `/orders/dispatch` | orders/DispatchPage.jsx | GET /orders `{queue:fulfil,vendorStatus:NOT_SENT|REJECTED}`, GET /orders/vendors, POST /orders/dispatch | order.manage + internal role, manual mode | MA, AMA* | works / empty-by-data | Grouped by organization, Select all per group, vendor dropdown, confirm, per-order result summary. Vendor picker uses GET /orders/vendors (active vendors, id + name only). |
+| `/orders/vendor-review` | orders/VendorReviewPage.jsx | GET /orders `{queue:vendor-review}`, GET /orders/:id/vendor-upload, POST /orders/:id/vendor-approve, POST /orders/:id/vendor-reject, POST /orders/vendor-approve-many | order.manage + internal role, manual mode | MA, AMA* | works / empty-by-data | View opens the signed URL; Approve (confirm), Reject with reason, bulk Approve selected with per-order failures listed. |
+| `/orders/fulfil` | orders/FulfilQueuePage.jsx | + POST /orders/:id/recall | order.manage + internal role | MA, AMA* | works | "With vendor" / vendor-stage badge (vendor name on hover) and Recall (confirm) for SENT/ACCEPTED. |
+| `/vendors` | vendors/VendorsPage.jsx | GET /vendors, POST /vendors, PATCH /vendors/:id/status | MASTER_ADMIN role | MA | works / empty-by-data | Temp password shown once (dismissible); activate/deactivate with confirm. |
+| Dashboards (MA, AMA) | components/dashboard/VendorStageCard.jsx | GET /orders `{queue:fulfil,vendorStatus:NOT_SENT,limit:1}`, GET /orders `{queue:vendor-review,limit:1}` | order.manage, manual mode | MA, AMA* | works | Waiting for dispatch / Awaiting review totals with links. |
+| Client pages | estamps/*, orders/* | unchanged | unchanged | SA, AD, US | works | API strips every vendor field, action and audit event for client roles; timeline keeps "Being prepared by LauncherDesk". USER now also sees released (COMPLETED / DOWNLOAD_AVAILABLE) requests of the whole organization. |

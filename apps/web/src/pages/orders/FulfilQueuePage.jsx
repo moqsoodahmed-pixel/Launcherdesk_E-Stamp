@@ -8,6 +8,8 @@ import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 import StatusBadge from "../../components/estamps/StatusBadge";
+import { VendorStatusBadge } from "../../components/vendor/vendorUi";
+import { actionErrorMessage } from "../../utils/format";
 
 const LIMIT = 25;
 
@@ -31,6 +33,17 @@ export default function FulfilQueuePage() {
     [page],
     { errorMessage: "Failed to load orders to fulfil." }
   );
+  const [recallError, setRecallError] = useState("");
+  async function recall(o) {
+    if (!window.confirm(`Recall ${o.orderNumber} from ${o.vendorName || "the vendor"}?`)) return;
+    setRecallError("");
+    try {
+      await apiClient.post(`/orders/${o._id}/recall`);
+      refetch();
+    } catch (err) {
+      setRecallError(actionErrorMessage(err, "Could not recall this order."));
+    }
+  }
   const items = data?.items || [];
   const total = data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
@@ -46,6 +59,7 @@ export default function FulfilQueuePage() {
           </button>
         }
       />
+      {recallError && <p role="alert" className="mb-3 text-sm text-red-600">{recallError}</p>}
       {loading && <LoadingState text="Loading orders to fulfil..." />}
       {!loading && error && <ErrorState message={error} onRetry={refetch} />}
       {!loading && !error && items.length === 0 && (
@@ -83,8 +97,18 @@ export default function FulfilQueuePage() {
                   <td className="px-4 py-3 text-slate-700 tabular-nums">{formatAge(o.lockedAt || o.createdAt)}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={o.eStampStatus} />
+                    {o.vendorStatus && o.vendorStatus !== "NOT_SENT" && (
+                      <div className="mt-1" title={o.vendorName ? `Vendor: ${o.vendorName}` : undefined}>
+                        <VendorStatusBadge status={o.vendorStatus} label={["SENT", "ACCEPTED"].includes(o.vendorStatus) ? "With vendor" : undefined} />
+                      </div>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right whitespace-nowrap space-x-2">
+                    {["SENT", "ACCEPTED"].includes(o.vendorStatus) && (
+                      <button type="button" onClick={() => recall(o)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs" aria-label={`Recall ${o.orderNumber}`}>
+                        Recall
+                      </button>
+                    )}
                     <Link to={`/orders/${o._id}`} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium" aria-label={`Open order ${o.orderNumber}`}>
                       Open
                     </Link>

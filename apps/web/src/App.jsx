@@ -43,11 +43,17 @@ import ProfilePage from "./pages/profile/ProfilePage";
 import CompanyProfilePage from "./pages/organizations/CompanyProfilePage";
 import EStampsPage from "./pages/estamps/EStampsPage";
 import AssistantAdminsPage from "./pages/assistants/AssistantAdminsPage";
+import VendorOrdersPage from "./pages/vendor/VendorOrdersPage";
+import VendorOrderDetailPage from "./pages/vendor/VendorOrderDetailPage";
+import DispatchPage from "./pages/orders/DispatchPage";
+import VendorReviewPage from "./pages/orders/VendorReviewPage";
+import VendorsPage from "./pages/vendors/VendorsPage";
 
 const INTERNAL = ["MASTER_ADMIN", "ASSISTANT_MASTER_ADMIN"];
 // Creating requests/batches charges the caller's own organization wallet;
 // internal roles have no organization, so the API rejects them.
 const TENANT = ["SUPER_ADMIN", "ADMIN", "USER"];
+const VENDOR = ["VENDOR"];
 // Wrap a page in the same permission/role check its sidebar link uses.
 const guard = (element, permission, roles) => <RequireAccess permission={permission} roles={roles}>{element}</RequireAccess>;
 export default function App() {
@@ -79,6 +85,11 @@ export default function App() {
           <Route path="/users/:id" element={guard(<EditUserPage />, P.USER_VIEW)}/>
           <Route path="/orders" element={guard(<OrdersListPage />, P.ORDER_VIEW)}/>
           <Route path="/orders/fulfil" element={guard(<FulfilQueuePage />, P.ORDER_MANAGE, INTERNAL)}/>
+          <Route path="/orders/dispatch" element={guard(<DispatchPage />, P.ORDER_MANAGE, INTERNAL)}/>
+          <Route path="/orders/vendor-review" element={guard(<VendorReviewPage />, P.ORDER_MANAGE, INTERNAL)}/>
+          <Route path="/vendors" element={guard(<VendorsPage />, null, ["MASTER_ADMIN"])}/>
+          <Route path="/vendor/orders" element={guard(<VendorOrdersPage />, null, VENDOR)}/>
+          <Route path="/vendor/orders/:id" element={guard(<VendorOrderDetailPage />, null, VENDOR)}/>
           <Route path="/orders/:id" element={guard(<OrderDetailPage />, P.ORDER_VIEW)}/>
           <Route path="/estamp-provider" element={guard(<ProviderOnly><EStampProviderPage /></ProviderOnly>, P.ESTAMP_PROVIDER_VIEW)}/>
           <Route path="/articles" element={guard(<ArticlesPage />, P.ARTICLE_VIEW)}/>
