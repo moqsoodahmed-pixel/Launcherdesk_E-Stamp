@@ -28,11 +28,16 @@ function createApp() {
     app.set("trust proxy", Number.isInteger(trustProxyHops) && trustProxyHops >= 0 ? trustProxyHops : 1);
     app.use((0, helmet_1.default)());
     app.use((0, cors_1.default)({
-        // Browsers send Origin without a trailing slash; strip one from the
-        // configured value so "https://x.pages.dev/" still matches exactly.
+        // FRONTEND_URL may list more than one address, comma-separated (e.g.
+        // the production domain and a staging/preview one). Browsers send
+        // Origin without a trailing slash; strip one from each configured
+        // value so "https://x.pages.dev/" still matches exactly.
         origin: (origin, callback) => {
-            const configured = String(env_1.env.FRONTEND_URL).replace(/\/+$/, "");
-            if (!origin || origin === configured) {
+            const configuredList = String(env_1.env.FRONTEND_URL)
+                .split(",")
+                .map((u) => u.trim().replace(/\/+$/, ""))
+                .filter(Boolean);
+            if (!origin || configuredList.includes(origin)) {
                 return callback(null, true);
             }
             if (env_1.env.NODE_ENV !== "production" && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {

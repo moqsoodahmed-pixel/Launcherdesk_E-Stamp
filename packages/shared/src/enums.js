@@ -124,6 +124,9 @@ var AuditAction;
     AuditAction["USER_DEACTIVATED"] = "USER_DEACTIVATED";
     // Vendor account removal (hard or soft - see metadata.deleted).
     AuditAction["USER_DELETED"] = "USER_DELETED";
+    // Master Admin revealed a user's SYSTEM-GENERATED temporary password.
+    // Metadata: target id/role only - never the password.
+    AuditAction["CREDENTIAL_REVEALED"] = "CREDENTIAL_REVEALED";
     AuditAction["ORG_CREATED"] = "ORG_CREATED";
     AuditAction["ORG_VIEWED"] = "ORG_VIEWED";
     AuditAction["ORG_MODIFIED"] = "ORG_MODIFIED";

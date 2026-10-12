@@ -12,6 +12,9 @@ const auth_service_1 = require("../services/auth.service");
 const crypto_1 = require("crypto");
 const shared_2 = require("@launcherdesk/shared");
 const orgAccess_1 = require("../utils/orgAccess");
+const credentialVault_1 = require("../utils/credentialVault");
+const env_1 = require("../config/env");
+const email_service_1 = require("../services/email.service");
 // The assignee must be an existing, active Assistant Master Admin.
 async function loadAssignableAssistant(assistantId) {
     if (!assistantId || !/^[a-f0-9]{24}$/i.test(String(assistantId))) {
@@ -68,34 +71,95 @@ exports.createOrganization = (0, asyncHandler_1.asyncHandler)(async (req, res) =
     else if (req.user.role === shared_2.Role.ASSISTANT_MASTER_ADMIN) {
         assistant = { _id: req.user.id, role: req.user.role };
     }
-    let org;
+    // One step: the Super Admin's login is the contact email, so refuse up
+    // front (nothing created) if any user already has it.
+    const loginEmail = String(req.body.contactEmail).toLowerCase();
+    if (await models_1.User.exists({ email: loginEmail })) {
+        throw ApiError_1.ApiError.conflict("A user with this email already exists. Use a different contact email for the new organization.", "EMAIL_IN_USE");
+    }
+    const activateNow = req.body.activateNow !== false;
+    const enableEstampService = req.body.enableEstampService !== false;
+    const tempPassword = (0, credentialVault_1.generateTemporaryPassword)();
+    let org = null;
+    let wallet = null;
+    let superAdmin = null;
     try {
-        org = await models_1.Organization.create({
-            ...pickWritableFields(req.body),
-            createdBy: req.user.id,
-            status: shared_1.OrganizationStatus.PENDING_APPROVAL,
-            assignedAssistantId: assistant ? assistant._id : null,
-        });
+        try {
+            org = await models_1.Organization.create({
+                ...pickWritableFields(req.body),
+                createdBy: req.user.id,
+                status: activateNow ? shared_1.OrganizationStatus.ACTIVE : shared_1.OrganizationStatus.PENDING_APPROVAL,
+                isEstampServiceEnabled: enableEstampService,
+                assignedAssistantId: assistant ? assistant._id : null,
+            });
+        }
+        catch (err) {
+            // Concurrent creation with the same contactEmail races past an
+            // application-level "does it exist" check - the unique index is the
+            // real guarantee, and a 11000 here is just that guarantee firing.
+            if (err?.code === 11000) {
+                throw ApiError_1.ApiError.conflict("An organization with this contact email already exists");
+            }
+            throw err;
+        }
+        wallet = await models_1.Wallet.create({ organizationId: org._id, balance: 0, reservedBalance: 0 });
+        try {
+            superAdmin = await models_1.User.create({
+                name: req.body.superAdminName,
+                email: loginEmail,
+                phone: req.body.contactPhone,
+                role: shared_2.Role.SUPER_ADMIN,
+                organizationId: org._id,
+                passwordHash: await auth_service_1.AuthService.hashPassword(tempPassword),
+                mustChangePassword: true,
+                createdBy: req.user.id,
+            });
+        }
+        catch (err) {
+            if (err?.code === 11000)
+                throw ApiError_1.ApiError.conflict("A user with this email already exists. Use a different contact email for the new organization.", "EMAIL_IN_USE");
+            throw err;
+        }
+        await (0, credentialVault_1.storeTemporaryPassword)(superAdmin._id, tempPassword);
     }
     catch (err) {
-        // Concurrent creation with the same contactEmail races past an
-        // application-level "does it exist" check - the unique index is the
-        // real guarantee, and a 11000 here is just that guarantee firing.
-        if (err?.code === 11000) {
-            throw ApiError_1.ApiError.conflict("An organization with this contact email already exists");
-        }
+        // All-or-nothing: undo in reverse.
+        if (superAdmin)
+            await models_1.User.deleteOne({ _id: superAdmin._id }).catch(() => { });
+        if (wallet)
+            await models_1.Wallet.deleteOne({ _id: wallet._id }).catch(() => { });
+        if (org)
+            await models_1.Organization.deleteOne({ _id: org._id }).catch(() => { });
         throw err;
     }
-    await models_1.Wallet.create({ organizationId: org._id, balance: 0 });
     await (0, audit_service_1.recordAudit)({
         actorId: req.user.id,
         actorRole: req.user.role,
         action: shared_2.AuditAction.ORG_CREATED,
         entityType: "Organization",
         entityId: org._id.toString(),
-        metadata: org.assignedAssistantId ? { assignedAssistantId: org.assignedAssistantId.toString() } : undefined,
+        metadata: { status: org.status, isEstampServiceEnabled: org.isEstampServiceEnabled, ...(org.assignedAssistantId ? { assignedAssistantId: org.assignedAssistantId.toString() } : {}) },
         req,
     });
+    await (0, audit_service_1.recordAudit)({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        organizationId: org._id.toString(),
+        action: shared_2.AuditAction.USER_CREATED,
+        entityType: "User",
+        entityId: superAdmin._id.toString(),
+        metadata: { role: shared_2.Role.SUPER_ADMIN, organizationId: org._id.toString(), onboarding: true },
+        req,
+    });
+    // Welcome email (no password, no code). A failure never undoes the
+    // onboarding - the admin is told to share the login another way.
+    let emailSent = false;
+    try {
+        emailSent = await email_service_1.EmailService.sendClientWelcomeEmail(superAdmin.email, { name: superAdmin.name, organizationName: org.name, loginUrl: `${env_1.PRIMARY_FRONTEND_URL}/login` }, `client-welcome:${superAdmin._id.toString()}`);
+    }
+    catch {
+        emailSent = false;
+    }
     if (assistant && req.user.role === shared_2.Role.MASTER_ADMIN)
         await notifyAssignment(assistant, org, req.user.id);
     if (req.user.role === shared_2.Role.ASSISTANT_MASTER_ADMIN) {
@@ -107,7 +171,12 @@ exports.createOrganization = (0, asyncHandler_1.asyncHandler)(async (req, res) =
             organizationId: org._id.toString(),
         });
     }
-    return (0, ApiResponse_1.created)(res, org);
+    return (0, ApiResponse_1.created)(res, {
+        organization: org,
+        superAdmin: { _id: superAdmin._id, name: superAdmin.name, email: superAdmin.email, phone: superAdmin.phone, role: superAdmin.role, mustChangePassword: true },
+        tempPassword,
+        emailSent,
+    });
 });
 exports.listOrganizations = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { page = "1", limit = "20", status, search } = req.query;
@@ -131,7 +200,11 @@ exports.listOrganizations = (0, asyncHandler_1.asyncHandler)(async (req, res) =>
         .skip((pageNum - 1) * limitNum)
         .limit(limitNum);
     const total = await models_1.Organization.countDocuments(filter);
-    return (0, ApiResponse_1.ok)(res, { items: orgs, total, page: pageNum, limit: limitNum });
+    // "Login" column: whether the organization has a Super Admin who can log in.
+    const withLogin = orgs.length ? await models_1.User.distinct("organizationId", { organizationId: { $in: orgs.map((o) => o._id) }, role: shared_2.Role.SUPER_ADMIN }) : [];
+    const loginSet = new Set(withLogin.map(String));
+    const items = orgs.map((o) => ({ ...o.toObject(), hasSuperAdmin: loginSet.has(o._id.toString()) }));
+    return (0, ApiResponse_1.ok)(res, { items, total, page: pageNum, limit: limitNum });
 });
 // Organization detail view: org profile + wallet balance + user counts by
 // role + initial Super Admin identity + E-Stamp/order activity summary.
@@ -157,7 +230,7 @@ exports.getOrganization = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
             { $match: { organizationId: org._id } },
             { $group: { _id: { role: "$role", isActive: "$isActive" }, count: { $sum: 1 } } },
         ]),
-        models_1.User.findOne({ organizationId: org._id, role: shared_2.Role.SUPER_ADMIN }).select("name email isActive createdAt"),
+        models_1.User.findOne({ organizationId: org._id, role: shared_2.Role.SUPER_ADMIN }).select("name email isActive createdAt +tempPasswordExpiresAt"),
         models_1.EStampRequest.countDocuments({ organizationId: org._id }),
         models_1.EStampOrder.countDocuments({ organizationId: org._id }),
         org.assignedAssistantId ? models_1.User.findById(org.assignedAssistantId).select("name email isActive") : null,
@@ -179,7 +252,15 @@ exports.getOrganization = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         assignedAssistant: assignedAssistant
             ? { _id: assignedAssistant._id, name: assignedAssistant.name, email: assignedAssistant.email, isActive: assignedAssistant.isActive }
             : null,
-        superAdmin: superAdmin ? { name: superAdmin.name, email: superAdmin.email, isActive: superAdmin.isActive, createdAt: superAdmin.createdAt } : null,
+        superAdmin: superAdmin ? {
+            _id: superAdmin._id,
+            name: superAdmin.name,
+            email: superAdmin.email,
+            isActive: superAdmin.isActive,
+            createdAt: superAdmin.createdAt,
+            // Master Admin only: whether a revealable temporary password exists.
+            ...(req.user.role === shared_2.Role.MASTER_ADMIN ? { passwordState: (0, credentialVault_1.passwordStateOf)(superAdmin) } : {}),
+        } : null,
         userCounts,
         activity: { estampRequestCount, orderCount },
     });
@@ -288,7 +369,7 @@ exports.provisionSuperAdmin = (0, asyncHandler_1.asyncHandler)(async (req, res) 
     // never emailed in plaintext by this endpoint - returned once so an
     // internal admin can hand it over out-of-band, exactly like the existing
     // user-provisioning flows.
-    const tempPassword = crypto_1.randomBytes(9).toString("base64url");
+    const tempPassword = (0, credentialVault_1.generateTemporaryPassword)();
     const passwordHash = await auth_service_1.AuthService.hashPassword(tempPassword);
     const superAdmin = await models_1.User.create({
         name,
@@ -319,6 +400,7 @@ exports.provisionSuperAdmin = (0, asyncHandler_1.asyncHandler)(async (req, res) 
             organizationId: org._id.toString(),
         });
     }
+    await (0, credentialVault_1.storeTemporaryPassword)(superAdmin._id, tempPassword);
     return (0, ApiResponse_1.created)(res, { user: { ...superAdmin.toObject(), passwordHash: undefined }, tempPassword });
 });
 // PATCH /organizations/:id/assigned-assistant { assistantId | null }
