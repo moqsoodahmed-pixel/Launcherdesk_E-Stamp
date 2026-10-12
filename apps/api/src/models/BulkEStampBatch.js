@@ -29,6 +29,10 @@ const bulkEStampBatchSchema = new mongoose_1.Schema({
     // (the actual charge is always the per-row debit inside
     // EStampRequestService.createRequest, never this aggregate).
     totalStampDuty: { type: Number, default: 0 },
+    totalConvenienceFee: { type: Number, default: 0 },
+    totalProcurementFee: { type: Number, default: 0 },
+    totalGst: { type: Number, default: 0 },
+    totalPayableAmount: { type: Number, default: 0 },
     // Structural failure reason only (bad file, bad headers, row count
     // exceeded) - never set merely because some/all rows failed row-level
     // validation, that is a normal PREVIEW_READY outcome.

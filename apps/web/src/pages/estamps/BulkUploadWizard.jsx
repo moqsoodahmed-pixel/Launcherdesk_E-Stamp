@@ -122,11 +122,12 @@ export default function BulkUploadWizard() {
   }
 
   const totalPages = Math.max(1, Math.ceil(itemsTotal / limit));
+  const batchTotal = batch ? (batch.totalPayableAmount || batch.totalStampDuty || 0) : 0;
   const canConfirm = batch && batch.status === "PREVIEW_READY" && batch.validRows > 0;
-  const insufficientBalance = batch && typeof balance === "number" && balance < (batch.totalStampDuty || 0);
+  const insufficientBalance = batch && typeof balance === "number" && balance < batchTotal;
 
   return (
-    <div className="max-w-4xl pb-24">
+    <div className="max-w-7xl pb-24">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-xl font-semibold text-slate-900">Create Bulk E-Stamp Request</h1>
         <button type="button" onClick={handleTemplateDownload} className="text-sm text-brand-600 hover:underline">
@@ -140,7 +141,7 @@ export default function BulkUploadWizard() {
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         {step === 0 && (
-          <form onSubmit={handleUpload} className="space-y-4">
+          <form onSubmit={handleUpload} className="space-y-4 max-w-2xl">
             <p className="text-sm text-slate-600">
               Upload a CSV or XLSX file to create many E-Stamp requests at once. Each row is validated server-side before anything is
               charged. Large files or row counts may be rejected by the server; the exact reason will be shown here if that happens.
@@ -175,53 +176,95 @@ export default function BulkUploadWizard() {
               <StatusBadge status={batch.status} />
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
               <Stat label="Total rows" value={batch.totalRows} />
               <Stat label="Valid rows" value={batch.validRows} />
               <Stat label="Invalid rows" value={batch.invalidRows} />
+              <Stat label="Total Amount (inc. GST)" value={formatCurrency(batchTotal)} />
             </div>
 
             {batch.errorSummary && <p className="text-sm text-red-600">{batch.errorSummary}</p>}
 
             {items.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 whitespace-nowrap">
                     <tr>
-                      <th className="text-left px-3 py-2">Row</th>
-                      <th className="text-left px-3 py-2">Status</th>
-                      <th className="text-left px-3 py-2">First Party</th>
-                      <th className="text-left px-3 py-2">Second Party</th>
-                      <th className="text-left px-3 py-2">Amount</th>
-                      <th className="text-left px-3 py-2">Problem</th>
+                      <th className="px-3 py-3">Row</th>
+                      <th className="px-3 py-3">Status</th>
+                      <th className="px-3 py-3">State</th>
+                      <th className="px-3 py-3">Article</th>
+                      <th className="px-3 py-3">First Party</th>
+                      <th className="px-3 py-3">Second Party</th>
+                      <th className="px-3 py-3">Document / Property</th>
+                      <th className="px-3 py-3 text-right">Consideration</th>
+                      <th className="px-3 py-3">Paid By</th>
+                      <th className="px-3 py-3 text-center">Qty</th>
+                      <th className="px-3 py-3 text-right">Stamp Duty</th>
+                      <th className="px-3 py-3 text-right">Fees & GST</th>
+                      <th className="px-3 py-3 text-right">Total Amount</th>
+                      <th className="px-3 py-3">Problem</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {items.map((item) => (
-                      <tr key={item._id} className="border-t border-slate-100">
-                        <td className="px-3 py-2">{item.rowNumber}</td>
-                        <td className="px-3 py-2">
-                          <StatusBadge status={item.status} />
-                          {item.isDuplicateSuspect && <span className="ml-1 text-amber-600 text-xs">possible duplicate</span>}
-                        </td>
-                        <td className="px-3 py-2">{item.inputData?.firstParty}</td>
-                        <td className="px-3 py-2">{item.inputData?.secondParty}</td>
-                        <td className="px-3 py-2">{item.calculatedAmount != null ? formatCurrency(item.calculatedAmount) : "-"}</td>
-                        <td className="px-3 py-2 text-red-600">{item.validationErrors?.join("; ")}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-slate-100">
+                    {items.map((item) => {
+                      const articleText = item.articleDetails?.title
+                        ? `${item.articleDetails.code ? item.articleDetails.code + " - " : ""}${item.articleDetails.title}`
+                        : item.inputData?.articleId || "-";
+                      const feesAndGst = (item.convenienceFee || 0) + (item.procurementFee || 99) + (item.gst || 0);
+                      return (
+                        <tr key={item._id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-3 py-2.5 font-medium text-slate-900">{item.rowNumber}</td>
+                          <td className="px-3 py-2.5 whitespace-nowrap">
+                            <StatusBadge status={item.status} />
+                            {item.isDuplicateSuspect && <span className="ml-1 text-amber-600 text-[10px] font-semibold block">duplicate?</span>}
+                          </td>
+                          <td className="px-3 py-2.5 font-medium text-slate-800 whitespace-nowrap">{item.inputData?.stateCode || "-"}</td>
+                          <td className="px-3 py-2.5 max-w-[200px] truncate" title={articleText}>
+                            <span className="text-slate-800 font-medium">{articleText}</span>
+                          </td>
+                          <td className="px-3 py-2.5 font-medium text-slate-800 whitespace-nowrap">{item.inputData?.firstParty || "-"}</td>
+                          <td className="px-3 py-2.5 font-medium text-slate-800 whitespace-nowrap">{item.inputData?.secondParty || "-"}</td>
+                          <td className="px-3 py-2.5 max-w-[220px]">
+                            <div className="truncate font-medium text-slate-800" title={item.inputData?.descriptionOfDocument}>
+                              {item.inputData?.descriptionOfDocument || "-"}
+                            </div>
+                            {item.inputData?.propertyDescription && (
+                              <div className="truncate text-[11px] text-slate-400" title={item.inputData?.propertyDescription}>
+                                {item.inputData?.propertyDescription}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-medium text-slate-700 whitespace-nowrap">
+                            {item.inputData?.considerationPrice != null ? formatCurrency(item.inputData.considerationPrice) : "-"}
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap">{item.inputData?.stampDutyPaidBy || "-"}</td>
+                          <td className="px-3 py-2.5 text-center font-medium text-slate-800">{item.inputData?.numberOfEStamps || 1}</td>
+                          <td className="px-3 py-2.5 text-right font-medium text-slate-900 whitespace-nowrap">
+                            {item.stampDuty != null ? formatCurrency(item.stampDuty) : (item.calculatedAmount != null ? formatCurrency(item.calculatedAmount) : "-")}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-slate-600 whitespace-nowrap" title={`Conv: ₹${item.convenienceFee || 0}, Proc: ₹${item.procurementFee || 99}, GST: ₹${item.gst || 0}`}>
+                            {formatCurrency(feesAndGst)}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-bold text-slate-900 whitespace-nowrap">
+                            {item.totalAmount != null ? formatCurrency(item.totalAmount) : (item.calculatedAmount != null ? formatCurrency(item.calculatedAmount) : "-")}
+                          </td>
+                          <td className="px-3 py-2.5 text-red-600 text-xs">{item.validationErrors?.join("; ")}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-3 text-sm text-slate-500">
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500">
                     <span>
                       Page {page} of {totalPages} ({itemsTotal} row(s))
                     </span>
                     <div className="space-x-2">
-                      <button type="button" disabled={page <= 1} onClick={() => changeItemsPage(page - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+                      <button type="button" disabled={page <= 1} onClick={() => changeItemsPage(page - 1)} className="px-3 py-1 rounded-lg border border-slate-300 bg-white disabled:opacity-40">
                         Previous
                       </button>
-                      <button type="button" disabled={page >= totalPages} onClick={() => changeItemsPage(page + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+                      <button type="button" disabled={page >= totalPages} onClick={() => changeItemsPage(page + 1)} className="px-3 py-1 rounded-lg border border-slate-300 bg-white disabled:opacity-40">
                         Next
                       </button>
                     </div>
@@ -233,39 +276,54 @@ export default function BulkUploadWizard() {
         )}
 
         {step === 2 && batch && (
-          <div className="space-y-4 text-sm">
+          <div className="space-y-4 text-sm max-w-2xl">
             <p className="text-slate-600">
               {batch.status === "PREVIEW_READY"
-                ? "Estimated total, recalculated from scratch (and only for currently-valid rows) at the moment you confirm. It may change slightly if prices or rules change before then."
+                ? "Complete cost breakdown calculated for all valid rows. Government stamp duty is charged at actuals; LauncherDesk platform & procurement fees and applicable GST are itemized below."
                 : "This batch is no longer awaiting confirmation."}
             </p>
-            <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 space-y-2">
-              <Row label="Valid rows to be submitted" value={batch.validRows} />
-              <Row label="Estimated total" value={formatCurrency(batch.totalStampDuty || 0)} />
-              <Row label="Current wallet balance" value={balance !== null ? formatCurrency(balance) : "Unknown"} />
-              {balance !== null && (
-                <Row label="Remaining after confirmation" value={formatCurrency(Math.max(0, balance - (batch.totalStampDuty || 0)))} />
-              )}
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-5 space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Financial Breakdown</h3>
+              <div className="space-y-2">
+                <Row label="Valid rows to be submitted" value={`${batch.validRows} row(s)`} />
+                <Row label="Government Stamp Duty (At actuals)" value={formatCurrency(batch.totalStampDuty || 0)} />
+                <Row label="Procurement & Platform Charge (₹99 per stamp)" value={formatCurrency(batch.totalProcurementFee || (99 * (batch.validRows || 0)))} />
+                <Row label="Convenience Fee (5% on duty > ₹500)" value={formatCurrency(batch.totalConvenienceFee || 0)} />
+                <Row label="GST (18% on LauncherDesk charges)" value={formatCurrency(batch.totalGst || 0)} />
+                <div className="border-t border-slate-200 pt-2 font-semibold">
+                  <Row label="Total Amount Payable" value={formatCurrency(batchTotal)} />
+                </div>
+                <div className="border-t border-slate-200 pt-2">
+                  <Row label="Current wallet balance" value={balance !== null ? formatCurrency(balance) : "Unknown"} />
+                  {balance !== null && (
+                    <Row label="Remaining wallet balance" value={formatCurrency(Math.max(0, balance - batchTotal))} />
+                  )}
+                </div>
+              </div>
             </div>
             {insufficientBalance && (
               <div className="rounded-lg bg-red-50 text-red-700 px-3 py-2">
-                Insufficient wallet balance for this batch's estimated total. Add funds to your organization's wallet before
-                confirming.
+                Insufficient wallet balance for this batch's estimated total ({formatCurrency(batchTotal)} required, {formatCurrency(balance || 0)} available). Add funds to your organization's wallet before confirming.
               </div>
             )}
           </div>
         )}
 
         {step === 3 && batch && (
-          <div className="space-y-4 text-sm">
+          <div className="space-y-4 text-sm max-w-2xl">
             <p className="text-slate-600">
               Confirming will charge your organization's wallet for every currently-valid row and create one E-Stamp request per row,
               the same way a single request is created.
             </p>
-            <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-5 space-y-3">
               <Row label="Batch" value={batch.batchNumber} />
-              <Row label="Valid rows" value={batch.validRows} />
-              <Row label="Amount to be charged" value={formatCurrency(batch.totalStampDuty || 0)} />
+              <Row label="Valid rows" value={`${batch.validRows} row(s)`} />
+              <Row label="Stamp Duty (Govt actuals)" value={formatCurrency(batch.totalStampDuty || 0)} />
+              <Row label="Platform & Procurement Fees" value={formatCurrency((batch.totalProcurementFee || 0) + (batch.totalConvenienceFee || 0))} />
+              <Row label="GST (18%)" value={formatCurrency(batch.totalGst || 0)} />
+              <div className="border-t border-slate-200 pt-2 font-semibold">
+                <Row label="Amount to be charged" value={formatCurrency(batchTotal)} />
+              </div>
             </div>
           </div>
         )}
@@ -297,7 +355,7 @@ export default function BulkUploadWizard() {
               onClick={handleConfirm}
               className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              {confirming ? "Confirming..." : `Confirm & charge ${formatCurrency(batch.totalStampDuty || 0)}`}
+              {confirming ? "Confirming..." : `Confirm & charge ${formatCurrency(batchTotal)}`}
             </button>
           )}
         </div>

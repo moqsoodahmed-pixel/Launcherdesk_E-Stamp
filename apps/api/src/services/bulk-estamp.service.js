@@ -322,9 +322,46 @@ exports.BulkEStampService = {
         // left exactly as typed, so the existing zod/ObjectId validation
         // below still rejects it with its normal, clear error - this step
         // only ever helps a valid human-entered value, never masks a bad one.
+function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps = 1) {
+    const qty = Math.max(1, Number(numberOfEStamps) || 1);
+    let duty = Number(calcDuty) || 0;
+    if (duty === 0) {
+        const consideration = Number(considerationPrice) || 0;
+        if (consideration > 0) {
+            let perStamp = 100;
+            if (consideration <= 5000) {
+                perStamp = 100;
+            } else if (consideration <= 50000) {
+                perStamp = 200;
+            } else if (consideration <= 500000) {
+                perStamp = 500;
+            } else {
+                perStamp = Math.min(100000, Math.max(500, Math.round(consideration * 0.001)));
+            }
+            duty = perStamp * qty;
+        } else {
+            duty = 100 * qty;
+        }
+    }
+    const convenienceFee = duty > 500 ? Math.round(duty * 0.05 * 100) / 100 : 0;
+    const procurementFee = 99;
+    const feeTotal = convenienceFee + procurementFee;
+    const gst = Math.round(feeTotal * 0.18 * 100) / 100;
+    const totalAmount = Math.round((duty + feeTotal + gst) * 100) / 100;
+    return {
+        stampDuty: duty,
+        convenienceFee,
+        procurementFee,
+        feeTotal,
+        gst,
+        totalAmount,
+    };
+}
         const activeArticles = await models_1.Article.find({ isActive: true }).select("stateCode articleCode title").lean();
         const articleIdByStateAndCode = new Map();
+        const articleMapById = new Map();
         for (const a of activeArticles) {
+            articleMapById.set(a._id.toString(), a);
             const state = a.stateCode.toUpperCase();
             const code = a.articleCode.toUpperCase();
             const title = (a.title || "").toUpperCase().trim();
@@ -371,6 +408,10 @@ exports.BulkEStampService = {
         let validCount = 0;
         let invalidCount = 0;
         let estimatedTotal = 0;
+        let estimatedDutyTotal = 0;
+        let estimatedConvTotal = 0;
+        let estimatedProcTotal = 0;
+        let estimatedGstTotal = 0;
         // A plain for-loop (not .map) because valid rows need an awaited
         // CalculationService.calculate() call each - storing calculatedAmount
         // here (rather than leaving it null until confirm) is what lets the
@@ -382,7 +423,7 @@ exports.BulkEStampService = {
             const inputData = rowInputs[idx];
             const rowNumber = idx + 1; // 1-based data-row number, header row excluded
             const validationErrors = [];
-            let calculatedAmount;
+            let calculatedDuty = 0;
             let articleVersionUsed;
             const result = validation_1.bulkEStampRowSchema.safeParse(inputData);
             if (!result.success) {
@@ -401,7 +442,7 @@ exports.BulkEStampService = {
                         considerationPrice: result.data.considerationPrice,
                         numberOfEStamps: result.data.numberOfEStamps,
                     });
-                    calculatedAmount = calc.amount;
+                    calculatedDuty = calc.amount;
                     articleVersionUsed = calc.articleVersionUsed;
                 }
                 catch (err) {
@@ -409,13 +450,20 @@ exports.BulkEStampService = {
                 }
             }
             const isValid = validationErrors.length === 0;
+            let pricing = null;
             if (isValid) {
                 validCount += 1;
-                estimatedTotal += calculatedAmount;
+                pricing = calculateEstampRowPricing(calculatedDuty, result.data.considerationPrice, result.data.numberOfEStamps);
+                estimatedDutyTotal += pricing.stampDuty;
+                estimatedConvTotal += pricing.convenienceFee;
+                estimatedProcTotal += pricing.procurementFee;
+                estimatedGstTotal += pricing.gst;
+                estimatedTotal += pricing.totalAmount;
             }
             else {
                 invalidCount += 1;
             }
+            const art = result.success ? articleMapById.get(String(result.data.articleId)) : null;
             itemsToInsert.push({
                 batchId: batch._id,
                 organizationId,
@@ -423,22 +471,18 @@ exports.BulkEStampService = {
                 status: isValid ? "VALID" : "INVALID",
                 inputData,
                 validationErrors,
-                calculatedAmount,
+                calculatedAmount: pricing ? pricing.stampDuty : undefined,
+                stampDuty: pricing ? pricing.stampDuty : undefined,
+                convenienceFee: pricing ? pricing.convenienceFee : 0,
+                procurementFee: pricing ? pricing.procurementFee : 0,
+                gst: pricing ? pricing.gst : 0,
+                totalAmount: pricing ? pricing.totalAmount : undefined,
+                articleDetails: {
+                    code: art?.articleCode || "",
+                    title: art?.title || "",
+                },
                 articleVersionUsed,
                 isDuplicateSuspect: suspectIndexes.has(idx),
-                // Populated unconditionally (not just at confirm time) - it is
-                // fully deterministic from batchId+rowNumber already. This
-                // also sidesteps a real Mongo gotcha: a COMPOUND sparse index
-                // like {organizationId,idempotencyKey} does NOT skip a
-                // document merely because idempotencyKey is absent (Mongo
-                // only excludes a document from a compound sparse index if
-                // ALL of its fields are missing) - since organizationId is
-                // always present, every item would still be indexed with
-                // idempotencyKey effectively null, and a second item in the
-                // same batch/org would violate the unique constraint. Always
-                // setting a real, distinct value here avoids that trap
-                // entirely (same trap this codebase already hit once with
-                // EmailLog.eventKey - see model file comments).
                 idempotencyKey: `bulk:${batch._id.toString()}:row:${rowNumber}`,
             });
         }
@@ -448,7 +492,11 @@ exports.BulkEStampService = {
         batch.totalRows = itemsToInsert.length;
         // Pre-confirm estimate only (sum over currently-VALID rows) - always
         // overwritten with the actual created-rows total once confirmBatch runs.
-        batch.totalStampDuty = estimatedTotal;
+        batch.totalStampDuty = estimatedDutyTotal;
+        batch.totalConvenienceFee = estimatedConvTotal;
+        batch.totalProcurementFee = estimatedProcTotal;
+        batch.totalGst = estimatedGstTotal;
+        batch.totalPayableAmount = estimatedTotal;
         batch.validRows = validCount;
         batch.invalidRows = invalidCount;
         batch.status = shared_1.BulkBatchStatus.PREVIEW_READY;
@@ -485,11 +533,81 @@ exports.BulkEStampService = {
         const batch = await loadOwnedBatch(batchId, organizationId, actorRole);
         const pageNum = Math.max(1, parseInt(page) || 1);
         const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 50));
-        const [items, itemsTotal] = await Promise.all([
-            models_1.BulkEStampBatchItem.find({ batchId: batch._id }).sort({ rowNumber: 1 }).skip((pageNum - 1) * limitNum).limit(limitNum),
+        const [rawItems, itemsTotal] = await Promise.all([
+            models_1.BulkEStampBatchItem.find({ batchId: batch._id }).sort({ rowNumber: 1 }).skip((pageNum - 1) * limitNum).limit(limitNum).lean(),
             models_1.BulkEStampBatchItem.countDocuments({ batchId: batch._id }),
         ]);
-        return { batch, items, itemsTotal, page: pageNum, limit: limitNum };
+
+        // Auto-enrich items if missing articleDetails or fees (e.g. previously uploaded batches)
+        const missingArticleIds = rawItems
+            .filter((it) => !it.articleDetails?.title && it.inputData?.articleId && mongoose_1.Types.ObjectId.isValid(String(it.inputData.articleId)))
+            .map((it) => it.inputData.articleId);
+
+        const articlesById = new Map();
+        if (missingArticleIds.length > 0) {
+            const arts = await models_1.Article.find({ _id: { $in: missingArticleIds } }).select("articleCode title").lean();
+            arts.forEach((a) => articlesById.set(a._id.toString(), a));
+        }
+
+        const items = rawItems.map((it) => {
+            let artCode = it.articleDetails?.code || "";
+            let artTitle = it.articleDetails?.title || "";
+            if (!artTitle && it.inputData?.articleId) {
+                const found = articlesById.get(String(it.inputData.articleId));
+                if (found) {
+                    artCode = found.articleCode;
+                    artTitle = found.title;
+                }
+            }
+            let pricing = {
+                stampDuty: it.stampDuty,
+                convenienceFee: it.convenienceFee,
+                procurementFee: it.procurementFee,
+                gst: it.gst,
+                totalAmount: it.totalAmount,
+            };
+            if (it.status === "VALID" && (!it.totalAmount || it.calculatedAmount === 0)) {
+                pricing = calculateEstampRowPricing(it.stampDuty || it.calculatedAmount, it.inputData?.considerationPrice, it.inputData?.numberOfEStamps);
+            }
+            return {
+                ...it,
+                calculatedAmount: pricing.stampDuty ?? it.calculatedAmount,
+                stampDuty: pricing.stampDuty ?? it.stampDuty,
+                convenienceFee: pricing.convenienceFee ?? it.convenienceFee ?? 0,
+                procurementFee: pricing.procurementFee ?? it.procurementFee ?? 0,
+                gst: pricing.gst ?? it.gst ?? 0,
+                totalAmount: pricing.totalAmount ?? it.totalAmount,
+                articleDetails: {
+                    code: artCode,
+                    title: artTitle,
+                },
+            };
+        });
+
+        const batchObj = batch.toObject ? batch.toObject() : batch;
+        if (!batchObj.totalPayableAmount && batchObj.validRows > 0) {
+            const allValid = await models_1.BulkEStampBatchItem.find({ batchId: batch._id, status: "VALID" }).lean();
+            let sumDuty = 0;
+            let sumConv = 0;
+            let sumProc = 0;
+            let sumGst = 0;
+            let sumTotal = 0;
+            for (const v of allValid) {
+                const p = calculateEstampRowPricing(v.stampDuty || v.calculatedAmount, v.inputData?.considerationPrice, v.inputData?.numberOfEStamps);
+                sumDuty += p.stampDuty;
+                sumConv += p.convenienceFee;
+                sumProc += p.procurementFee;
+                sumGst += p.gst;
+                sumTotal += p.totalAmount;
+            }
+            batchObj.totalStampDuty = sumDuty;
+            batchObj.totalConvenienceFee = sumConv;
+            batchObj.totalProcurementFee = sumProc;
+            batchObj.totalGst = sumGst;
+            batchObj.totalPayableAmount = sumTotal;
+        }
+
+        return { batch: batchObj, items, itemsTotal, page: pageNum, limit: limitNum };
     },
     async getBatchPreview(batchId, organizationId, actorRole, pagination) {
         return this.getBatchDetail(batchId, organizationId, actorRole, pagination);

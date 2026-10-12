@@ -164,10 +164,10 @@ export default function BulkBatchDetailPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4 text-sm">
           <Stat label="Total rows" value={batch.totalRows} />
           <Stat label="Valid rows" value={batch.validRows} />
-          <Stat label="Invalid rows" value={batch.invalidRows} />
+          <Stat label="Stamp Duty" value={formatCurrency(batch.totalStampDuty || 0)} />
           <Stat
-            label={batch.status === "PREVIEW_READY" ? "Estimated total" : "Total charged"}
-            value={formatCurrency(batch.totalStampDuty || 0)}
+            label={batch.status === "PREVIEW_READY" ? "Total Payable (inc. GST)" : "Total charged"}
+            value={formatCurrency(batch.totalPayableAmount || batch.totalStampDuty || 0)}
           />
         </div>
 
@@ -189,7 +189,7 @@ export default function BulkBatchDetailPage() {
               disabled={confirming}
               className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              {confirming ? "Confirming..." : `Confirm & charge ${formatCurrency(batch.totalStampDuty || 0)}`}
+              {confirming ? "Confirming..." : `Confirm & charge ${formatCurrency(batch.totalPayableAmount || batch.totalStampDuty || 0)}`}
             </button>
           )}
           {canCancel && (
@@ -208,47 +208,83 @@ export default function BulkBatchDetailPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 whitespace-nowrap">
                   <tr>
-                    <th className="text-left px-3 py-2">Row</th>
-                    <th className="text-left px-3 py-2">Status</th>
-                    <th className="text-left px-3 py-2">First Party</th>
-                    <th className="text-left px-3 py-2">Second Party</th>
-                    <th className="text-left px-3 py-2">Amount</th>
-                    <th className="text-left px-3 py-2">Notes</th>
-                    <th className="text-left px-3 py-2"></th>
+                    <th className="px-3 py-3">Row</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3">State</th>
+                    <th className="px-3 py-3">Article</th>
+                    <th className="px-3 py-3">First Party</th>
+                    <th className="px-3 py-3">Second Party</th>
+                    <th className="px-3 py-3">Document / Property</th>
+                    <th className="px-3 py-3 text-right">Consideration</th>
+                    <th className="px-3 py-3">Paid By</th>
+                    <th className="px-3 py-3 text-center">Qty</th>
+                    <th className="px-3 py-3 text-right">Stamp Duty</th>
+                    <th className="px-3 py-3 text-right">Fees & GST</th>
+                    <th className="px-3 py-3 text-right">Total Amount</th>
+                    <th className="px-3 py-3">Notes</th>
+                    <th className="px-3 py-3"></th>
                   </tr>
                 </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item._id} className="border-t border-slate-100">
-                      <td className="px-3 py-2">{item.rowNumber}</td>
-                      <td className="px-3 py-2">
-                        <StatusBadge status={item.status} />
-                        {item.isDuplicateSuspect && <span className="ml-1 text-amber-600 text-xs">possible duplicate</span>}
-                      </td>
-                      <td className="px-3 py-2">{item.inputData?.firstParty}</td>
-                      <td className="px-3 py-2">{item.inputData?.secondParty}</td>
-                      <td className="px-3 py-2">{item.calculatedAmount != null ? formatCurrency(item.calculatedAmount) : "-"}</td>
-                      <td className="px-3 py-2 text-slate-500">
-                        {item.validationErrors?.length > 0 && <div>{item.validationErrors.join("; ")}</div>}
-                        {item.failureReason && <div className="text-red-600">{item.failureReason}</div>}
-                      </td>
-                      <td className="px-3 py-2">
-                        {/* Section 3 - "View Request" only when this row genuinely
-                            produced a real EStampRequest (item.requestId), pointing
-                            into Phase 22's SAME single-request lifecycle page -
-                            never a second bulk-only lifecycle UI. No retry button:
-                            there is no bulk-specific row retry endpoint. */}
-                        {item.status === "CREATED" && item.requestId && (
-                          <Link to={`/estamps/requests/${item.requestId}`} className="text-brand-600 hover:underline">
-                            View Request
-                          </Link>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-slate-100">
+                  {items.map((item) => {
+                    const articleText = item.articleDetails?.title
+                      ? `${item.articleDetails.code ? item.articleDetails.code + " - " : ""}${item.articleDetails.title}`
+                      : item.inputData?.articleId || "-";
+                    const feesAndGst = (item.convenienceFee || 0) + (item.procurementFee || 99) + (item.gst || 0);
+                    return (
+                      <tr key={item._id} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-3 py-2.5 font-medium text-slate-900">{item.rowNumber}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <StatusBadge status={item.status} />
+                          {item.isDuplicateSuspect && <span className="ml-1 text-amber-600 text-[10px] font-semibold block">duplicate?</span>}
+                        </td>
+                        <td className="px-3 py-2.5 font-medium text-slate-800 whitespace-nowrap">{item.inputData?.stateCode || "-"}</td>
+                        <td className="px-3 py-2.5 max-w-[180px] truncate" title={articleText}>
+                          <span className="text-slate-800 font-medium">{articleText}</span>
+                        </td>
+                        <td className="px-3 py-2.5 font-medium text-slate-800 whitespace-nowrap">{item.inputData?.firstParty || "-"}</td>
+                        <td className="px-3 py-2.5 font-medium text-slate-800 whitespace-nowrap">{item.inputData?.secondParty || "-"}</td>
+                        <td className="px-3 py-2.5 max-w-[200px]">
+                          <div className="truncate font-medium text-slate-800" title={item.inputData?.descriptionOfDocument}>
+                            {item.inputData?.descriptionOfDocument || "-"}
+                          </div>
+                          {item.inputData?.propertyDescription && (
+                            <div className="truncate text-[11px] text-slate-400" title={item.inputData?.propertyDescription}>
+                              {item.inputData?.propertyDescription}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-medium text-slate-700 whitespace-nowrap">
+                          {item.inputData?.considerationPrice != null ? formatCurrency(item.inputData.considerationPrice) : "-"}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap">{item.inputData?.stampDutyPaidBy || "-"}</td>
+                        <td className="px-3 py-2.5 text-center font-medium text-slate-800">{item.inputData?.numberOfEStamps || 1}</td>
+                        <td className="px-3 py-2.5 text-right font-medium text-slate-900 whitespace-nowrap">
+                          {item.stampDuty != null ? formatCurrency(item.stampDuty) : (item.calculatedAmount != null ? formatCurrency(item.calculatedAmount) : "-")}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-slate-600 whitespace-nowrap" title={`Conv: ₹${item.convenienceFee || 0}, Proc: ₹${item.procurementFee || 99}, GST: ₹${item.gst || 0}`}>
+                          {formatCurrency(feesAndGst)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-bold text-slate-900 whitespace-nowrap">
+                          {item.totalAmount != null ? formatCurrency(item.totalAmount) : (item.calculatedAmount != null ? formatCurrency(item.calculatedAmount) : "-")}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-500 text-xs">
+                          {item.validationErrors?.length > 0 && <div>{item.validationErrors.join("; ")}</div>}
+                          {item.failureReason && <div className="text-red-600">{item.failureReason}</div>}
+                        </td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          {item.status === "CREATED" && item.requestId && (
+                            <Link to={`/estamps/requests/${item.requestId}`} className="text-brand-600 hover:underline">
+                              View Request
+                            </Link>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
