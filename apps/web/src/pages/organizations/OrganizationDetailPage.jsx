@@ -22,9 +22,12 @@ export default function OrganizationDetailPage() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [statusBusy, setStatusBusy] = useState(false);
-  // PATCH /organizations/:id/status is Master-Admin-only (requireRole).
+  // PATCH /organizations/:id/status and /:id/estamp-service are both
+  // Master-Admin-only (requireRole) - no other role can ever grant this.
   const { user } = useAuth();
   const canChangeStatus = user?.role === "MASTER_ADMIN";
+
+  const [estampBusy, setEstampBusy] = useState(false);
 
   const [assistantChoice, setAssistantChoice] = useState("");
   const [assignBusy, setAssignBusy] = useState(false);
@@ -107,6 +110,22 @@ export default function OrganizationDetailPage() {
       setError(getErrorMessage(err, "Failed to change status."));
     } finally {
       setStatusBusy(false);
+    }
+  }
+
+  async function handleToggleEstampService(nextEnabled) {
+    const verb = nextEnabled ? "Enable" : "Disable";
+    if (!window.confirm(`${verb} E-Stamp service for this organization?`)) return;
+    setEstampBusy(true);
+    setError(null);
+    try {
+      await apiClient.patch(`/organizations/${id}/estamp-service`, { enabled: nextEnabled });
+      setNotice(`E-Stamp service ${nextEnabled ? "enabled" : "disabled"}.`);
+      load();
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to change E-Stamp service."));
+    } finally {
+      setEstampBusy(false);
     }
   }
 
@@ -203,6 +222,27 @@ export default function OrganizationDetailPage() {
           </div>
           <p className="text-xs text-slate-500">
             Changing status away from ACTIVE immediately blocks this organization's users from authenticating or using protected APIs.
+          </p>
+        </div>
+        )}
+
+        {canChangeStatus && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <h2 className="font-medium text-slate-900 mb-4">E-Stamp Service</h2>
+          <p className="text-sm text-slate-600 mb-4">
+            Currently <span className={`font-medium ${org.isEstampServiceEnabled ? "text-green-700" : "text-red-700"}`}>{org.isEstampServiceEnabled ? "Enabled" : "Disabled"}</span> for this organization.
+          </p>
+          <button
+            disabled={estampBusy}
+            onClick={() => handleToggleEstampService(!org.isEstampServiceEnabled)}
+            className={`text-sm rounded-lg px-4 py-2 font-medium disabled:opacity-50 ${
+              org.isEstampServiceEnabled ? "border border-red-300 text-red-700 hover:bg-red-50" : "bg-brand-600 hover:bg-brand-700 text-white"
+            }`}
+          >
+            {estampBusy ? "Saving..." : org.isEstampServiceEnabled ? "Disable E-Stamp Service" : "Enable E-Stamp Service"}
+          </button>
+          <p className="text-xs text-slate-500 mt-3">
+            Until this is enabled, users in this organization cannot create E-Stamp requests.
           </p>
         </div>
         )}

@@ -100,6 +100,42 @@ describe("OrganizationDetailPage - status management", () => {
   });
 });
 
+describe("OrganizationDetailPage - E-Stamp service toggle", () => {
+  it("shows Disabled and an Enable button, and calls the real endpoint after confirmation", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    apiClient.patch.mockResolvedValue({ data: { data: {} } });
+    renderAt(baseDetail({ organization: { ...baseDetail().organization, isEstampServiceEnabled: false } }));
+    await screen.findByText("Acme Corp");
+
+    expect(screen.getByText("Disabled")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Enable E-Stamp Service" }));
+    expect(window.confirm).toHaveBeenCalled();
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalledWith("/organizations/o1/estamp-service", { enabled: true }));
+  });
+
+  it("shows Enabled and a Disable button when already enabled, and does nothing if confirmation is declined", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderAt(baseDetail({ organization: { ...baseDetail().organization, isEstampServiceEnabled: true } }));
+    await screen.findByText("Acme Corp");
+
+    expect(screen.getByText("Enabled")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Disable E-Stamp Service" }));
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("hides the E-Stamp Service control from an Assistant Master Admin (the API is Master-Admin-only)", async () => {
+    mockUser = { role: "ASSISTANT_MASTER_ADMIN", permissions: ["client.view", "client.manage"] };
+    renderAt(baseDetail());
+    await screen.findAllByText("Acme Corp");
+    expect(screen.queryByText("E-Stamp Service")).not.toBeInTheDocument();
+    mockUser = { role: "MASTER_ADMIN" };
+  });
+});
+
 describe("OrganizationDetailPage - Super Admin provisioning", () => {
   it("shows the one-time temp password after provisioning and never persists/repeats it", async () => {
     const { default: userEvent } = await import("@testing-library/user-event");
