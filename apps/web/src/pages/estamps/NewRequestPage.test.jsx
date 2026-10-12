@@ -90,7 +90,7 @@ describe("NewRequestPage - State & Article step uses the full state master", () 
     await waitFor(() => expect(screen.getByText("No official articles have been imported for this state yet.")).toBeInTheDocument());
 
     fireEvent.change(stateSelect, { target: { value: "KA" } });
-    await waitFor(() => expect(screen.getByRole("option", { name: "41(e) - Power of Attorney" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("option", { name: /41\(e\) - Power of Attorney/ })).toBeInTheDocument());
     expect(screen.queryByText("No official articles have been imported for this state yet.")).not.toBeInTheDocument();
   });
 });

@@ -247,12 +247,15 @@ export default function NewRequestPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Article" error={errors.articleId?.message}>
+            <Field
+              label={values.stateCode && articles.length > 0 ? `Article (${articles.length} available)` : "Article"}
+              error={errors.articleId?.message}
+            >
               <select className="input" {...register("articleId")} disabled={!values.stateCode}>
                 <option value="">Select article</option>
-                {articles.map((a) => (
+                {articles.map((a, idx) => (
                   <option key={a._id} value={a._id}>
-                    {a.articleCode} - {a.title}
+                    {idx + 1}. {a.articleCode} - {a.title}
                   </option>
                 ))}
               </select>
