@@ -41,6 +41,7 @@ function createApp() {
             return callback(null, false);
         },
         credentials: true,
+        exposedHeaders: ["Content-Disposition"],
     }));
     // Captures the exact raw request bytes alongside the parsed JSON body.
     // Razorpay's webhook signature is an HMAC over the RAW body - re-serializing

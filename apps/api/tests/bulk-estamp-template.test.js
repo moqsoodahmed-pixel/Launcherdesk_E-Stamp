@@ -116,4 +116,88 @@ describe("downloadTemplate - real catalog, no invented data", () => {
     expect(items[0].inputData.articleId).toBe(article._id.toString());
     expect(items[0].calculatedAmount).toBe(250);
   });
+
+  it("handles multi-sheet workbooks where ArticleLists is placed first without throwing missing column error", async () => {
+    const creator = new mongoose.Types.ObjectId();
+    const org = await Organization.create({
+      name: "Multi-Sheet Co",
+      contactEmail: `multi-${new mongoose.Types.ObjectId()}@example.com`,
+      contactPhone: "9999999999",
+      createdBy: creator,
+      status: OrganizationStatus.ACTIVE,
+      isEstampServiceEnabled: true,
+    });
+    await Wallet.create({ organizationId: org._id, balance: 100000 });
+    const article = await Article.create({ stateCode: "KA", articleCode: `MS-${new mongoose.Types.ObjectId()}`, title: "Multi Sheet Article", createdBy: creator, currentVersion: 1 });
+    await ArticleVersion.create({ articleId: article._id, versionNumber: 1, calculationRule: { type: "FIXED", fixedAmount: 500 }, createdBy: creator });
+    const user = await User.create({ name: "Multi User", email: `multi-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.SUPER_ADMIN, organizationId: org._id });
+
+    // Intentionally put ArticleLists first to test legacy or external multi-sheet layout
+    const workbook = new ExcelJS.Workbook();
+    const listSheet = workbook.addWorksheet("ArticleLists");
+    listSheet.addRow(["Karnataka"]);
+    listSheet.addRow([`${article.articleCode} - ${article.title}`]);
+
+    const templateSheet = workbook.addWorksheet("Template");
+    templateSheet.addRow(["State", "Article", "First Party", "Second Party", "Description of Document", "Property Description", "Consideration Price", "Stamp Duty Paid By", "Number of E-Stamps"]);
+    templateSheet.addRow(["karnataka", `${article.articleCode} - ${article.title}`, "Alice", "Bob", "Sale agreement", "Flat 101", 1000000, "Alice", 1]);
+
+    const refSheet = workbook.addWorksheet("Article Reference");
+    refSheet.addRow(["State", "Article Code", "Article Title"]);
+
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    const { batch } = await BulkEStampService.uploadBatch({
+      organizationId: org._id,
+      createdBy: user._id,
+      actorRole: Role.SUPER_ADMIN,
+      fileBuffer: Buffer.from(buffer),
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      originalFileName: "multi-sheet.xlsx",
+    });
+
+    expect(batch.totalRows).toBe(1);
+    expect(batch.status).toBe("PREVIEW_READY");
+    const items = await BulkEStampBatchItem.find({ batchId: batch._id }).lean();
+    expect(items[0].status).toBe("VALID");
+    expect(items[0].inputData.stateCode).toBe("KA");
+    expect(items[0].inputData.articleId).toBe(article._id.toString());
+  });
+
+  it("handles snake_case headers and flexible article code matching in CSV", async () => {
+    const creator = new mongoose.Types.ObjectId();
+    const org = await Organization.create({
+      name: "Snake Case Co",
+      contactEmail: `snake-${new mongoose.Types.ObjectId()}@example.com`,
+      contactPhone: "9999999999",
+      createdBy: creator,
+      status: OrganizationStatus.ACTIVE,
+      isEstampServiceEnabled: true,
+    });
+    await Wallet.create({ organizationId: org._id, balance: 100000 });
+    const article = await Article.create({ stateCode: "KA", articleCode: `SC-${new mongoose.Types.ObjectId()}`, title: "Snake Case Article", createdBy: creator, currentVersion: 1 });
+    await ArticleVersion.create({ articleId: article._id, versionNumber: 1, calculationRule: { type: "FIXED", fixedAmount: 300 }, createdBy: creator });
+    const user = await User.create({ name: "Snake User", email: `snake-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.SUPER_ADMIN, organizationId: org._id });
+
+    const csvContent = [
+      "state_code,article_id,first_party,second_party,description_of_document,consideration_price,stamp_duty_paid_by,number_of_e_stamps",
+      `karnataka,${article.articleCode},Alice,Bob,Agreement,500000,Alice,1`,
+    ].join("\n");
+
+    const { batch } = await BulkEStampService.uploadBatch({
+      organizationId: org._id,
+      createdBy: user._id,
+      actorRole: Role.SUPER_ADMIN,
+      fileBuffer: Buffer.from(csvContent, "utf8"),
+      mimeType: "text/csv",
+      originalFileName: "data.csv",
+    });
+
+    expect(batch.totalRows).toBe(1);
+    expect(batch.status).toBe("PREVIEW_READY");
+    const items = await BulkEStampBatchItem.find({ batchId: batch._id }).lean();
+    expect(items[0].status).toBe("VALID");
+    expect(items[0].inputData.stateCode).toBe("KA");
+    expect(items[0].inputData.articleId).toBe(article._id.toString());
+  });
 });

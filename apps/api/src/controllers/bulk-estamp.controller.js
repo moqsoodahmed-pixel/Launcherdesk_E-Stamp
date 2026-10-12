@@ -138,21 +138,7 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
     }
     const stateCodes = Array.from(articlesByState.keys()).sort((a, b) => (0, indianStates_1.stateNameForCode)(a).localeCompare((0, indianStates_1.stateNameForCode)(b)));
     const workbook = new ExcelJS.Workbook();
-    // "ArticleLists" holds one column per state - the source range each
-    // state's dependent dropdown pulls from. Hidden: it's a lookup table,
-    // not something a filler needs to see directly.
-    const listSheet = workbook.addWorksheet("ArticleLists", { state: "veryHidden" });
-    stateCodes.forEach((stateCode, colIdx) => {
-        const col = colIdx + 1;
-        const articlesForState = articlesByState.get(stateCode);
-        listSheet.getCell(1, col).value = (0, indianStates_1.stateNameForCode)(stateCode);
-        articlesForState.forEach((article, rowIdx) => {
-            listSheet.getCell(rowIdx + 2, col).value = `${article.articleCode} - ${article.title}`;
-        });
-        const colLetter = listSheet.getColumn(col).letter;
-        workbook.definedNames.add(`ArticleLists!$${colLetter}$2:$${colLetter}$${articlesForState.length + 1}`, definedNameForStateCode(stateCode));
-    });
-    // "Template" - the sheet a user actually fills in.
+    // "Template" - the sheet a user actually fills in. Added first so Excel opens this tab by default!
     const templateSheet = workbook.addWorksheet("Template");
     templateSheet.columns = TEMPLATE_COLUMNS.map((c) => ({ header: c.header, key: c.field, width: c.width }));
     const exampleArticle = articles[0];
@@ -167,17 +153,33 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
         stampDutyPaidBy: "Alice",
         numberOfEStamps: 1,
     });
+
+    // "ArticleLists" holds one column per state - the source range each
+    // state's dependent dropdown pulls from. Hidden: it's a lookup table,
+    // not something a filler needs to see directly.
+    const listSheet = workbook.addWorksheet("ArticleLists", { state: "veryHidden" });
+    stateCodes.forEach((stateCode, colIdx) => {
+        const col = colIdx + 1;
+        const articlesForState = articlesByState.get(stateCode);
+        listSheet.getCell(1, col).value = (0, indianStates_1.stateNameForCode)(stateCode);
+        articlesForState.forEach((article, rowIdx) => {
+            listSheet.getCell(rowIdx + 2, col).value = `${article.articleCode} - ${article.title}`;
+        });
+        const colLetter = listSheet.getColumn(col).letter;
+        workbook.definedNames.add(`ArticleLists!$${colLetter}$2:$${colLetter}$${articlesForState.length + 1}`, definedNameForStateCode(stateCode));
+    });
+
     const LAST_ROW = 200; // generous room to fill in beyond the example row
     const stateFullNames = stateCodes.map((c) => (0, indianStates_1.stateNameForCode)(c));
     for (let row = 2; row <= LAST_ROW; row += 1) {
-        templateSheet.getCell(`A${row}`).dataValidation = {
-            type: "list",
-            allowBlank: true,
-            formulae: [`"${stateFullNames.join(",")}"`],
-            showErrorMessage: true,
-            errorTitle: "Invalid state",
-            error: "Please choose a state from the dropdown list.",
-        };
+        if (stateFullNames.length > 0) {
+            templateSheet.getCell(`A${row}`).dataValidation = {
+                type: "list",
+                allowBlank: true,
+                formulae: [`"${stateFullNames.join(",")}"`],
+                showErrorMessage: false,
+            };
+        }
         // Dependent dropdown: looks up the ArticleLists named range matching
         // whichever state was chosen in column A of this same row. If the
         // state cell is blank or unrecognized, Excel just shows no options
