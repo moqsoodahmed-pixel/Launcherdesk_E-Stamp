@@ -57,6 +57,13 @@ export default function NewRequestPage() {
   const [calcError, setCalcError] = useState(null);
   const [attemptedKey, setAttemptedKey] = useState(null);
 
+  // WHICH party pays, tracked separately from their name. The submitted
+  // field is a free-text name, and two parties can legitimately share one
+  // (same name, different people) - so deciding the selected button by
+  // comparing names marks BOTH of them selected and leaves the real choice
+  // ambiguous. The side is the answer; the name is just what gets sent.
+  const [paidBySide, setPaidBySide] = useState(null);
+
   // Generated once per visit and resent unchanged on every submit attempt
   // (including retries) - the backend recognizes this to avoid a duplicate
   // charge/request on accidental resubmission. Do not regenerate per step.
@@ -151,6 +158,30 @@ export default function NewRequestPage() {
     runCalculation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, values.stateCode, values.articleId, currentKey, isFresh, calculating, attemptedKey]);
+
+  function choosePayer(side) {
+    setPaidBySide(side);
+    setValue("stampDutyPaidBy", side === "FIRST" ? values.firstParty : values.secondParty, { shouldValidate: true });
+  }
+
+  // Keeps the name that actually gets submitted in step with the chosen
+  // party if that party is later renamed, so the highlighted button and the
+  // submitted payer can never disagree. If the chosen party is cleared
+  // entirely, the selection goes with it rather than submitting someone who
+  // is no longer a party to the document.
+  useEffect(() => {
+    if (!paidBySide) return;
+    const name = paidBySide === "FIRST" ? values.firstParty : values.secondParty;
+    if (!name) {
+      setPaidBySide(null);
+      setValue("stampDutyPaidBy", "", { shouldValidate: false });
+      return;
+    }
+    if (name !== values.stampDutyPaidBy) {
+      setValue("stampDutyPaidBy", name, { shouldValidate: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paidBySide, values.firstParty, values.secondParty]);
 
   async function runCalculation() {
     setCalcError(null);
@@ -298,15 +329,16 @@ export default function NewRequestPage() {
             <Field label="Consideration Price (₹)" error={errors.considerationPrice?.message}>
               <input type="number" className="input" {...register("considerationPrice", { valueAsNumber: true })} />
             </Field>
-            <Field label="Who pays the stamp duty?" error={errors.stampDutyPaidBy?.message}>
-              {values.firstParty || values.secondParty ? (
+            {values.firstParty || values.secondParty ? (
+              <FieldGroup label="Who pays the stamp duty?" error={errors.stampDutyPaidBy?.message}>
                 <div className="flex gap-2">
                   {values.firstParty && (
                     <button
                       type="button"
-                      onClick={() => setValue("stampDutyPaidBy", values.firstParty, { shouldValidate: true })}
+                      aria-pressed={paidBySide === "FIRST"}
+                      onClick={() => choosePayer("FIRST")}
                       className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
-                        values.stampDutyPaidBy === values.firstParty
+                        paidBySide === "FIRST"
                           ? "border-brand-600 bg-brand-50 text-brand-700 font-medium"
                           : "border-slate-300 text-slate-600"
                       }`}
@@ -317,9 +349,10 @@ export default function NewRequestPage() {
                   {values.secondParty && (
                     <button
                       type="button"
-                      onClick={() => setValue("stampDutyPaidBy", values.secondParty, { shouldValidate: true })}
+                      aria-pressed={paidBySide === "SECOND"}
+                      onClick={() => choosePayer("SECOND")}
                       className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
-                        values.stampDutyPaidBy === values.secondParty
+                        paidBySide === "SECOND"
                           ? "border-brand-600 bg-brand-50 text-brand-700 font-medium"
                           : "border-slate-300 text-slate-600"
                       }`}
@@ -328,10 +361,12 @@ export default function NewRequestPage() {
                     </button>
                   )}
                 </div>
-              ) : (
+              </FieldGroup>
+            ) : (
+              <Field label="Who pays the stamp duty?" error={errors.stampDutyPaidBy?.message}>
                 <input className="input" {...register("stampDutyPaidBy")} placeholder="Enter party names on the previous step first" />
-              )}
-            </Field>
+              </Field>
+            )}
             <Field label="No. of E-Stamps" error={errors.numberOfEStamps?.message}>
               <input type="number" className="input" {...register("numberOfEStamps", { valueAsNumber: true })} />
             </Field>
@@ -349,6 +384,7 @@ export default function NewRequestPage() {
             calculating={calculating}
             calcError={calcError}
             onRetryCalculation={runCalculation}
+            paidBySide={paidBySide}
           />
         )}
 
@@ -424,7 +460,7 @@ function AddFundsHint({ canOpenWallet }) {
   );
 }
 
-function ReviewStep({ values, calculation, balance, canOpenWallet, articles, states, calculating, calcError, onRetryCalculation }) {
+function ReviewStep({ values, calculation, balance, canOpenWallet, articles, states, calculating, calcError, onRetryCalculation, paidBySide }) {
   const insufficientBalance = calculation && typeof balance === "number" && balance < calculation.amount;
   const selectedArticle = articles.find((a) => a._id === values.articleId);
   const selectedState = states.find((s) => s.code === values.stateCode);
@@ -443,7 +479,16 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
         <Row label="State" value={selectedState ? selectedState.name : values.stateCode} />
         <Row label="Article" value={selectedArticle ? `${selectedArticle.articleCode} - ${selectedArticle.title}` : "-"} />
         <Row label="Consideration Price" value={formatCurrency(values.considerationPrice)} />
-        <Row label="Stamp Duty Paid By" value={values.stampDutyPaidBy} />
+        {/* Names the party as well as the name, so a payer who shares a name
+            with the other party is still unambiguous on the final check. */}
+        <Row
+          label="Stamp Duty Paid By"
+          value={
+            paidBySide
+              ? `${values.stampDutyPaidBy} (${paidBySide === "FIRST" ? "First Party" : "Second Party"})`
+              : values.stampDutyPaidBy
+          }
+        />
         <Row label="No. of E-Stamps" value={values.numberOfEStamps} />
       </div>
 
@@ -523,6 +568,21 @@ function PriceSummary({ calculation, calculating, calcError, onRetry, balance })
           Only the stamp duty is reserved when you submit and charged when the 20-minute window ends. Fees are billed separately.
         </p>
       </div>
+    </div>
+  );
+}
+
+// A labelled group for controls that are not one form field. Deliberately
+// NOT a <label>: a label adopts its first labelable descendant, so wrapping
+// the two payer buttons in one overwrote the FIRST button's accessible name
+// with the whole group's text - leaving a screen-reader user hearing the
+// group heading where the first party's name should be.
+function FieldGroup({ label, error, children }) {
+  return (
+    <div role="group" aria-label={label}>
+      <span className="block text-sm font-medium text-slate-700 mb-1">{label}</span>
+      {children}
+      {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}
     </div>
   );
 }

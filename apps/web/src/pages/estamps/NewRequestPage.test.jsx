@@ -95,6 +95,73 @@ describe("NewRequestPage - State & Article step uses the full state master", () 
   });
 });
 
+describe("NewRequestPage - who pays the stamp duty", () => {
+  // Reproduces the reported bug: both parties entered as "das", which made
+  // BOTH payer buttons render as selected at once.
+  async function goToFinancialDetails({ firstParty = "das", secondParty = "das" } = {}) {
+    apiClient.get.mockImplementation((url) => {
+      if (url === "/wallet/balance") return Promise.resolve({ data: { data: { balance: 1000 } } });
+      if (url === "/states") return Promise.resolve({ data: { data: [{ code: "KA", name: "Karnataka" }] } });
+      if (url === "/articles") return Promise.resolve({ data: { data: [{ _id: "a1", articleCode: "5", title: "General Agreement" }] } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    fireEvent.change(screen.getByLabelText("First Party"), { target: { value: firstParty } });
+    fireEvent.change(screen.getByLabelText("Second Party"), { target: { value: secondParty } });
+    fireEvent.change(screen.getByLabelText("Description of Document"), { target: { value: "Agreement for testing purposes only" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    const stateSelect = await screen.findByRole("combobox", { name: /state/i });
+    fireEvent.change(stateSelect, { target: { value: "KA" } });
+    const articleSelect = await screen.findByRole("combobox", { name: /article/i });
+    await waitFor(() => expect(screen.getByRole("option", { name: /5 - General Agreement/ })).toBeInTheDocument());
+    fireEvent.change(articleSelect, { target: { value: "a1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByLabelText(/Consideration Price/);
+  }
+
+  it("selects only ONE party when both parties share the same name", async () => {
+    await goToFinancialDetails({ firstParty: "das", secondParty: "das" });
+    const first = screen.getByRole("button", { name: "das (First Party)" });
+    const second = screen.getByRole("button", { name: "das (Second Party)" });
+
+    // Nothing is selected until the user picks.
+    expect(first).toHaveAttribute("aria-pressed", "false");
+    expect(second).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(first);
+    expect(first).toHaveAttribute("aria-pressed", "true");
+    expect(second).toHaveAttribute("aria-pressed", "false");
+
+    // Picking the other identically-named party moves the selection
+    // instead of lighting both up.
+    fireEvent.click(second);
+    expect(first).toHaveAttribute("aria-pressed", "false");
+    expect(second).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("still selects exactly one party when the names differ", async () => {
+    await goToFinancialDetails({ firstParty: "Alice", secondParty: "Bob" });
+    fireEvent.click(screen.getByRole("button", { name: "Bob (Second Party)" }));
+    expect(screen.getByRole("button", { name: "Alice (First Party)" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Bob (Second Party)" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("names which party pays on the review screen, not just the shared name", async () => {
+    apiClient.post.mockImplementation((url) => {
+      if (url === "/estamps/calculate") return Promise.resolve({ data: { data: { amount: 500, articleVersionUsed: 1, pricing: null } } });
+      return Promise.resolve({ data: { data: {} } });
+    });
+    await goToFinancialDetails({ firstParty: "das", secondParty: "das" });
+    fireEvent.change(screen.getByLabelText(/Consideration Price/), { target: { value: "100" } });
+    fireEvent.click(screen.getByRole("button", { name: "das (Second Party)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    await screen.findByText("Create Request");
+    expect(screen.getByText("das (Second Party)")).toBeInTheDocument();
+  });
+});
+
 describe("NewRequestPage - Review & Submit", () => {
   // The exact breakdown the backend returns for a ₹500 duty (and the exact
   // figures captured in LauncherDesk's own published price summary).
