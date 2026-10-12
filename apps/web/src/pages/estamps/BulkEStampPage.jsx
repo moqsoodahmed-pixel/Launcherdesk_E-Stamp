@@ -37,7 +37,7 @@ export default function BulkEStampPage() {
   async function handleTemplateDownload() {
     setTemplateError(null);
     try {
-      await downloadFile("/bulk-estamps/template", "bulk-estamp-template.csv");
+      await downloadFile("/bulk-estamps/template", "bulk-estamp-template.xlsx");
     } catch (err) {
       setTemplateError(errorMessage(err, "Could not download the template."));
     }

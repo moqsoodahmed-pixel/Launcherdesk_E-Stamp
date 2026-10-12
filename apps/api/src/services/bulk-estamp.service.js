@@ -14,6 +14,7 @@ const ApiError_1 = require("../utils/ApiError");
 const audit_service_1 = require("./audit.service");
 const notification_service_1 = require("./notification.service");
 const fileSignature_1 = require("../utils/fileSignature");
+const indianStates_1 = require("../utils/indianStates");
 // Phase 11 - Bulk E-Stamp Request Management.
 //
 // Core reuse principle: this module NEVER calculates, debits a wallet, or
@@ -74,8 +75,29 @@ async function loadOwnedBatch(batchId, organizationId, actorRole) {
     return batch;
 }
 function normalizeHeader(cell) {
-    return String(cell ?? "").trim().toLowerCase();
+    return String(cell ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/[\-_]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 }
+// Human-readable header text accepted alongside each canonical field name -
+// matches the downloadTemplate-generated "Template" sheet's headers (see
+// bulk-estamp.controller.js TEMPLATE_COLUMNS) while keeping every canonical
+// name itself valid too, for backward compatibility with any template
+// already in the wild or produced programmatically.
+const FIELD_ALIASES = {
+    stateCode: ["state", "state code", "statecode"],
+    articleId: ["article", "article id", "article code", "article name", "articleid"],
+    firstParty: ["first party", "first party name", "firstparty", "party 1", "party1", "1st party"],
+    secondParty: ["second party", "second party name", "secondparty", "party 2", "party2", "2nd party"],
+    descriptionOfDocument: ["description of document", "document description", "description", "descriptionofdocument", "doc description"],
+    propertyDescription: ["property description", "property details", "property", "propertydescription"],
+    considerationPrice: ["consideration price", "consideration amount", "consideration value", "price", "amount", "considerationprice"],
+    stampDutyPaidBy: ["stamp duty paid by", "duty paid by", "paid by", "stampdutypaidby"],
+    numberOfEStamps: ["number of e-stamps", "number of estamps", "number of e stamps", "no of e-stamps", "no of estamps", "no. of e-stamps", "numberofestamps", "quantity", "count"],
+};
 // Builds { canonicalField -> columnIndex }, plus lists of missing/duplicate
 // canonical fields. Header matching is case-insensitive/trimmed but must
 // resolve to exactly one column per canonical field.
@@ -83,8 +105,19 @@ function matchHeaders(headerRow) {
     const columnIndexByField = {};
     const duplicateFields = new Set();
     (headerRow || []).forEach((cell, idx) => {
+        const raw = String(cell ?? "").trim();
+        if (!raw) return;
         const normalized = normalizeHeader(cell);
-        const field = ALL_TEMPLATE_FIELDS.find((f) => f.toLowerCase() === normalized);
+        const compact = normalized.replace(/[^a-z0-9]/g, "");
+
+        const field = ALL_TEMPLATE_FIELDS.find((f) => {
+            const fLower = f.toLowerCase();
+            const fCompact = fLower.replace(/[^a-z0-9]/g, "");
+            if (fLower === normalized || fCompact === compact) return true;
+            const aliases = FIELD_ALIASES[f] || [];
+            return aliases.some(a => a === normalized || a.replace(/[^a-z0-9]/g, "") === compact);
+        });
+
         if (!field)
             return; // unrecognized extra column - ignored, never stored
         if (columnIndexByField[field] !== undefined) {
@@ -162,8 +195,44 @@ exports.BulkEStampService = {
         catch (err) {
             throw ApiError_1.ApiError.badRequest("Unable to parse the uploaded file. Please ensure it is a valid CSV or XLSX file.", "INVALID_FILE");
         }
-        const sheetName = workbook.SheetNames?.[0];
-        const sheet = sheetName ? workbook.Sheets[sheetName] : null;
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+            throw ApiError_1.ApiError.badRequest("The uploaded file has no readable sheet.", "INVALID_FILE");
+        }
+        // In multi-sheet workbooks (e.g. generated templates containing Template,
+        // ArticleLists, Article Reference), dynamically find the sheet that actually
+        // contains the required bulk data columns, or is explicitly named "Template".
+        let sheet = null;
+        let selectedSheetName = workbook.SheetNames[0];
+
+        // 1. Pass: Scan sheets for the one with 100% matched required headers
+        for (const name of workbook.SheetNames) {
+            const candidate = workbook.Sheets[name];
+            if (!candidate) continue;
+            const previewRows = xlsx_1.utils.sheet_to_json(candidate, { header: 1, raw: true, defval: null });
+            if (previewRows && previewRows.length > 0) {
+                const { missingFields } = matchHeaders(previewRows[0]);
+                if (missingFields.length === 0) {
+                    sheet = candidate;
+                    selectedSheetName = name;
+                    break;
+                }
+            }
+        }
+
+        // 2. Pass: If no sheet matched 100%, prefer a sheet named "Template"
+        if (!sheet) {
+            const templateName = workbook.SheetNames.find((n) => String(n).trim().toLowerCase() === "template");
+            if (templateName && workbook.Sheets[templateName]) {
+                sheet = workbook.Sheets[templateName];
+                selectedSheetName = templateName;
+            }
+        }
+
+        // 3. Pass: Fallback to the first sheet
+        if (!sheet) {
+            sheet = workbook.Sheets[selectedSheetName];
+        }
+
         if (!sheet) {
             throw ApiError_1.ApiError.badRequest("The uploaded file has no readable sheet.", "INVALID_FILE");
         }
@@ -244,6 +313,47 @@ exports.BulkEStampService = {
         // Build every item's inputData first (so duplicate-suspect detection
         // can compare across the whole batch), THEN validate each row.
         const rowInputs = dataRows.map((row) => rowToInputData(row, columnIndexByField));
+        // The downloadTemplate-generated sheet puts a full state name in the
+        // State column and "<code> - <title>" in the Article column (see
+        // bulk-estamp.controller.js) rather than the raw stateCode/articleId
+        // this service has always stored - resolve both back to their real
+        // values here, once, before anything else touches them. A value that
+        // doesn't resolve (unknown state name, unmatched article text) is
+        // left exactly as typed, so the existing zod/ObjectId validation
+        // below still rejects it with its normal, clear error - this step
+        // only ever helps a valid human-entered value, never masks a bad one.
+        const activeArticles = await models_1.Article.find({ isActive: true }).select("stateCode articleCode title").lean();
+        const articleIdByStateAndCode = new Map();
+        for (const a of activeArticles) {
+            const state = a.stateCode.toUpperCase();
+            const code = a.articleCode.toUpperCase();
+            const title = (a.title || "").toUpperCase().trim();
+            articleIdByStateAndCode.set(`${state}|${code}`, a._id.toString());
+            articleIdByStateAndCode.set(`${state}|${code.replace(/[^A-Z0-9]/g, "")}`, a._id.toString());
+            if (title) {
+                articleIdByStateAndCode.set(`${state}|${title}`, a._id.toString());
+                articleIdByStateAndCode.set(`${state}|${code} - ${title}`, a._id.toString());
+            }
+        }
+        for (const data of rowInputs) {
+            if (data.stateCode) {
+                data.stateCode = (0, indianStates_1.resolveStateCode)(data.stateCode);
+            }
+            if (data.articleId && !mongoose_1.Types.ObjectId.isValid(String(data.articleId))) {
+                const rawArticle = String(data.articleId).trim();
+                const state = String(data.stateCode || "").toUpperCase();
+                const code = rawArticle.split(" - ")[0].trim().toUpperCase();
+                let resolved = articleIdByStateAndCode.get(`${state}|${code}`);
+                if (!resolved) {
+                    resolved = articleIdByStateAndCode.get(`${state}|${rawArticle.toUpperCase()}`);
+                }
+                if (!resolved) {
+                    resolved = articleIdByStateAndCode.get(`${state}|${code.replace(/[^A-Z0-9]/g, "")}`);
+                }
+                if (resolved)
+                    data.articleId = resolved;
+            }
+        }
         const duplicateKeys = new Map();
         rowInputs.forEach((data, idx) => {
             const key = duplicateKey(data);

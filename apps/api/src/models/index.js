@@ -19,6 +19,7 @@ __exportStar(require("./Organization"), exports);
 __exportStar(require("./OTP"), exports);
 __exportStar(require("./RefreshToken"), exports);
 __exportStar(require("./Article"), exports);
+__exportStar(require("./State"), exports);
 __exportStar(require("./Wallet"), exports);
 __exportStar(require("./Payment"), exports);
 __exportStar(require("./EstampPackage"), exports);

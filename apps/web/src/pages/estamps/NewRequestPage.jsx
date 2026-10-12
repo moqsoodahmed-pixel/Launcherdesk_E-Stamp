@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "react-router-dom";
@@ -39,6 +39,10 @@ export default function NewRequestPage() {
   const [lookupError, setLookupError] = useState(null);
   const [states, setStates] = useState([]);
   const [articles, setArticles] = useState([]);
+  const [articlesLoading, setArticlesLoading] = useState(false);
+  // Session-level cache of articles already fetched per state, so switching
+  // back to a previously-selected state never re-requests the same data.
+  const articlesCacheRef = useRef(new Map());
   const [balance, setBalance] = useState(null);
   const [serverError, setServerError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -76,8 +80,12 @@ export default function NewRequestPage() {
       .get("/wallet/balance")
       .then((res) => setBalance(res.data.data.availableBalance ?? res.data.data.balance))
       .catch(() => setBalance(null));
+    // The full state/UT master list - always shows every supported
+    // jurisdiction, independent of whether any article has been imported
+    // for it yet (unlike /articles/states, which only returns states that
+    // already have at least one article).
     apiClient
-      .get("/articles/states")
+      .get("/states")
       .then((res) => setStates(res.data.data))
       .catch((err) => {
         setStates([]);
@@ -90,16 +98,25 @@ export default function NewRequestPage() {
       setArticles([]);
       return;
     }
+    const cached = articlesCacheRef.current.get(values.stateCode);
+    if (cached) {
+      setArticles(cached);
+      return;
+    }
+    setArticlesLoading(true);
     apiClient
       .get("/articles", { params: { stateCode: values.stateCode } })
       .then((res) => {
         const payload = res.data.data;
-        setArticles(Array.isArray(payload) ? payload : payload?.items || []);
+        const items = Array.isArray(payload) ? payload : payload?.items || [];
+        articlesCacheRef.current.set(values.stateCode, items);
+        setArticles(items);
       })
       .catch((err) => {
         setArticles([]);
         setLookupError(errorMessage(err, "Could not load articles for this state."));
-      });
+      })
+      .finally(() => setArticlesLoading(false));
   }, [values.stateCode]);
 
   async function goNext() {
@@ -224,21 +241,29 @@ export default function NewRequestPage() {
               >
                 <option value="">Select state</option>
                 {states.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                  <option key={s.code} value={s.code}>
+                    {s.name}
                   </option>
                 ))}
               </select>
             </Field>
-            <Field label="Article" error={errors.articleId?.message}>
+            <Field
+              label={values.stateCode && articles.length > 0 ? `Article (${articles.length} available)` : "Article"}
+              error={errors.articleId?.message}
+            >
               <select className="input" {...register("articleId")} disabled={!values.stateCode}>
                 <option value="">Select article</option>
-                {articles.map((a) => (
+                {articles.map((a, idx) => (
                   <option key={a._id} value={a._id}>
-                    {a.articleCode} - {a.title}
+                    {idx + 1}. {a.articleCode} - {a.title}
                   </option>
                 ))}
               </select>
+              {values.stateCode && !articlesLoading && articles.length === 0 && (
+                <p className="text-xs text-slate-500 mt-1">
+                  No official articles have been imported for this state yet.
+                </p>
+              )}
             </Field>
           </div>
         )}

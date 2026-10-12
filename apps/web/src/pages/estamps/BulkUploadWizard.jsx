@@ -46,7 +46,7 @@ export default function BulkUploadWizard() {
 
   async function handleTemplateDownload() {
     try {
-      await downloadFile("/bulk-estamps/template", "bulk-estamp-template.csv");
+      await downloadFile("/bulk-estamps/template", "bulk-estamp-template.xlsx");
     } catch (err) {
       setError(errorMessage(err, "Could not download the template."));
     }

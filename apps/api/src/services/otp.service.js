@@ -104,7 +104,7 @@ exports.OtpService = {
         return challengeToken;
     },
     async verifyDirectToken(challengeToken, req) {
-        const otp = await models_1.OTP.findOne({ challengeToken, purpose: "PASSWORD_RESET" });
+        const otp = await models_1.OTP.findOne({ challengeToken, purpose: "PASSWORD_RESET", codeHash: "direct_reset_token" });
         if (!otp)
             throw ApiError_1.ApiError.badRequest("Invalid or expired reset link");
         if (otp.consumedAt)
