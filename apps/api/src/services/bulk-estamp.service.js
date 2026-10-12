@@ -14,6 +14,7 @@ const ApiError_1 = require("../utils/ApiError");
 const audit_service_1 = require("./audit.service");
 const notification_service_1 = require("./notification.service");
 const fileSignature_1 = require("../utils/fileSignature");
+const indianStates_1 = require("../utils/indianStates");
 // Phase 11 - Bulk E-Stamp Request Management.
 //
 // Core reuse principle: this module NEVER calculates, debits a wallet, or
@@ -76,6 +77,22 @@ async function loadOwnedBatch(batchId, organizationId, actorRole) {
 function normalizeHeader(cell) {
     return String(cell ?? "").trim().toLowerCase();
 }
+// Human-readable header text accepted alongside each canonical field name -
+// matches the downloadTemplate-generated "Template" sheet's headers (see
+// bulk-estamp.controller.js TEMPLATE_COLUMNS) while keeping every canonical
+// name itself valid too, for backward compatibility with any template
+// already in the wild or produced programmatically.
+const FIELD_ALIASES = {
+    stateCode: ["state"],
+    articleId: ["article"],
+    firstParty: ["first party"],
+    secondParty: ["second party"],
+    descriptionOfDocument: ["description of document"],
+    propertyDescription: ["property description"],
+    considerationPrice: ["consideration price"],
+    stampDutyPaidBy: ["stamp duty paid by"],
+    numberOfEStamps: ["number of e-stamps", "number of estamps"],
+};
 // Builds { canonicalField -> columnIndex }, plus lists of missing/duplicate
 // canonical fields. Header matching is case-insensitive/trimmed but must
 // resolve to exactly one column per canonical field.
@@ -84,7 +101,7 @@ function matchHeaders(headerRow) {
     const duplicateFields = new Set();
     (headerRow || []).forEach((cell, idx) => {
         const normalized = normalizeHeader(cell);
-        const field = ALL_TEMPLATE_FIELDS.find((f) => f.toLowerCase() === normalized);
+        const field = ALL_TEMPLATE_FIELDS.find((f) => f.toLowerCase() === normalized || (FIELD_ALIASES[f] || []).includes(normalized));
         if (!field)
             return; // unrecognized extra column - ignored, never stored
         if (columnIndexByField[field] !== undefined) {
@@ -244,6 +261,31 @@ exports.BulkEStampService = {
         // Build every item's inputData first (so duplicate-suspect detection
         // can compare across the whole batch), THEN validate each row.
         const rowInputs = dataRows.map((row) => rowToInputData(row, columnIndexByField));
+        // The downloadTemplate-generated sheet puts a full state name in the
+        // State column and "<code> - <title>" in the Article column (see
+        // bulk-estamp.controller.js) rather than the raw stateCode/articleId
+        // this service has always stored - resolve both back to their real
+        // values here, once, before anything else touches them. A value that
+        // doesn't resolve (unknown state name, unmatched article text) is
+        // left exactly as typed, so the existing zod/ObjectId validation
+        // below still rejects it with its normal, clear error - this step
+        // only ever helps a valid human-entered value, never masks a bad one.
+        const activeArticles = await models_1.Article.find({ isActive: true }).select("stateCode articleCode").lean();
+        const articleIdByStateAndCode = new Map();
+        for (const a of activeArticles) {
+            articleIdByStateAndCode.set(`${a.stateCode.toUpperCase()}|${a.articleCode.toUpperCase()}`, a._id.toString());
+        }
+        for (const data of rowInputs) {
+            if (data.stateCode) {
+                data.stateCode = (0, indianStates_1.resolveStateCode)(data.stateCode);
+            }
+            if (data.articleId && !mongoose_1.Types.ObjectId.isValid(String(data.articleId))) {
+                const code = String(data.articleId).split(" - ")[0].trim().toUpperCase();
+                const resolved = articleIdByStateAndCode.get(`${String(data.stateCode).toUpperCase()}|${code}`);
+                if (resolved)
+                    data.articleId = resolved;
+            }
+        }
         const duplicateKeys = new Map();
         rowInputs.forEach((data, idx) => {
             const key = duplicateKey(data);
