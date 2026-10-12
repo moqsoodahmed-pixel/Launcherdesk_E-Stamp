@@ -122,11 +122,11 @@ async function buildOrderFilter(req) {
         filter.requestId = { $in: requests.map((r) => r._id) };
         filter.eStampStatus = { $in: fulfilment_service_1.FULFILLABLE_ORDER_STATUSES };
         if (req.query.queue === "vendor-review")
-            filter.vendorStatus = shared_1.VendorStatus.UPLOADED;
+            filter.vendorStatus = (0, fulfilment_service_1.vendorStatusIn)([shared_1.VendorStatus.UPLOADED]);
         else if (req.query.vendorStatus !== undefined) {
             if (!Object.values(shared_1.VendorStatus).includes(req.query.vendorStatus))
                 throw ApiError_1.ApiError.badRequest("Invalid vendorStatus filter", "INVALID_STATUS");
-            filter.vendorStatus = req.query.vendorStatus === shared_1.VendorStatus.NOT_SENT ? { $in: [shared_1.VendorStatus.NOT_SENT, null] } : req.query.vendorStatus;
+            filter.vendorStatus = (0, fulfilment_service_1.vendorStatusIn)([req.query.vendorStatus]);
         }
     }
     if (search) {
@@ -251,7 +251,7 @@ async function computeManualActions(req, order, request) {
         fulfil: open && charged,
         fail: open,
         dispatch: open && charged && fulfilment_service_1.DISPATCHABLE_VENDOR_STATUSES.includes(order.vendorStatus || shared_1.VendorStatus.NOT_SENT),
-        recall: open && fulfilment_service_1.RECALLABLE_VENDOR_STATUSES.includes(order.vendorStatus),
+        recall: open && fulfilment_service_1.RECALLABLE_VENDOR_STATUSES.includes(order.vendorStatus || shared_1.VendorStatus.NOT_SENT),
         vendorReview: open && charged && order.vendorStatus === shared_1.VendorStatus.UPLOADED,
     };
 }

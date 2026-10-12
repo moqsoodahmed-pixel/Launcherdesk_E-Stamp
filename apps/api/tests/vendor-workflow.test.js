@@ -501,3 +501,104 @@ describe("recall, can't process and failure while with a vendor", () => {
     expect((await vendorUpload(other._id, token)).status).toBe(409);
   });
 });
+
+describe("orders created before the vendor workflow (no vendorStatus field)", () => {
+  // Re-inserts a charged, LOCKED order as a raw document without any vendor
+  // field, exactly as it exists in a database migrated from before this feature.
+  async function legacyOrder(ctx) {
+    const { request, order } = await lockedOrder(ctx);
+    const raw = await EStampOrder.collection.findOne({ _id: order._id });
+    for (const key of ["vendorStatus", "vendorUploads", "vendorDeclined"]) delete raw[key];
+    await EStampOrder.collection.deleteOne({ _id: order._id });
+    await EStampOrder.collection.insertOne(raw);
+    const stored = await EStampOrder.collection.findOne({ _id: order._id });
+    expect(stored).not.toHaveProperty("vendorStatus");
+    expect(request.status).toBe(EStampRequestStatus.LOCKED);
+    expect(request.chargeStatus).toBe("CHARGED");
+    return { request, orderId: order._id };
+  }
+
+  it("is counted as waiting for dispatch, then dispatched, uploaded and approved", async () => {
+    const { user: a, token: staff } = await makeAssistant();
+    const { user: vendor, token } = await makeVendor();
+    const ctx = await makeOrg({ assignedAssistantId: a._id });
+    const { request, orderId } = await legacyOrder(ctx);
+
+    // Dispatch queue and its count treat the missing field as NOT_SENT.
+    const waiting = await call("GET", "/orders?queue=fulfil&vendorStatus=NOT_SENT&limit=1", staff);
+    expect(waiting.body.data.total).toBe(1);
+    expect(waiting.body.data.items[0]._id).toBe(orderId.toString());
+    const detail = await call("GET", `/orders/${orderId}`, staff);
+    expect(detail.body.data.availableActions).toMatchObject({ dispatch: true, recall: false });
+    // Recall of a never-sent legacy order is a clean 409, not a crash.
+    expect((await call("POST", `/orders/${orderId}/recall`, staff)).status).toBe(409);
+
+    const sent = await call("POST", "/orders/dispatch", staff, { orderIds: [orderId.toString()], vendorId: vendor._id.toString() });
+    expect(sent.body.data.results[0]).toMatchObject({ ok: true });
+    expect((await EStampOrder.collection.findOne({ _id: orderId })).vendorStatus).toBe("SENT");
+    expect((await call("GET", "/orders?queue=fulfil&vendorStatus=NOT_SENT&limit=1", staff)).body.data.total).toBe(0);
+
+    expect((await vendorUpload(orderId, token, { stampReference: "KA-LEGACY-1" })).status).toBe(200);
+    const review = await call("GET", "/orders?queue=vendor-review", staff);
+    expect(review.body.data.items.map((o) => o._id)).toEqual([orderId.toString()]);
+    const approved = await call("POST", `/orders/${orderId}/vendor-approve`, staff);
+    expect(approved.status).toBe(200);
+    expect(await EStampOrder.findById(orderId)).toMatchObject({ eStampStatus: "ISSUED", vendorStatus: "APPROVED", providerReference: "KA-LEGACY-1" });
+    expect((await EStampRequest.findById(request._id)).status).toBe(EStampRequestStatus.DOWNLOAD_AVAILABLE);
+    expect(await EStampDocument.countDocuments({ orderId })).toBe(1);
+    expect((await call("GET", `/files/estamp/${orderId}/download`, ctx.clientToken)).status).toBe(200);
+  });
+
+  it("mark failed on a legacy order still works and sets the vendor stage explicitly", async () => {
+    const { user: a, token: staff } = await makeAssistant();
+    const ctx = await makeOrg({ assignedAssistantId: a._id });
+    const { orderId } = await legacyOrder(ctx);
+    expect((await call("POST", `/orders/${orderId}/fail`, staff, { reason: "Stamp paper unavailable", refundBalance: false })).status).toBe(200);
+    expect(await EStampOrder.collection.findOne({ _id: orderId })).toMatchObject({ eStampStatus: "FAILED", vendorStatus: "NOT_SENT" });
+  });
+});
+
+describe("vendor file access is scoped to the order and the vendor", () => {
+  const doc = (ctx, requestId, name) =>
+    FileAsset.create({ organizationId: ctx.org._id, ownerUserId: ctx.client._id, cloudinaryPublicId: `mock/${name}`, resourceType: "raw", fileType: "REQUEST_SUPPORTING_DOC", originalFileName: name, mimeType: "application/pdf", sizeBytes: 10, requestId });
+
+  it("refuses files of a different order, a different organization, an undispatched order, or another vendor's upload", async () => {
+    const { token: master } = await makeUser(Role.MASTER_ADMIN);
+    const { user: vendor, token } = await makeVendor();
+    const { user: otherVendor, token: otherToken } = await makeVendor();
+    const ctx = await makeOrg();
+    const otherCtx = await makeOrg();
+    const { order: mine } = await dispatched(ctx, master, vendor);
+    const { order: mineToo } = await dispatched(ctx, master, vendor);
+    const { order: otherOrgOrder } = await dispatched(otherCtx, master, vendor);
+    const { order: notSent } = await lockedOrder(ctx);
+    const { order: othersOrder } = await dispatched(ctx, master, otherVendor);
+    const own = await doc(ctx, mine.requestId, "own.pdf");
+    const sameOrgOtherOrder = await doc(ctx, mineToo.requestId, "other-order.pdf");
+    const otherOrg = await doc(otherCtx, otherOrgOrder.requestId, "other-org.pdf");
+    const undispatched = await doc(ctx, notSent.requestId, "not-sent.pdf");
+    expect((await vendorUpload(othersOrder._id, otherToken, { stampReference: "KA-OTHER-1" })).status).toBe(200);
+    const othersUpload = (await EStampOrder.findById(othersOrder._id)).vendorUploads[0].fileAssetId;
+
+    const get = (orderId, fileId, t = token) => call("GET", `/vendor/orders/${orderId}/files/${fileId}`, t);
+    expect((await get(mine._id, own._id)).status).toBe(200);
+    // A file of a different order (same organization, also dispatched to me).
+    expect((await get(mine._id, sameOrgOtherOrder._id)).status).toBe(404);
+    // A file of a different organization's order (even one dispatched to me).
+    expect((await get(mine._id, otherOrg._id)).status).toBe(404);
+    // A file of an order not dispatched to me - through my order or its own.
+    expect((await get(mine._id, undispatched._id)).status).toBe(404);
+    expect((await get(notSent._id, undispatched._id)).status).toBe(404);
+    // Another vendor's upload, through my order or through theirs.
+    expect((await get(mine._id, othersUpload)).status).toBe(404);
+    expect((await get(othersOrder._id, othersUpload)).status).toBe(404);
+    // Malformed and unknown ids.
+    expect((await get(mine._id, "not-an-id")).status).toBe(404);
+    expect((await get(mine._id, uid())).status).toBe(404);
+    // My own upload stays viewable; the other vendor cannot view mine.
+    expect((await vendorUpload(mine._id, token, { stampReference: "KA-MINE-1" })).status).toBe(200);
+    const myUpload = (await EStampOrder.findById(mine._id)).vendorUploads[0].fileAssetId;
+    expect((await get(mine._id, myUpload)).status).toBe(200);
+    expect((await get(mine._id, myUpload, otherToken)).status).toBe(404);
+  });
+});

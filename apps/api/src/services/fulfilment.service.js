@@ -26,6 +26,14 @@ const { NOT_SENT, SENT, ACCEPTED, UPLOADED, REJECTED, APPROVED } = shared_1.Vend
 // Vendor stage rules. A missing vendorStatus (orders created before the
 // vendor workflow) counts as NOT_SENT.
 exports.DISPATCHABLE_VENDOR_STATUSES = [NOT_SENT, REJECTED];
+// The ONE way to filter on vendorStatus in a query or a conditional update:
+// whenever NOT_SENT is allowed, a missing field (legacy order, matched by
+// null) is allowed too. Mongoose's schema default only applies to hydrated
+// documents, never to query filters or atomic update conditions.
+function vendorStatusIn(statuses) {
+    return { $in: statuses.includes(NOT_SENT) ? [...statuses, null] : [...statuses] };
+}
+exports.vendorStatusIn = vendorStatusIn;
 exports.RECALLABLE_VENDOR_STATUSES = [SENT, ACCEPTED];
 exports.VENDOR_UPLOADABLE_STATUSES = [SENT, ACCEPTED, REJECTED, UPLOADED];
 // Vendor certificates: PDF/PNG/JPG only (narrower than FileService's
@@ -321,6 +329,7 @@ exports.FulfilmentService = {
             return { orderId: id, ok: false, reason: "NOT_CHARGED" };
         if (!exports.FULFILLABLE_ORDER_STATUSES.includes(order.eStampStatus))
             return { orderId: id, ok: false, reason: "INVALID_STATE" };
+        // `|| NOT_SENT` also covers a lean/legacy object with no field.
         const current = order.vendorStatus || NOT_SENT;
         if (!exports.DISPATCHABLE_VENDOR_STATUSES.includes(current)) {
             const sameVendor = order.vendorId && order.vendorId.toString() === vendor._id.toString();
@@ -329,7 +338,7 @@ exports.FulfilmentService = {
             return { orderId: id, ok: false, reason: "ALREADY_WITH_VENDOR" };
         }
         const now = new Date();
-        const sent = await models_1.EStampOrder.findOneAndUpdate({ _id: order._id, eStampStatus: { $in: exports.FULFILLABLE_ORDER_STATUSES }, vendorStatus: { $in: [...exports.DISPATCHABLE_VENDOR_STATUSES, null] } }, {
+        const sent = await models_1.EStampOrder.findOneAndUpdate({ _id: order._id, eStampStatus: { $in: exports.FULFILLABLE_ORDER_STATUSES }, vendorStatus: vendorStatusIn(exports.DISPATCHABLE_VENDOR_STATUSES) }, {
             $set: {
                 vendorStatus: SENT,
                 vendorId: vendor._id,
@@ -361,10 +370,10 @@ exports.FulfilmentService = {
     },
     // POST /orders/:id/recall - SENT/ACCEPTED only, back to NOT_SENT.
     async recall(order, actor, req) {
-        if (!exports.RECALLABLE_VENDOR_STATUSES.includes(order.vendorStatus)) {
+        if (!exports.RECALLABLE_VENDOR_STATUSES.includes(order.vendorStatus || NOT_SENT)) {
             throw ApiError_1.ApiError.conflict("Only an order the vendor has not uploaded for can be recalled", "INVALID_STATE");
         }
-        const recalled = await models_1.EStampOrder.findOneAndUpdate({ _id: order._id, vendorStatus: { $in: exports.RECALLABLE_VENDOR_STATUSES } }, { $set: { vendorStatus: NOT_SENT }, $unset: { vendorId: "", vendorAcceptedAt: "" } }, { new: true });
+        const recalled = await models_1.EStampOrder.findOneAndUpdate({ _id: order._id, vendorStatus: vendorStatusIn(exports.RECALLABLE_VENDOR_STATUSES) }, { $set: { vendorStatus: NOT_SENT }, $unset: { vendorId: "", vendorAcceptedAt: "" } }, { new: true });
         if (!recalled)
             throw ApiError_1.ApiError.conflict("The order changed concurrently, please reload", "INVALID_STATE");
         await audit(actor, recalled, shared_1.AuditAction.ORDER_RECALLED, { vendorId: order.vendorId?.toString(), previousVendorStatus: order.vendorStatus }, req);
@@ -426,7 +435,7 @@ exports.FulfilmentService = {
         const uploaded = await models_1.EStampOrder.findOneAndUpdate({
             _id: order._id,
             vendorId: actor.id,
-            vendorStatus: { $in: exports.VENDOR_UPLOADABLE_STATUSES },
+            vendorStatus: vendorStatusIn(exports.VENDOR_UPLOADABLE_STATUSES),
             vendorDeclined: { $ne: true },
             eStampStatus: { $in: exports.FULFILLABLE_ORDER_STATUSES },
         }, {
@@ -457,7 +466,7 @@ exports.FulfilmentService = {
         if (!allowed.includes(order.vendorStatus) || order.vendorDeclined) {
             throw ApiError_1.ApiError.conflict(`The order is ${order.vendorStatus} and cannot be handed back`, "INVALID_STATE");
         }
-        const declined = await models_1.EStampOrder.findOneAndUpdate({ _id: order._id, vendorId: actor.id, vendorStatus: { $in: allowed }, vendorDeclined: { $ne: true } }, { $set: { vendorStatus: REJECTED, vendorDeclined: true, vendorDeclineReason: text } }, { new: true });
+        const declined = await models_1.EStampOrder.findOneAndUpdate({ _id: order._id, vendorId: actor.id, vendorStatus: vendorStatusIn(allowed), vendorDeclined: { $ne: true } }, { $set: { vendorStatus: REJECTED, vendorDeclined: true, vendorDeclineReason: text } }, { new: true });
         if (!declined)
             throw ApiError_1.ApiError.conflict("The order changed concurrently, please reload", "INVALID_STATE");
         await audit(actor, declined, shared_1.AuditAction.VENDOR_DECLINED, { reason: text }, req);
@@ -569,7 +578,7 @@ exports.FulfilmentService = {
                 summary.total += row.count;
             }
         }
-        const oldest = await models_1.EStampOrder.findOne({ vendorId: vid, vendorStatus: { $in: [SENT, ACCEPTED, REJECTED] } }).sort({ dispatchedAt: 1 }).select("dispatchedAt");
+        const oldest = await models_1.EStampOrder.findOne({ vendorId: vid, vendorStatus: vendorStatusIn([SENT, ACCEPTED, REJECTED]) }).sort({ dispatchedAt: 1 }).select("dispatchedAt");
         const oldestAt = oldest?.dispatchedAt || null;
         return { ...summary, oldestWaitingAt: oldestAt, oldestWaitingMinutes: oldestAt ? Math.floor((Date.now() - oldestAt.getTime()) / 60000) : null };
     },
