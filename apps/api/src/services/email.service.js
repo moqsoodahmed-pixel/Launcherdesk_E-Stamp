@@ -105,6 +105,9 @@ exports.EmailService = {
     async sendSecurityAlertEmail(to, message) {
         await dispatch(to, "securityAlert", { message });
     },
+    async sendVendorWelcomeEmail(to, name, eventKey) {
+        await dispatch(to, "vendorWelcome", { name }, eventKey);
+    },
     async sendAssistantAdminActivityAlert(to, message) {
         await dispatch(to, "assistantActivity", { message });
     },

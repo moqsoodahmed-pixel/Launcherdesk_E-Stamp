@@ -265,4 +265,28 @@ exports.acknowledgePolicySchema = zod_1.z.object({
 exports.updateSettingSchema = zod_1.z.object({
     value: zod_1.z.union([zod_1.z.number().finite(), zod_1.z.boolean(), zod_1.z.null()]),
     expectedVersion: zod_1.z.number().int().nonnegative().optional(),
+}).strict();// ---- Vendor workflow ------------------------------------------------------
+// Master-Admin-only: creates a VENDOR. Role, organizationId and permissions
+// are hard-coded server-side - only identity fields are accepted.
+exports.createVendorSchema = zod_1.z.object({
+    name: zod_1.z.string().trim().min(2).max(150),
+    email: zod_1.z.string().email(),
+    phone: zod_1.z.string().min(6).max(20).optional(),
+}).strict();
+exports.updateVendorStatusSchema = zod_1.z.object({
+    isActive: zod_1.z.boolean(),
+}).strict();
+const objectId = zod_1.z.string().regex(/^[a-f0-9]{24}$/i, "Invalid id");
+exports.dispatchOrdersSchema = zod_1.z.object({
+    orderIds: zod_1.z.array(objectId).min(1).max(200),
+    vendorId: objectId,
+}).strict();
+exports.vendorApproveManySchema = zod_1.z.object({
+    orderIds: zod_1.z.array(objectId).min(1).max(200),
+}).strict();
+exports.vendorRejectSchema = zod_1.z.object({
+    reason: zod_1.z.string().trim().min(5).max(500),
+}).strict();
+exports.vendorCannotProcessSchema = zod_1.z.object({
+    reason: zod_1.z.string().trim().min(5).max(500),
 }).strict();

@@ -119,6 +119,60 @@ never inside the 20-minute window, `CANCELLED` or `SHORTFALL` (409 `WINDOW_OPEN`
 - When a request locks and is charged, the assigned assistant (or every Master Admin) gets one
   "New order to fulfil <orderNumber>" notification.
 
+### Vendor stage (manual mode; Master Admin or the assigned assistant, `order.manage`; never a client role)
+See [vendor-workflow.md](vendor-workflow.md) for the status diagram.
+- `POST /dispatch` `{ orderIds: [1..200], vendorId }` — per order, atomic and idempotent: only when the request is
+  `LOCKED`/`PROCESSING` + `CHARGED`, the order is not `ISSUED`/`FAILED`, and `vendorStatus` is `NOT_SENT`/`REJECTED`.
+  Sets `vendorStatus: SENT`, `eStampStatus: PROCESSING`, `vendorId`. Returns
+  `{ results: [{ orderId, orderNumber, ok, reason?, alreadySent? }], sent, failed }`; reasons: `NOT_FOUND`,
+  `NOT_LOCKED`, `NOT_CHARGED`, `ALREADY_ISSUED`, `ALREADY_FAILED`, `ALREADY_WITH_VENDOR`, `INVALID_STATE`,
+  `CHANGED_CONCURRENTLY`. Re-sending to the same vendor is `ok` + `alreadySent`. Any order in an organization not
+  assigned to the calling assistant → 403 for the whole call (nothing dispatched). Inactive vendor → 409
+  `VENDOR_INACTIVE`. The vendor gets ONE in-app notification per distinct set of orders sent.
+- `POST /:id/recall` — `SENT`/`ACCEPTED` only → `NOT_SENT` (vendor removed), audited `ORDER_RECALLED`; 409 otherwise.
+- `GET /?queue=vendor-review` — orders with `vendorStatus: UPLOADED`; rows add `vendorName` and
+  `pendingVendorUpload { _id, stampReference, notes, uploadedAt }`. `GET /?queue=fulfil&vendorStatus=…` filters the
+  fulfilment queue by vendor stage (staff rows always carry `vendorStatus` and `vendorName`). Clients: 403.
+- `GET /:id/vendor-upload[?uploadId=]` — `{ url (signed, 5 min), filename, contentType, fileSize, upload }` for the
+  latest (or a given) vendor upload. Staff only.
+- `POST /:id/vendor-approve` — runs the SAME issue step as `/fulfil` using the vendor's stored file: certificate
+  document, `ISSUED`/`COMPLETED`/`AVAILABLE`, `providerReference` = stamp reference, request `DOWNLOAD_AVAILABLE`,
+  issued + certificate-available notifications/emails once, `vendorStatus: APPROVED`. Idempotent
+  (`alreadyApproved: true`, no second document or notification).
+- `POST /vendor-approve-many` `{ orderIds: [1..200] }` — per-order `{ orderId, ok, alreadyApproved?, reason? }`.
+- `POST /:id/vendor-reject` `{ reason (5-500) }` — `UPLOADED → REJECTED`, upload marked `REJECTED` with the reason,
+  vendor notified.
+- `POST /:id/fail` also works while the order is with a vendor; it clears the vendor stage (`NOT_SENT`, no vendor).
+- `GET /:id` for staff adds `vendor { _id, name, email, isActive }` and actions `dispatch`, `recall`, `vendorReview`.
+- Clients never receive `vendorId`, `vendorStatus`, `vendorUploads` or other vendor fields, vendor actions, or
+  vendor audit entries (order detail history and `/audit`).
+- `GET /estamps` for a USER now also includes every COMPLETED / DOWNLOAD_AVAILABLE request of their organization
+  (released certificates are organization-wide), in addition to their own requests.
+
+## Vendors — `/vendors` (MASTER_ADMIN only)
+- `GET /` `?status=active|inactive&search=` → `{ items, total }`.
+- `POST /` `{ name, email, phone? }` → 201 `{ user, tempPassword }` (temp password shown once, never emailed;
+  `mustChangePassword: true`; welcome email tells the vendor to use **Forgot password**).
+- `PATCH /:id/status` `{ isActive }` — deactivation ends live sessions immediately.
+
+## Vendor — `/vendor` (VENDOR only; every lookup scoped to `vendorId = me`, anything else 404)
+A VENDOR is fenced out of every other route (403), except `/auth/*`, `/notifications`, `PATCH /profile` and
+policy acknowledgement. Vendors use the normal email + OTP login.
+- `GET /orders` `?status=SENT|ACCEPTED|UPLOADED|REJECTED|APPROVED&batch=<bulkBatchId>&search=&page=&limit=` →
+  `{ items, total, page, limit }`, oldest dispatch first.
+- `GET /orders/summary` → `{ total, SENT, ACCEPTED, UPLOADED, REJECTED, APPROVED, oldestWaitingAt, oldestWaitingMinutes }`.
+- `GET /orders/:id` — restricted projection: `orderNumber, bulkBatchId, bulkBatchNumber, stateCode, articleTitle,
+  firstParty, secondParty, descriptionOfDocument, propertyDescription, considerationPrice, stampDuty,
+  numberOfEStamps, organizationName, vendorStatus, dispatchedAt, acceptedAt, declined, declineReason, closed,
+  documents[], uploads[]`. Never amounts charged, wallet, payments, contact details, users or other organizations.
+- `GET /orders/:id/files/:fileId` — signed URL for one of the client's documents on that order, or the vendor's own upload.
+- `POST /orders/:id/accept` — `SENT → ACCEPTED` (idempotent).
+- `POST /orders/:id/upload` (multipart `file` PDF/PNG/JPG, `stampReference` 3-100, optional `notes`) — allowed while
+  `SENT`/`ACCEPTED`/`REJECTED`/`UPLOADED`; the earlier pending upload becomes `SUPERSEDED` (file kept); same size limit
+  and executable-signature check as every upload; rate-limited per vendor (150 / 15 min). Never issues anything.
+- `POST /orders/:id/cannot-process` `{ reason (5-500) }` — `REJECTED` + `declined: true`, assistant notified; uploads
+  blocked until re-dispatched.
+
 ## Files — `/files`
 `POST /upload` (multipart, `file` field + `fileType`) · `GET /estamp/:orderId/download` (records download
 history, notifies Master Admin if the actor was Assistant Master Admin)

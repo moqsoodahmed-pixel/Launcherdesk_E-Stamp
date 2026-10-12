@@ -42,6 +42,8 @@ const rateLimiters_1 = require("../../middleware/rateLimiters");
 const fulfilmentMode_1 = require("../../middleware/fulfilmentMode");
 const multer = require("multer");
 const file_service_1 = require("../../services/file.service");
+const validate_1 = require("../../middleware/validate");
+const validation_1 = require("@launcherdesk/validation");
 // Certificate upload for manual fulfilment: same outer size ceiling as
 // /files/upload; FileService.validate enforces the live limit, MIME
 // allowlist and executable-signature check.
@@ -60,6 +62,10 @@ router.post("/webhook/:provider", (0, fulfilmentMode_1.requireFulfilmentMode)("p
 router.use(authenticate_1.authenticate);
 router.get("/", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.listOrders);
 router.get("/summary", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getOrderSummary);
+// Vendor dispatch/review (assigned assistant or Master Admin; scope checked
+// in the controller). Registered before "/:id" so the literal paths win.
+router.post("/dispatch", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, (0, validate_1.validateBody)(validation_1.dispatchOrdersSchema), ctrl.dispatchOrders);
+router.post("/vendor-approve-many", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, (0, validate_1.validateBody)(validation_1.vendorApproveManySchema), ctrl.vendorApproveMany);
 router.get("/fulfilment-summary", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getFulfilmentSummary);
 router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.getOrder);
 router.post("/:id/verify-documents", (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_VIEW), ctrl.verifyDocuments);
@@ -74,4 +80,8 @@ router.post("/:id/retry", rateLimiters_1.providerSyncLimiter, (0, authorize_1.re
 router.post("/:id/start", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, ctrl.startFulfilment);
 router.post("/:id/fulfil", rateLimiters_1.documentUploadLimiter, staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, certificateUpload.single("file"), ctrl.fulfilOrder);
 router.post("/:id/fail", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, ctrl.failOrder);
+router.post("/:id/recall", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, ctrl.recallOrder);
+router.get("/:id/vendor-upload", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), ctrl.getVendorUpload);
+router.post("/:id/vendor-approve", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, ctrl.vendorApproveOrder);
+router.post("/:id/vendor-reject", staffOnly, (0, authorize_1.requirePermission)(shared_1.Permission.ORDER_MANAGE), manualOnly, (0, validate_1.validateBody)(validation_1.vendorRejectSchema), ctrl.vendorRejectOrder);
 exports.default = router;

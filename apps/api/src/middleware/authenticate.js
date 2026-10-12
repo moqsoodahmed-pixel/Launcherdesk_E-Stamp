@@ -10,7 +10,20 @@ const models_1 = require("../models");
 const ApiError_1 = require("../utils/ApiError");
 const asyncHandler_1 = require("../utils/asyncHandler");
 const shared_1 = require("@launcherdesk/shared");
-exports.authenticate = (0, asyncHandler_1.asyncHandler)(async (req, _res, next) => {
+const VENDOR_ALLOWED_PATHS = [
+    /^\/api\/v1\/vendor(\/|$)/,
+    /^\/api\/v1\/auth\//,
+    /^\/api\/v1\/notifications(\/|$)/,
+    /^\/api\/v1\/policies\/(acknowledge|acknowledgements\/mine)$/,
+];
+function isVendorAllowedPath(req) {
+    const path = String(req.originalUrl || req.url || "").split("?")[0];
+    if (path === "/api/v1/profile" && req.method === "PATCH")
+        return true;
+    return VENDOR_ALLOWED_PATHS.some((re) => re.test(path));
+}
+exports.isVendorAllowedPath = isVendorAllowedPath;
+exports.authenticate = (0,asyncHandler_1.asyncHandler)(async (req, _res, next) => {
     const header = req.headers.authorization;
     if (!header?.startsWith("Bearer ")) {
         throw ApiError_1.ApiError.unauthorized("Missing authentication token");
@@ -58,6 +71,14 @@ exports.authenticate = (0, asyncHandler_1.asyncHandler)(async (req, _res, next) 
     // same rule (Assistant Master Admin = explicitly-assigned only, every
     // other role = role default + any extra grants) is used everywhere,
     // including tests, instead of being re-derived here.
+    // A VENDOR is fenced to its own surface on EVERY route, independent of
+    // each router's permission checks: /vendor/*, its own session
+    // (/auth/*), notifications, profile edit and policy acknowledgement.
+    // Anything else (wallet, payments, organizations, users, reports,
+    // orders, files, ...) is 403 before any controller runs.
+    if (user.role === shared_1.Role.VENDOR && !isVendorAllowedPath(req)) {
+        throw ApiError_1.ApiError.forbidden("Your role cannot access this resource");
+    }
     req.user = {
         id: user._id.toString(),
         role: user.role,

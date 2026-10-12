@@ -112,9 +112,15 @@ exports.listRequests = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         if (to)
             filter.createdAt.$lte = to;
     }
-    // Non-admin USER role only ever sees their own requests.
-    if (req.user.role === shared_1.Role.USER)
-        filter.createdBy = req.user.id;
+    // Non-admin USER role sees their own requests, plus every request of
+    // their organization whose certificate has been released (issued
+    // stamps are visible and downloadable organization-wide).
+    if (req.user.role === shared_1.Role.USER) {
+        filter.$or = [
+            { createdBy: req.user.id },
+            { status: { $in: [shared_1.EStampRequestStatus.COMPLETED, shared_1.EStampRequestStatus.DOWNLOAD_AVAILABLE] } },
+        ];
+    }
     // Phase 19 - cap client-supplied `limit` (same Math.min pattern already
     // used by order/payment/user/notification/audit controllers) so an
     // unbounded `?limit=` cannot force one query to load an arbitrarily large

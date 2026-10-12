@@ -161,6 +161,12 @@ exports.DEFAULT_ROLE_PERMISSIONS = {
         Permission.ORDER_VIEW,
         Permission.NOTIFICATION_VIEW,
     ],
+    // VENDOR: only their own in-app notifications. Every vendor capability
+    // is served by /vendor/* (requireRole VENDOR, scoped to vendorId), and
+    // authenticate.js fences a vendor out of every other route.
+    [roles_1.Role.VENDOR]: [
+        Permission.NOTIFICATION_VIEW,
+    ],
 };
 // The SINGLE source of truth for "what can this user actually do".
 // Used by the authenticate middleware (to populate req.user.permissions) and
