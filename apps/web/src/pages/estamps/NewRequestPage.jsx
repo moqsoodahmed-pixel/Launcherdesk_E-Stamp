@@ -248,8 +248,39 @@ export default function NewRequestPage() {
             <Field label="Consideration Price (₹)" error={errors.considerationPrice?.message}>
               <input type="number" className="input" {...register("considerationPrice", { valueAsNumber: true })} />
             </Field>
-            <Field label="Stamp Duty Paid By" error={errors.stampDutyPaidBy?.message}>
-              <input className="input" {...register("stampDutyPaidBy")} />
+            <Field label="Who pays the stamp duty?" error={errors.stampDutyPaidBy?.message}>
+              {values.firstParty || values.secondParty ? (
+                <div className="flex gap-2">
+                  {values.firstParty && (
+                    <button
+                      type="button"
+                      onClick={() => setValue("stampDutyPaidBy", values.firstParty, { shouldValidate: true })}
+                      className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
+                        values.stampDutyPaidBy === values.firstParty
+                          ? "border-brand-600 bg-brand-50 text-brand-700 font-medium"
+                          : "border-slate-300 text-slate-600"
+                      }`}
+                    >
+                      {values.firstParty} (First Party)
+                    </button>
+                  )}
+                  {values.secondParty && (
+                    <button
+                      type="button"
+                      onClick={() => setValue("stampDutyPaidBy", values.secondParty, { shouldValidate: true })}
+                      className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
+                        values.stampDutyPaidBy === values.secondParty
+                          ? "border-brand-600 bg-brand-50 text-brand-700 font-medium"
+                          : "border-slate-300 text-slate-600"
+                      }`}
+                    >
+                      {values.secondParty} (Second Party)
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <input className="input" {...register("stampDutyPaidBy")} placeholder="Enter party names on the previous step first" />
+              )}
             </Field>
             <Field label="No. of E-Stamps" error={errors.numberOfEStamps?.message}>
               <input type="number" className="input" {...register("numberOfEStamps", { valueAsNumber: true })} />
