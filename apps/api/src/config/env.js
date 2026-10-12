@@ -27,6 +27,12 @@ function required(name, fallback) {
 exports.env = {
     NODE_ENV: process.env.NODE_ENV || "development",
     PORT: parseInt(process.env.PORT || "5000", 10),
+    // FRONTEND_URL may be a comma-separated list (one allowed origin for
+    // CORS per entry, e.g. the production domain and a staging/preview one).
+    // app.js checks the whole list; anything that builds a link for a human
+    // (emails, redirects) should use PRIMARY_FRONTEND_URL below instead, which
+    // is always a single address - put the real production domain FIRST in
+    // FRONTEND_URL so links point there rather than at a staging address.
     FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
     MONGODB_URI: required("MONGODB_URI", "mongodb://localhost:27017/launcherdesk_estamping"),
     JWT_SECRET: required("JWT_SECRET", "dev_only_insecure_secret_change_me"),
@@ -109,3 +115,10 @@ exports.env = {
     // invalid only disables that feature (startup warning, never a crash).
     CREDENTIAL_ENCRYPTION_KEY: process.env.CREDENTIAL_ENCRYPTION_KEY || "",
 };
+// The single address used for links sent to humans (emails, redirects) -
+// the first entry of FRONTEND_URL, trailing slash removed. Safe even when
+// FRONTEND_URL is just one plain URL (no comma).
+exports.PRIMARY_FRONTEND_URL = String(exports.env.FRONTEND_URL)
+    .split(",")[0]
+    .trim()
+    .replace(/\/+$/, "");
