@@ -8,6 +8,7 @@ const ApiError_1 = require("../utils/ApiError");
 const audit_service_1 = require("../services/audit.service");
 const notification_service_1 = require("../services/notification.service");
 const shared_1 = require("@launcherdesk/shared");
+const indianStates_1 = require("../utils/indianStates");
 function isInternalActor(req) {
     return req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
 }
@@ -52,8 +53,10 @@ exports.listArticles = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     else if (req.query.isActive !== undefined) {
         filter.isActive = req.query.isActive === "true";
     }
-    if (stateCode)
-        filter.stateCode = stateCode.toUpperCase();
+    if (stateCode) {
+        const resolved = (0, indianStates_1.resolveStateCode)(stateCode);
+        filter.$or = [{ stateCode: resolved }, { stateCode: String(stateCode).trim().toUpperCase() }];
+    }
     if (search)
         // Escaped so a metacharacter (e.g. "(") matches literally instead of
         // throwing a 500 - same escape as user.controller.js's search.
@@ -92,9 +95,10 @@ exports.getArticle = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 });
 exports.createArticle = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { stateCode, articleCode, title, description, calculationRule } = req.body;
+    const normalizedState = (0, indianStates_1.resolveStateCode)(stateCode);
     let article;
     try {
-        article = await models_1.Article.create({ stateCode, articleCode, title, description, createdBy: req.user.id, currentVersion: 1 });
+        article = await models_1.Article.create({ stateCode: normalizedState, articleCode, title, description, createdBy: req.user.id, currentVersion: 1 });
     }
     catch (err) {
         if (err?.code === 11000) {

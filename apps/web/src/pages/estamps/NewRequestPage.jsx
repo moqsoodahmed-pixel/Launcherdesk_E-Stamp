@@ -105,23 +105,25 @@ export default function NewRequestPage() {
       });
   }, []);
 
-  useEffect(() => {
-    if (!values.stateCode) {
+  const fetchArticlesForState = (stCode, force = false) => {
+    if (!stCode) {
       setArticles([]);
       return;
     }
-    const cached = articlesCacheRef.current.get(values.stateCode);
-    if (cached) {
-      setArticles(cached);
-      return;
+    if (!force) {
+      const cached = articlesCacheRef.current.get(stCode);
+      if (cached && cached.length > 0) {
+        setArticles(cached);
+        return;
+      }
     }
     setArticlesLoading(true);
     apiClient
-      .get("/articles", { params: { stateCode: values.stateCode } })
+      .get("/articles", { params: { stateCode: stCode } })
       .then((res) => {
         const payload = res.data.data;
         const items = Array.isArray(payload) ? payload : payload?.items || [];
-        articlesCacheRef.current.set(values.stateCode, items);
+        articlesCacheRef.current.set(stCode, items);
         setArticles(items);
       })
       .catch((err) => {
@@ -129,6 +131,10 @@ export default function NewRequestPage() {
         setLookupError(errorMessage(err, "Could not load articles for this state."));
       })
       .finally(() => setArticlesLoading(false));
+  };
+
+  useEffect(() => {
+    fetchArticlesForState(values.stateCode);
   }, [values.stateCode]);
 
   async function goNext() {
@@ -318,24 +324,43 @@ export default function NewRequestPage() {
                 ))}
               </select>
             </Field>
-            <Field
-              label={values.stateCode && articles.length > 0 ? `Article (${articles.length} available)` : "Article"}
-              error={errors.articleId?.message}
-            >
-              <select className="input" {...register("articleId")} disabled={!values.stateCode}>
-                <option value="">Select article</option>
-                {articles.map((a, idx) => (
-                  <option key={a._id} value={a._id}>
-                    {idx + 1}. {a.articleCode} - {a.title}
-                  </option>
-                ))}
-              </select>
-              {values.stateCode && !articlesLoading && articles.length === 0 && (
-                <p className="text-xs text-slate-500 mt-1">
-                  No official articles have been imported for this state yet.
-                </p>
+          <div className="block">
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="article-select" className="text-sm font-medium text-slate-700">
+                {values.stateCode && articles.length > 0 ? `Article (${articles.length} available)` : "Article"}
+              </label>
+              {values.stateCode && (
+                <button
+                  type="button"
+                  onClick={() => fetchArticlesForState(values.stateCode, true)}
+                  disabled={articlesLoading}
+                  className="text-xs text-brand-600 hover:underline font-normal"
+                >
+                  {articlesLoading ? "Loading..." : "↻ Refresh articles"}
+                </button>
               )}
-            </Field>
+            </div>
+            <select
+              id="article-select"
+              aria-label="Article"
+              className="input"
+              {...register("articleId")}
+              disabled={!values.stateCode || articlesLoading}
+            >
+              <option value="">Select article</option>
+              {articles.map((a, idx) => (
+                <option key={a._id} value={a._id}>
+                  {idx + 1}. {a.articleCode} - {a.title}
+                </option>
+              ))}
+            </select>
+            {errors.articleId?.message && <span className="block text-xs text-red-600 mt-1">{errors.articleId?.message}</span>}
+            {values.stateCode && !articlesLoading && articles.length === 0 && (
+              <p className="text-xs text-slate-500 mt-1">
+                No official articles have been imported for this state yet.
+              </p>
+            )}
+          </div>
           </div>
         )}
 

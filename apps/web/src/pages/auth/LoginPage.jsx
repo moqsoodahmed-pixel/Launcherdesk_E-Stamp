@@ -105,8 +105,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-        <h1 className="text-2xl font-semibold text-slate-900 mb-1">LauncherDesk</h1>
-        <p className="text-sm text-slate-500 mb-6">E-Stamping Platform</p>
+        <div className="flex flex-col items-center mb-6">
+          <img src="/logo.png" alt="LauncherDesk" className="h-14 w-auto max-w-[260px] object-contain mb-2" />
+          <p className="text-xs uppercase tracking-wider text-slate-400 font-medium">E-Stamping Platform</p>
+        </div>
 
         {sessionExpired && !challengeToken && (
           <div className="mb-4 rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">

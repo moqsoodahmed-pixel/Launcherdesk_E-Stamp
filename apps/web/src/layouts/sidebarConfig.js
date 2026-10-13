@@ -16,7 +16,6 @@ function section(heading, items) {
 }
 
 const MASTER_ADMIN_SECTIONS = [
-  section("ACCOUNT", [{ to: "/dashboard", label: "Dashboard" }]),
   section("CLIENTS", [
     { to: "/organizations", label: "Clients / Organizations", permission: PERMISSIONS.CLIENT_VIEW },
     { to: "/assistant-admins", label: "Assistant Master Admins", permission: PERMISSIONS.USER_MANAGE },
@@ -56,7 +55,6 @@ const MASTER_ADMIN_SECTIONS = [
 ];
 
 const ASSISTANT_MASTER_ADMIN_SECTIONS = [
-  section("ACCOUNT", [{ to: "/dashboard", label: "Dashboard" }]),
   section("CLIENTS", [
     { to: "/organizations", label: "Clients", permission: PERMISSIONS.CLIENT_VIEW },
     { to: "/users", label: "Users", permission: PERMISSIONS.USER_VIEW },
@@ -102,7 +100,6 @@ const ASSISTANT_MASTER_ADMIN_SECTIONS = [
 ];
 
 const SUPER_ADMIN_SECTIONS = [
-  section("ACCOUNT", [{ to: "/dashboard", label: "Dashboard" }]),
   section("CLIENTS", [
     { to: "/users?role=USER", label: "Manage Users", permission: PERMISSIONS.USER_VIEW },
     { to: "/users?role=ADMIN", label: "Manage Admins", permission: PERMISSIONS.USER_VIEW },
@@ -132,7 +129,6 @@ const SUPER_ADMIN_SECTIONS = [
 ];
 
 const ADMIN_SECTIONS = [
-  section("ACCOUNT", [{ to: "/dashboard", label: "Dashboard" }]),
   section("CLIENTS", [{ to: "/users", label: "Users", permission: PERMISSIONS.USER_VIEW }]),
   section("OPERATIONS", [
     { to: "/estamps/requests", label: "E-Stamp Requests", permission: PERMISSIONS.ESTAMP_VIEW },
@@ -153,7 +149,6 @@ const ADMIN_SECTIONS = [
 ];
 
 const USER_SECTIONS = [
-  section("ACCOUNT", [{ to: "/dashboard", label: "Dashboard" }]),
   section("OPERATIONS", [
     { to: "/estamps/requests/new", label: "Create E-Stamp Request", permission: PERMISSIONS.ESTAMP_CREATE },
     { to: "/estamps/requests", label: "My Requests", permission: PERMISSIONS.ESTAMP_VIEW },
@@ -172,7 +167,6 @@ const USER_SECTIONS = [
 // route, so nothing else (not even Profile/Policies pages that call other
 // endpoints) is linked.
 const VENDOR_SECTIONS = [
-  section("ACCOUNT", [{ to: "/dashboard", label: "Dashboard" }]),
   section("OPERATIONS", [{ to: "/vendor/orders", label: "My Orders" }]),
 ];
 

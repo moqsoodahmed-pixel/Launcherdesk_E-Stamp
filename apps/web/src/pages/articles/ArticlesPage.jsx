@@ -135,8 +135,16 @@ export default function ArticlesPage() {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input aria-label="State code" placeholder="State code (e.g. KA)" value={stateCode} onChange={(e) => setStateCode(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-brand-500" />
         <input aria-label="Search articles" placeholder="Search by title..." value={search} onChange={(e) => setSearch(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-brand-500" />
-        <button onClick={load} className="text-sm text-slate-500 hover:underline">
-          Refresh
+        <button
+          type="button"
+          onClick={() => {
+            setFilters({ stateCode: stateCode.trim(), search: search.trim() });
+            load();
+          }}
+          disabled={loading}
+          className="text-sm text-brand-600 hover:underline font-medium disabled:opacity-50"
+        >
+          {loading ? "Refreshing..." : "↻ Refresh"}
         </button>
       </div>
 

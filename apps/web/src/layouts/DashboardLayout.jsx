@@ -60,11 +60,19 @@ export default function DashboardLayout() {
 
   const sidebarBody = (closeOnNavigate) => (
     <>
-      <div className="px-5 py-5 border-b border-slate-200 flex items-center justify-between">
-        <div>
-          <p className="font-semibold text-slate-900">LauncherDesk</p>
-          <p className="text-xs text-slate-500">E-Stamping</p>
-        </div>
+      <div className="px-4 py-4 border-b border-slate-200 flex items-center justify-between">
+        <Link
+          to="/dashboard"
+          onClick={closeOnNavigate ? () => setMobileOpen(false) : undefined}
+          className="flex items-center group focus:outline-none focus:ring-2 focus:ring-brand-500 rounded p-1"
+          aria-label="Dashboard - LauncherDesk"
+        >
+          <img
+            src="/logo.png"
+            alt="LauncherDesk"
+            className="h-10 w-auto max-w-[190px] object-contain transition-opacity group-hover:opacity-90"
+          />
+        </Link>
         <button
           type="button"
           onClick={() => setMobileOpen(false)}

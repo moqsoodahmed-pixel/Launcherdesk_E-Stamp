@@ -53,7 +53,23 @@ export default function CreditQueuePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Payments to credit" subtitle="Razorpay payments received that are waiting to be added to a client balance" />
+      <PageHeader
+        title="Payments to credit"
+        subtitle="Razorpay payments received that are waiting to be added to a client balance"
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              queue.refetch();
+              orgs.refetch();
+            }}
+            disabled={queue.loading}
+            className="border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+          >
+            {queue.loading ? "Refreshing..." : "↻ Refresh"}
+          </button>
+        }
+      />
 
       {notice && (
         <div role="status" className="rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">

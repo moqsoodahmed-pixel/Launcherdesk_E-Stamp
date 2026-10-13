@@ -29,7 +29,6 @@ describe("sidebarConfig - permission filtering", () => {
     expect(tos).not.toContain("/settings");
     expect(tos).not.toContain("/audit");
     expect(tos).toContain("/audit/mine"); // self-scoped Activity carries no permission at all
-    expect(tos).toContain("/dashboard");
   });
 
   it("ASSISTANT_MASTER_ADMIN gains Settings and Audit Logs once explicitly granted those exact permissions", () => {
@@ -58,7 +57,6 @@ describe("sidebarConfig - permission filtering", () => {
     expect(tos).not.toContain("/settings");
     expect(tos).not.toContain("/wallet");
     expect(tos).not.toContain("/payments");
-    expect(tos).toContain("/dashboard");
   });
 
   it("fails open (shows the item) when permissions is not an array - a stale/malformed session never loses navigation", () => {

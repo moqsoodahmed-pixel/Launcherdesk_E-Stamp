@@ -52,8 +52,8 @@ beforeEach(() => {
 });
 
 describe("VENDOR routing and sidebar", () => {
-  it("sidebar shows only Dashboard and My Orders", () => {
-    expect(getFlatSidebarItems("VENDOR", [PERMISSIONS.NOTIFICATION_VIEW], "manual").map((i) => i.to)).toEqual(["/dashboard", "/vendor/orders"]);
+  it("sidebar shows My Orders (Dashboard accessed via logo)", () => {
+    expect(getFlatSidebarItems("VENDOR", [PERMISSIONS.NOTIFICATION_VIEW], "manual").map((i) => i.to)).toEqual(["/vendor/orders"]);
   });
 
   it("lands on the vendor dashboard and is refused staff and client pages", async () => {
