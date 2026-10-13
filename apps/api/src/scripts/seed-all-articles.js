@@ -47,7 +47,9 @@ async function seedAllStatesAndArticles(createdBy) {
                 stateCode: item.stateCode,
                 articleCode: item.articleCode,
                 title: item.title,
-                description: `${item.stateName} Article ${item.articleCode} - ${item.title}. Minimum Government Stamp Duty: ₹${item.price}.`,
+                description: item.isFixed
+                    ? `${item.stateName} Article ${item.articleCode} - ${item.title}. Fixed Government Stamp Duty: Rs.${item.price}.`
+                    : `${item.stateName} Article ${item.articleCode} - ${item.title}. Duty not yet configured - billed At Actuals.`,
                 isActive: true,
                 currentVersion: 1,
                 createdBy: creatorId,
@@ -60,12 +62,19 @@ async function seedAllStatesAndArticles(createdBy) {
             updatedCount += 1;
         }
 
-        const effectivePrice = Number(item.price) || 1;
-        const rule = {
-            type: "FIXED",
-            fixedAmount: effectivePrice,
-            minAmount: effectivePrice,
-        };
+        // item.isFixed distinguishes a genuinely verified, article-specific
+        // duty (true - e.g. Karnataka's 48 fixed-amount articles) from a
+        // generic state-wide checkout floor the source data also carries in
+        // `price` for every other article (isFixed: false). The floor is
+        // NOT that article's real duty - it is the same single number
+        // repeated across every article in the state, regardless of what
+        // kind of instrument it is - so it is never written as a FIXED
+        // rule. Those articles are seeded as CUSTOM (shown as "At Actuals",
+        // nothing reserved) until a real rate is supplied, matching every
+        // other unconfigured article in this codebase - never guessed.
+        const rule = item.isFixed
+            ? { type: "FIXED", fixedAmount: Number(item.price) || 0 }
+            : { type: "CUSTOM" };
 
         const existingVersion = await models_1.ArticleVersion.findOne({
             articleId: article._id,

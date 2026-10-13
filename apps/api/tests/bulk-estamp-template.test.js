@@ -76,7 +76,37 @@ describe("downloadTemplate - real catalog, no invented data", () => {
     expect(match[1]).toBe("Karnataka");
     expect(match[3]).toBe("Template Test Article");
     expect(match[4]).toBe("Used only for the template test");
-    expect(match[5]).toBe("3% of consideration price");
+    // A percentage rule has no single amount to show - "At Actuals", not blank or ₹0.
+    expect(match[5]).toBe("At Actuals");
+    expect(match[6]).toBe("3% of consideration price");
+  });
+
+  it("the Stamp Duty column shows the exact amount for a FIXED article, and never fabricates one for CUSTOM", async () => {
+    const creator = new mongoose.Types.ObjectId();
+    const fixedArticle = await Article.create({ stateCode: "KA", articleCode: `TPL-FIXED-${new mongoose.Types.ObjectId()}`, title: "Fixed Duty Article", createdBy: creator, currentVersion: 1 });
+    await ArticleVersion.create({ articleId: fixedArticle._id, versionNumber: 1, calculationRule: { type: "FIXED", fixedAmount: 500 }, createdBy: creator });
+    const customArticle = await Article.create({ stateCode: "KA", articleCode: `TPL-CUSTOM-${new mongoose.Types.ObjectId()}`, title: "Unconfigured Duty Article", createdBy: creator, currentVersion: 1 });
+    await ArticleVersion.create({ articleId: customArticle._id, versionNumber: 1, calculationRule: { type: "CUSTOM" }, createdBy: creator });
+
+    const req = makeReq({ user: { id: "u", role: Role.SUPER_ADMIN, organizationId: "org-1", permissions: [] } });
+    const { res, done } = makeStreamingRes();
+    await bulkController.downloadTemplate(req, res, (err) => {
+      if (err) throw err;
+    });
+    const buffer = await done;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const refSheet = workbook.getWorksheet("Article Reference");
+    const refRows = [];
+    refSheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      refRows.push(row.values);
+    });
+
+    const fixedRow = refRows.find((r) => r[2] === fixedArticle.articleCode);
+    expect(fixedRow[5]).toBe("Rs.500");
+    const customRow = refRows.find((r) => r[2] === customArticle.articleCode);
+    expect(customRow[5]).toBe("At Actuals");
   });
 
   it("round-trips: a filled-in template using full state name and 'code - title' article text uploads successfully", async () => {

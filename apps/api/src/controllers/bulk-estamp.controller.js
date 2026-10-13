@@ -126,6 +126,13 @@ function describeCalculationRule(rule) {
             return rule.type || "";
     }
 }
+// The duty amount alone, for a plain "Stamp Duty" column next to the full
+// rule description - a known FIXED amount, or "At Actuals" rather than a
+// blank/zero for every rule this platform cannot resolve without the real
+// consideration price or an official rate (never a guessed number).
+function describeStampDuty(rule) {
+    return rule?.type === "FIXED" ? `Rs.${rule.fixedAmount ?? 0}` : "At Actuals";
+}
 // Generates the bulk-upload .xlsx template from the REAL article catalog
 // (no invented states/articles) - a "Template" sheet with a State dropdown
 // and a dependent Article dropdown filtered to that state's real articles,
@@ -234,6 +241,7 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
         { header: "Article Code", key: "code", width: 16 },
         { header: "Article Title", key: "title", width: 40 },
         { header: "Description", key: "description", width: 50 },
+        { header: "Stamp Duty", key: "duty", width: 16 },
         { header: "Stamp Duty Rule", key: "rule", width: 28 },
     ];
     for (const article of articles) {
@@ -243,6 +251,7 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
             code: article.articleCode,
             title: article.title,
             description: article.description || "",
+            duty: describeStampDuty(version?.calculationRule),
             rule: describeCalculationRule(version?.calculationRule),
         });
     }
