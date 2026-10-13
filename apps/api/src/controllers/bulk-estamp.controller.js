@@ -98,6 +98,12 @@ exports.cancelBatch = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 const TEMPLATE_COLUMNS = [
     { header: "State", field: "stateCode", width: 28 },
     { header: "Article", field: "articleId", width: 48 },
+    // Informational only - auto-filled by formula from the selected Article,
+    // never read by matchHeaders()/rowToInputData() (it isn't in
+    // ALL_TEMPLATE_FIELDS, so an unrecognized header is ignored on upload
+    // same as any other extra column). Shows the filler the duty amount
+    // without them leaving the Template sheet.
+    { header: "Stamp Duty", field: "stampDutyInfo", width: 16 },
     { header: "First Party", field: "firstParty", width: 20 },
     { header: "Second Party", field: "secondParty", width: 20 },
     { header: "Description of Document", field: "descriptionOfDocument", width: 30 },
@@ -169,6 +175,7 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
     templateSheet.addRow({
         stateCode: exampleArticle ? (0, indianStates_1.stateNameForCode)(exampleArticle.stateCode) : "",
         articleId: exampleArticle ? `${exampleArticle.articleCode} - ${exampleArticle.title}` : "",
+        stampDutyInfo: "",
         firstParty: "Alice",
         secondParty: "Bob",
         descriptionOfDocument: "Sale agreement",
@@ -230,6 +237,14 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
             allowBlank: true,
             formulae: [`INDIRECT("ART_"&SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(UPPER($A${row})," ","_"),"-","_"),"'","_"),"&","_"),",","_"))`],
             showErrorMessage: false,
+        };
+        // Auto-filled duty for whichever article is picked in this row -
+        // looks up the chosen State+Article Code against the "Article
+        // Reference" sheet (column E holds that sheet's own Stamp Duty
+        // value, computed server-side, never guessed here). SUMPRODUCT finds
+        // the matching row without needing an array-entered formula.
+        templateSheet.getCell(`C${row}`).value = {
+            formula: `IFERROR(INDEX('Article Reference'!$E:$E,SUMPRODUCT(('Article Reference'!$A:$A=$A${row})*('Article Reference'!$B:$B=LEFT($B${row},IFERROR(FIND(" - ",$B${row})-1,0)))*ROW('Article Reference'!$A:$A))),"")`,
         };
     }
     // "Article Reference" - full, human-readable detail per article (state,

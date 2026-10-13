@@ -96,7 +96,10 @@ const FIELD_ALIASES = {
     descriptionOfDocument: ["description of document", "document description", "description", "descriptionofdocument", "doc description"],
     propertyDescription: ["property description", "property details", "property", "propertydescription"],
     considerationPrice: ["consideration price", "consideration amount", "consideration value", "price", "amount", "considerationprice"],
-    stampDutyPaidBy: ["stamp duty paid by", "duty paid by", "paid by", "stampdutypaidby", "stamp duty", "stampduty"],
+    // "stamp duty"/"stampduty" deliberately NOT aliased here - that header is
+    // the informational duty-amount column on the Template sheet (see
+    // bulk-estamp.controller.js), a different field from who pays it.
+    stampDutyPaidBy: ["stamp duty paid by", "duty paid by", "paid by", "stampdutypaidby"],
     numberOfEStamps: ["number of e-stamps", "number of estamps", "number of e stamps", "no of e-stamps", "no of estamps", "no. of e-stamps", "numberofestamps", "quantity", "count"],
 };
 // Builds { canonicalField -> columnIndex }, plus lists of missing/duplicate

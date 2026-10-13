@@ -59,6 +59,14 @@ describe("downloadTemplate - real catalog, no invented data", () => {
     expect(templateSheet).toBeDefined();
     expect(templateSheet.getRow(1).getCell(1).value).toBe("State");
     expect(templateSheet.getRow(1).getCell(2).value).toBe("Article");
+    // The Template sheet itself (not just the Article Reference sheet) now
+    // shows a Stamp Duty column, auto-filled by formula from whichever
+    // article the filler picks in column B of that same row.
+    expect(templateSheet.getRow(1).getCell(3).value).toBe("Stamp Duty");
+    const dutyFormula = templateSheet.getCell("C2").value.formula;
+    expect(dutyFormula).toContain("Article Reference");
+    expect(dutyFormula).toContain("$A2");
+    expect(dutyFormula).toContain("$B2");
     // State dropdown includes the full name, not the raw code.
     const stateValidation = templateSheet.getCell("A2").dataValidation;
     expect(stateValidation.formulae[0]).toContain("Karnataka");

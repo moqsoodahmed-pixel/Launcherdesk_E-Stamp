@@ -217,6 +217,23 @@ describe("Upload - file parsing", () => {
     expect(await BulkEStampBatch.countDocuments({ organizationId: org._id })).toBe(0);
   });
 
+  // The Template sheet's informational "Stamp Duty" column (the duty
+  // amount, auto-filled by formula) sits right next to "Stamp Duty Paid By"
+  // (who pays it). Before this fix, matchHeaders() aliased "stamp duty" to
+  // the payer field, so uploading an exported template would have silently
+  // overwritten the real payer name with a duty amount like "Rs.500".
+  it("an extra 'Stamp Duty' column (the Template sheet's informational duty column) is ignored, never confused with Stamp Duty Paid By", async () => {
+    const { org, user, article } = await makeOrgWithArticle();
+    const headers = [...HEADERS, "Stamp Duty"];
+    const row = { ...rowFor(article), "Stamp Duty": "Rs.500" };
+    const buffer = buildCsv([row], headers);
+    const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "with-duty-column.csv" });
+    expect(batch.status).toBe("PREVIEW_READY");
+    const item = await BulkEStampBatchItem.findOne({ batchId: batch._id, rowNumber: 1 });
+    expect(item.status).toBe("VALID");
+    expect(item.inputData.stampDutyPaidBy).toBe("Alice"); // not overwritten with "Rs.500"
+  });
+
   it("a cell starting with '=' (formula-injection shape) is stored and treated as inert literal text, never evaluated", async () => {
     const { org, user, article } = await makeOrgWithArticle();
     const buffer = buildCsv([rowFor(article, { descriptionOfDocument: "=1+1", propertyDescription: "../../etc/passwd" })]);
