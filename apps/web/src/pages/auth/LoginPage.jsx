@@ -1,3 +1,5 @@
+import { Eye, EyeOff } from "lucide-react";
+import AuthLayout from "../../components/brand/AuthLayout";
 import { useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -103,56 +105,52 @@ export default function LoginPage() {
   if (!loading && user) return <Navigate to={nextPath} replace />;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-        <h1 className="text-2xl font-semibold text-slate-900 mb-1">LauncherDesk</h1>
-        <p className="text-sm text-slate-500 mb-6">E-Stamping Platform</p>
-
+    <AuthLayout title="LauncherDesk" subtitle="E-Stamping Platform">
         {sessionExpired && !challengeToken && (
-          <div className="mb-4 rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
             Your session has expired. Please sign in again.
           </div>
         )}
-        {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
-        {info && <div className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{info}</div>}
+        {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
+        {info && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{info}</div>}
 
         {!challengeToken ? (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <input
+              <label htmlFor="login-email" className="mb-1.5 block text-sm font-medium text-slate-800">Email</label>
+              <input id="login-email"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="input"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+              <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium text-slate-800">Password</label>
               <div className="relative">
-                <input
+                <input id="login-password"
                   type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="input pr-11"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
                   aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 hover:text-slate-800"
                 >
-                  {showPassword ? "🙈" : "👁️"}
+                  {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
                 </button>
               </div>
             </div>
-            <button disabled={busy} className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50">
+            <button disabled={busy} className="inline-flex w-full min-h-[44px] items-center justify-center rounded-lg bg-brand-600 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
               {busy ? "Signing in..." : "Sign in"}
             </button>
-            <Link to="/forgot-password" className="block text-center text-sm text-slate-500 hover:underline">
+            <Link to="/forgot-password" className="block min-h-[44px] pt-3 text-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
               Forgot password?
             </Link>
           </form>
@@ -161,18 +159,21 @@ export default function LoginPage() {
             <p className="text-sm text-slate-600">We've sent a 6-digit verification code to your registered email.</p>
             <input
               type="text"
+              aria-label="Verification code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
               maxLength={6}
               required
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
-              className="w-full text-center tracking-[0.5em] text-lg rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="input text-center text-lg tracking-[0.5em] tabular-nums"
               placeholder="______"
             />
-            <button disabled={busy} className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50">
+            <button disabled={busy} className="inline-flex w-full min-h-[44px] items-center justify-center rounded-lg bg-brand-600 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
               {busy ? "Verifying..." : "Verify & Continue"}
             </button>
             <div className="flex items-center justify-between text-sm">
-              <button type="button" onClick={handleResendOtp} disabled={busy} className="text-brand-600 hover:underline disabled:opacity-50">
+              <button type="button" onClick={handleResendOtp} disabled={busy} className="min-h-[44px] font-medium text-brand-700 hover:underline disabled:opacity-50">
                 Resend code
               </button>
               <button
@@ -183,14 +184,13 @@ export default function LoginPage() {
                   setError(null);
                   setInfo(null);
                 }}
-                className="text-slate-500 hover:underline"
+                className="min-h-[44px] text-slate-600 hover:underline"
               >
                 Use a different account
               </button>
             </div>
           </form>
         )}
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

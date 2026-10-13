@@ -1,7 +1,9 @@
+import { Search } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { isClientRole, statusMeta } from "./ui/status";
 import { hasPermission, PERMISSIONS } from "../utils/permissions";
 
 const MIN_QUERY_LENGTH = 2;
@@ -95,7 +97,8 @@ export default function GlobalSearch() {
   if (groups.length === 0) return null;
 
   return (
-    <div className="relative flex-1 min-w-0 max-w-xs" ref={containerRef}>
+    <div className="relative flex-1 min-w-0 max-w-md" ref={containerRef}>
+      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
       <input
         type="search"
         role="searchbox"
@@ -108,11 +111,11 @@ export default function GlobalSearch() {
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={handleKeyDown}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        className="input bg-slate-50 pl-9 focus:bg-white"
       />
 
       {showPanel && (
-        <div className="absolute left-0 right-0 mt-1 bg-white rounded-xl border border-slate-200 shadow-lg z-50 max-h-96 overflow-y-auto">
+        <div className="absolute left-0 right-0 z-50 mt-1 max-h-96 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-overlay">
           {loading && <div className="px-4 py-6 text-center text-sm text-slate-400">Searching...</div>}
           {!loading && !hasAnyResults && <div className="px-4 py-6 text-center text-sm text-slate-400">No results for "{trimmed}".</div>}
           {!loading &&
@@ -121,16 +124,16 @@ export default function GlobalSearch() {
               if (items.length === 0) return null;
               return (
                 <div key={g.key} className="border-b border-slate-50 last:border-0">
-                  <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{g.label}</p>
+                  <p className="px-4 pb-1 pt-3 text-xs font-semibold text-slate-500">{g.label}</p>
                   {items.map((item) => (
                     <button
                       key={item._id}
                       type="button"
                       onClick={() => goTo(g, item)}
-                      className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm"
+                      className="min-h-[44px] w-full px-4 py-2 text-left text-sm hover:bg-brand-50/60"
                     >
                       <span className="block font-medium text-slate-900 truncate">{g.primary(item) || "-"}</span>
-                      {g.secondary(item) && <span className="block text-xs text-slate-500 truncate">{g.secondary(item)}</span>}
+                      {secondaryText(g, item, user) && <span className="block text-xs text-slate-500 truncate">{secondaryText(g, item, user)}</span>}
                     </button>
                   ))}
                 </div>
@@ -140,4 +143,12 @@ export default function GlobalSearch() {
       )}
     </div>
   );
+}
+
+// Clients never see internal order stages: an order's status reads as the
+// same plain label its StatusChip shows them.
+function secondaryText(group, item, user) {
+  const value = group.secondary(item);
+  if (group.key === "orders" && value && isClientRole(user?.role)) return statusMeta(value, { client: true }).label;
+  return value;
 }

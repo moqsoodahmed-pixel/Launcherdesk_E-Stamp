@@ -49,19 +49,19 @@ describe("DashboardLayout - active nav state", () => {
   it("highlights the Organizations sidebar link on its own list route", () => {
     renderAt("/organizations");
     const link = screen.getAllByRole("link", { name: "Clients / Organizations" })[0];
-    expect(link).toHaveClass("bg-brand-50");
+    expect(link).toHaveClass("nav-active");
   });
 
   it("still highlights the Organizations sidebar link on a nested detail route (/organizations/:id), via the longest-prefix rule", () => {
     renderAt("/organizations/abc123");
     const link = screen.getAllByRole("link", { name: "Clients / Organizations" })[0];
-    expect(link).toHaveClass("bg-brand-50");
+    expect(link).toHaveClass("nav-active");
   });
 
   it("does not highlight an unrelated sidebar link (Users) while on the Organizations route", () => {
     renderAt("/organizations");
     const usersLink = screen.getAllByRole("link", { name: "Users" })[0];
-    expect(usersLink).not.toHaveClass("bg-brand-50");
+    expect(usersLink).not.toHaveClass("nav-active");
   });
 });
 

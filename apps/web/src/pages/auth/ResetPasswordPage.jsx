@@ -1,3 +1,5 @@
+import { Eye, EyeOff } from "lucide-react";
+import AuthLayout from "../../components/brand/AuthLayout";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -54,7 +56,7 @@ export default function ResetPasswordPage() {
   if (!resetToken) {
     return (
       <AuthShell>
-        <div className="mb-4 rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
           Missing reset link. Please request a new password reset code.
         </div>
         <Link to="/forgot-password" className="block text-center text-sm text-brand-600 hover:underline">
@@ -67,10 +69,10 @@ export default function ResetPasswordPage() {
   if (done) {
     return (
       <AuthShell>
-        <div className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">
+        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">
           Password reset successful. Please log in with your new password.
         </div>
-        <button onClick={() => navigate("/login")} className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-2 text-sm font-medium">
+        <button onClick={() => navigate("/login")} className="inline-flex w-full min-h-[44px] items-center justify-center rounded-lg bg-brand-600 text-sm font-medium text-white transition-colors hover:bg-brand-700">
           Go to login
         </button>
       </AuthShell>
@@ -84,12 +86,12 @@ export default function ResetPasswordPage() {
           ? "Set a new password for your account below."
           : "Enter the verification code sent to your email and choose a new password."}
       </p>
-      {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
       <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
         {!isDirectToken && (
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Verification code</label>
-            <input
+            <label htmlFor="reset-code" className="mb-1.5 block text-sm font-medium text-slate-800">Verification code</label>
+            <input id="reset-code"
               type="text"
               name="one-time-code"
               autoComplete="one-time-code"
@@ -98,62 +100,62 @@ export default function ResetPasswordPage() {
               required
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              className="w-full text-center tracking-[0.5em] text-lg rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="input text-center text-lg tracking-[0.5em] tabular-nums"
               placeholder="______"
             />
           </div>
         )}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">New password</label>
+          <label htmlFor="reset-new" className="mb-1.5 block text-sm font-medium text-slate-800">New password</label>
           <div className="relative">
-            <input
+            <input id="reset-new"
               type={showNewPassword ? "text" : "password"}
               required
               autoComplete="new-password"
               minLength={8}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="input pr-11"
             />
             <button
               type="button"
               onClick={() => setShowNewPassword((v) => !v)}
               tabIndex={-1}
               aria-label={showNewPassword ? "Hide password" : "Show password"}
-              className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 hover:text-slate-800"
             >
-              {showNewPassword ? "🙈" : "👁️"}
+              {showNewPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
             </button>
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Confirm new password</label>
+          <label htmlFor="reset-confirm" className="mb-1.5 block text-sm font-medium text-slate-800">Confirm new password</label>
           <div className="relative">
-            <input
+            <input id="reset-confirm"
               type={showConfirmPassword ? "text" : "password"}
               required
               autoComplete="new-password"
               minLength={8}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="input pr-11"
             />
             <button
               type="button"
               onClick={() => setShowConfirmPassword((v) => !v)}
               tabIndex={-1}
               aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-              className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 hover:text-slate-800"
             >
-              {showConfirmPassword ? "🙈" : "👁️"}
+              {showConfirmPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
             </button>
           </div>
         </div>
-        <button disabled={busy} className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50">
+        <button disabled={busy} className="inline-flex w-full min-h-[44px] items-center justify-center rounded-lg bg-brand-600 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
           {busy ? "Resetting..." : "Reset password"}
         </button>
       </form>
-      <Link to="/login" className="block text-center text-sm text-slate-500 mt-4 hover:underline">
+      <Link to="/login" className="block text-center text-sm mt-6 text-slate-600 hover:text-slate-900 hover:underline">
         Back to sign in
       </Link>
     </AuthShell>
@@ -162,12 +164,8 @@ export default function ResetPasswordPage() {
 
 function AuthShell({ children }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-        <h1 className="text-2xl font-semibold text-slate-900 mb-1">Reset password</h1>
-        <p className="text-sm text-slate-500 mb-6">LauncherDesk E-Stamping Platform</p>
-        {children}
-      </div>
-    </div>
+    <AuthLayout title="Reset password" subtitle="LauncherDesk E-Stamping Platform">
+      {children}
+    </AuthLayout>
   );
 }

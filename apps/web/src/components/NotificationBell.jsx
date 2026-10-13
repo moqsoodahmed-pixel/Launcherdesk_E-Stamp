@@ -1,3 +1,4 @@
+import { Bell } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { apiClient } from "../api/client";
@@ -85,20 +86,20 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={containerRef}>
-      <button onClick={togglePanel} className="relative rounded-full p-2 hover:bg-slate-100" aria-label="Notifications">
-        <span className="text-xl">🔔</span>
+      <button onClick={togglePanel} className="relative flex h-11 w-11 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900" aria-label="Notifications" aria-expanded={open}>
+        <Bell size={20} strokeWidth={1.75} aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] leading-none rounded-full px-1.5 py-1 font-medium">
+          <span className="absolute right-1 top-1 rounded-full bg-vermilion-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white tabular-nums ring-2 ring-white">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border border-slate-200 shadow-lg z-50 overflow-hidden">
+        <div className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-overlay">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-            <span className="text-sm font-medium text-slate-900">Notifications</span>
-            <button onClick={handleMarkAllRead} className="text-xs text-brand-600 hover:underline">
+            <span className="font-display text-sm font-semibold text-slate-900">Notifications</span>
+            <button onClick={handleMarkAllRead} className="min-h-[32px] text-xs font-medium text-brand-700 hover:underline">
               Mark all read
             </button>
           </div>
@@ -117,7 +118,7 @@ export default function NotificationBell() {
               </button>
             ))}
           </div>
-          <Link to="/notifications" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-center text-sm text-brand-600 hover:bg-slate-50 border-t border-slate-100">
+          <Link to="/notifications" onClick={() => setOpen(false)} className="block border-t border-slate-100 px-4 py-3 text-center text-sm font-medium text-brand-700 hover:bg-slate-50">
             View all
           </Link>
         </div>
