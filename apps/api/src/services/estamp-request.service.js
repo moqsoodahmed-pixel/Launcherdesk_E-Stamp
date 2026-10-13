@@ -381,6 +381,8 @@ exports.EStampRequestService = {
             message: `E-Stamp request ${request.requestNumber} (Order ${orderNumber}) for ₹${amount} has been placed. Parties: ${request.firstParty} & ${request.secondParty}. Verification & modification window: 20 minutes.`,
             relatedActorId: input.createdBy,
             organizationId: input.organizationId,
+            entityType: "EStampOrder",
+            entityId: order._id,
             metadata: {
                 requestId: request._id,
                 orderId: order._id,
@@ -486,6 +488,8 @@ exports.EStampRequestService = {
             title: `Documents Verified: ${request.requestNumber}`,
             message: `Documents for E-Stamp request ${request.requestNumber} have been reviewed and confirmed correct by the administrative team.`,
             organizationId: request.organizationId,
+            entityType: request.orderId ? "EStampOrder" : "EStampRequest",
+            entityId: request.orderId || request._id,
             metadata: { requestId: request._id, orderId: request.orderId },
         });
 
@@ -732,7 +736,9 @@ exports.EStampRequestService = {
                     title: chargedTitle,
                     message: chargedMessage,
                     organizationId: charged.organizationId,
-                    metadata: { requestId: charged._id, amount: charged.reservedAmount },
+                    entityType: paidOrder ? "EStampOrder" : "EStampRequest",
+                    entityId: paidOrder?._id || charged._id,
+                    metadata: { requestId: charged._id, orderId: paidOrder?._id, amount: charged.reservedAmount },
                     eventKey: `estamp-request:${charged._id.toString()}:charged`,
                     email: {
                         method: "sendOrderStatusEmail",

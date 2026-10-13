@@ -9,17 +9,28 @@
 // in apps/api/src) are mapped - never a route for an entityType that's only
 // ever used on AuditLog entries elsewhere in the codebase.
 export function safeRouteFor(notification) {
-  if (!notification?.entityId) return null;
-  switch (notification.entityType) {
+  if (!notification) return null;
+  const entityId = notification.entityId || notification.metadata?.orderId || notification.metadata?.requestId || notification.metadata?.organizationId;
+  const entityType = notification.entityType || (notification.metadata?.orderId ? "EStampOrder" : notification.metadata?.requestId ? "EStampRequest" : null);
+
+  if (!entityId || !entityType) return null;
+
+  switch (entityType) {
     case "EStampOrder":
       // Vendor notifications go to the vendor's own order page (the only
       // order route a vendor can open).
-      if (notification.type === "VENDOR_ACTIVITY") return `/vendor/orders/${notification.entityId}`;
-      return `/orders/${notification.entityId}`;
+      if (notification.type === "VENDOR_ACTIVITY") return `/vendor/orders/${entityId}`;
+      return `/orders/${entityId}`;
+    case "EStampRequest":
+      // If the notification references an order (e.g. metadata.orderId), go directly to the order.
+      if (notification.metadata?.orderId) {
+        return `/orders/${notification.metadata.orderId}`;
+      }
+      return `/estamps/requests/${entityId}`;
     case "Payment":
-      return `/payments/${notification.entityId}`;
+      return `/payments/${entityId}`;
     case "BulkEStampBatch":
-      return `/estamps/bulk/${notification.entityId}`;
+      return `/estamps/bulk/${entityId}`;
     default:
       return null;
   }
