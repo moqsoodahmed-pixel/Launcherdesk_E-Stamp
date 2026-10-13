@@ -69,13 +69,13 @@ const BATCH = {
   COMPLETED: { tone: "emerald", client: "Completed" },
 };
 
-// Payment records. CREATED means "awaiting payment" here. Every audience
-// sees the enum value itself (screens and tests refer to it by name).
+// Payment records. CREATED means "awaiting payment" here. Clients get
+// plain labels; staff keep the enum.
 const PAYMENT = {
-  CREATED: { tone: "marigold" },
-  SUCCESS: { tone: "emerald" },
-  FAILED: { tone: "vermilion" },
-  REFUNDED: { tone: "grey" },
+  CREATED: { tone: "marigold", client: "Awaiting payment" },
+  SUCCESS: { tone: "emerald", client: "Paid" },
+  FAILED: { tone: "vermilion", client: "Failed" },
+  REFUNDED: { tone: "grey", client: "Refunded" },
 };
 
 // Whether a successful payment has reached the balance.

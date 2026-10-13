@@ -1,3 +1,4 @@
+import { statusMeta, isClientRole } from "../../components/ui/status";
 import Modal from "../../components/ui/Modal";
 import { FileText } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
@@ -262,7 +263,7 @@ export default function PaymentDetailPage() {
             <div className="text-xs text-slate-500 space-y-1">
               <p>Payment Method: Razorpay</p>
               <p className="font-mono">Transaction ID: {txId}</p>
-              <p>Status: <span className="font-semibold text-emerald-700">{payment.status}</span></p>
+              <p>Status: <span className="font-semibold text-emerald-700">{statusMeta(payment.status, { kind: "payment", client: isClientRole(user?.role) }).label}</span></p>
             </div>
 
           </div>

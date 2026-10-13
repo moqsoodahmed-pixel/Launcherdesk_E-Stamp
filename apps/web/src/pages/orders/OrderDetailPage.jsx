@@ -1,3 +1,5 @@
+import { clientOrderTimeline } from "../../utils/clientTimeline";
+import { isClientRole } from "../../components/ui/status";
 import Modal from "../../components/ui/Modal";
 import VerifyDocumentsDialog from "../../components/estamps/VerifyDocumentsDialog";
 import { CheckCircle2 } from "lucide-react";
@@ -209,6 +211,8 @@ export default function OrderDetailPage() {
   if (!data) return null;
 
   const { order, request, certificateAvailable, document: certificateDocument, timeline, history, availableActions = {} } = data;
+  // Clients see only client-safe stages (Submitted, Being prepared, Issued).
+  const shownTimeline = isClientRole(user?.role) ? clientOrderTimeline(timeline || []) : timeline || [];
   // Manual fulfilment: LauncherDesk staff stamp outside the app - plain
   // wording for clients, a Fulfilment panel for permitted staff.
   const manual = data.fulfilmentMode === "manual";
@@ -349,15 +353,16 @@ export default function OrderDetailPage() {
       </Card>
 
       <Card title="Processing timeline">
-        {timeline?.length > 0 ? (
+        {shownTimeline.length > 0 ? (
           <ol className="relative border-l border-slate-200 ml-2 space-y-4">
-            {timeline.map((step) => (
+            {shownTimeline.map((step) => (
               <li key={`${step.label}-${step.at}`} className="ml-4">
                 <span className={`absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full ${step.label === "Failed" ? "bg-red-500" : "bg-brand-600"}`} />
                 <div className="flex flex-wrap justify-between gap-x-4 text-sm">
                   <span className="text-slate-800">
                     {step.label}
                     {step.upcoming && <span className="text-amber-600"> (upcoming)</span>}
+                    {step.inProgress && <span className="text-slate-500"> (in progress)</span>}
                     {step.downloadable && <span className="text-slate-500"> (Download below)</span>}
                   </span>
                   <span className="text-slate-400">{fmt(step.at)}</span>

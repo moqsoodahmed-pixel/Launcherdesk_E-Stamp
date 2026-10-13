@@ -56,9 +56,12 @@ Use `StatusChip` (or the `StatusBadge` / `PaymentStatusBadge` /
 | Awaiting balance update | marigold | Awaiting balance update |
 | Credited | emerald | Credited |
 | Active / Inactive | emerald / grey | Active / Inactive |
+| Payment paid / failed / awaiting payment | emerald / vermilion / marigold | Paid / Failed / Awaiting payment |
 
 Client roles (SUPER_ADMIN, ADMIN, USER) never see assistant or vendor stage
-names. Staff and vendors see the enum value. Pass `remainingSeconds` (from
+names. Staff and vendors see the enum value. Client timelines (request and
+order detail, manual and provider mode) only show Submitted, Being prepared
+and Issued (or Failed / Cancelled); see `src/utils/clientTimeline.js`. Pass `remainingSeconds` (from
 the server's `windowRemainingSeconds`) or `deadline` to get the countdown;
 it ticks every second and stops at zero.
 

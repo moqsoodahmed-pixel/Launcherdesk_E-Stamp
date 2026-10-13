@@ -39,7 +39,7 @@ function WindowChip({ seconds, deadline, fallback, client }) {
 // "balance", "account" or "vendor". `audience` overrides the viewer's role
 // ("client" | "staff"). For MODIFICATION_WINDOW pass `remainingSeconds`
 // (server-provided, preferred) or `deadline` to get the live countdown.
-export default function StatusChip({ status, kind = "request", audience, label, remainingSeconds, deadline, className }) {
+export default function StatusChip({ status, kind = "request", audience, label, tone, remainingSeconds, deadline, className }) {
   const role = useViewerRole();
   const client = audience ? audience === "client" : isClientRole(role);
   const meta = statusMeta(status, { kind, client });
@@ -47,7 +47,7 @@ export default function StatusChip({ status, kind = "request", audience, label, 
     return <WindowChip seconds={remainingSeconds} deadline={deadline} fallback={meta} client={client} />;
   }
   return (
-    <Chip tone={meta.tone} className={className}>
+    <Chip tone={tone || meta.tone} className={className}>
       {label || meta.label}
     </Chip>
   );

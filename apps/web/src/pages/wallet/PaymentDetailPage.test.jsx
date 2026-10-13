@@ -53,7 +53,9 @@ describe("PaymentDetailPage - successful payment", () => {
     });
 
     expect((await screen.findAllByText("₹500")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("SUCCESS").length).toBeGreaterThan(0);
+    // A client (SUPER_ADMIN) sees the friendly label, never the raw enum.
+    expect(screen.getAllByText("Paid").length).toBeGreaterThan(0);
+    expect(screen.queryByText("SUCCESS")).not.toBeInTheDocument();
     expect(screen.getByText("order_xyz")).toBeInTheDocument();
     expect(screen.getByText("pay_xyz")).toBeInTheDocument();
     expect(screen.getByText("Payment created")).toBeInTheDocument();

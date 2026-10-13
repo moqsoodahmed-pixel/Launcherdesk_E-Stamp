@@ -1,3 +1,5 @@
+import { useViewerRole } from "../../components/ui/StatusChip";
+import { statusOptions, isClientRole } from "../../components/ui/status";
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -19,6 +21,7 @@ function fmt(d) {
 }
 
 export default function PaymentsListPage() {
+  const viewerRole = useViewerRole();
   const { user } = useAuth();
   const isInternal = user?.role === "MASTER_ADMIN" || user?.role === "ASSISTANT_MASTER_ADMIN";
   const canView = hasPermission(user, PERMISSIONS.PAYMENT_VIEW);
@@ -129,9 +132,9 @@ export default function PaymentsListPage() {
         )}
         <select aria-label="Status" value={status} onChange={(e) => reset(setStatus)(e.target.value)} className={inputClass}>
           <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s}
+          {statusOptions(STATUS_OPTIONS, { kind: "payment", client: isClientRole(viewerRole) }).map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </select>

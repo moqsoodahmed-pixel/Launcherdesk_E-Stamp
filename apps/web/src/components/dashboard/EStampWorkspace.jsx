@@ -1,3 +1,4 @@
+import StatusChip from "../ui/StatusChip";
 import { CreditCard, FileDown, FileText, MessageSquare, Package, Plus, RefreshCw, Stamp, TrendingUp } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
@@ -15,17 +16,14 @@ import ContactSupportModal from "./ContactSupportModal";
 // distinct from Payment.status (CREATED/SUCCESS/FAILED/REFUNDED) that
 // PaymentStatusBadge renders - kept as a separate small badge rather than
 // reusing PaymentStatusBadge with the wrong label set.
-const ORDER_PAYMENT_STATUS_STYLES = {
-  PAID: "bg-emerald-50 text-emerald-700",
-  PENDING: "bg-amber-50 text-amber-700",
-  FAILED: "bg-red-50 text-red-700",
+const ORDER_PAYMENT_STATUS = {
+  PAID: { tone: "emerald", label: "Paid" },
+  PENDING: { tone: "marigold", label: "Awaiting payment" },
+  FAILED: { tone: "vermilion", label: "Failed" },
 };
 function OrderPaymentStatusBadge({ status }) {
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${ORDER_PAYMENT_STATUS_STYLES[status] || "bg-slate-100 text-slate-600"}`}>
-      {status || "UNKNOWN"}
-    </span>
-  );
+  const meta = ORDER_PAYMENT_STATUS[status];
+  return <StatusChip status={status} tone={meta?.tone || "grey"} label={meta?.label || status || "Unknown"} />;
 }
 
 export default function EStampWorkspace({ user, onStateChanged }) {
@@ -334,9 +332,8 @@ export default function EStampWorkspace({ user, onStateChanged }) {
             >
               <option value="">All Statuses</option>
               <option value="ISSUED">Issued</option>
-              <option value="PROCESSING">Processing</option>
+              <option value="PROCESSING">Being prepared</option>
               <option value="FAILED">Failed</option>
-              <option value="CREATED">Created</option>
             </select>
             <Link
               to="/orders"

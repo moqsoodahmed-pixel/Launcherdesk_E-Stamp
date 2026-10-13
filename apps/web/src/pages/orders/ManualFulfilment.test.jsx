@@ -143,7 +143,11 @@ describe("Order detail - fulfilment panel", () => {
     expect(screen.getByText("Stamp details")).toBeInTheDocument();
     expect(screen.getByText("Stamp reference")).toBeInTheDocument();
     expect(screen.queryByText(/provider/i)).not.toBeInTheDocument();
-    expect(screen.getByText("Queued")).toBeInTheDocument();
+    // Client-safe timeline only: no internal steps.
+    const timeline = screen.getByRole("heading", { name: "Processing timeline" }).closest("section");
+    expect(within(timeline).getByText("Submitted")).toBeInTheDocument();
+    expect(within(timeline).getByText("Being prepared")).toBeInTheDocument();
+    for (const internal of ["Queued", "Window ends", "In progress"]) expect(within(timeline).queryByText(internal)).not.toBeInTheDocument();
   });
 
   it("navigates back to Orders to fulfil when opened from the fulfilment queue", async () => {
@@ -265,7 +269,7 @@ describe("client wording elsewhere", () => {
     expect(screen.queryByText("Provider reference")).not.toBeInTheDocument();
   });
 
-  it("request timeline: Submitted, Window ends, Queued, In progress, Issued (Download)", async () => {
+  it("request timeline shows a client only Submitted, Being prepared and Issued", async () => {
     mockUser = { role: "SUPER_ADMIN", fulfilmentMode: "manual", permissions: ["estamp.view", "order.view"] };
     apiClient.get.mockImplementation((url) =>
       url === "/estamps/r1"
@@ -279,8 +283,12 @@ describe("client wording elsewhere", () => {
         </Routes>
       </MemoryRouter>
     );
-    for (const label of ["Submitted", "Window ends", "Queued", "In progress", "Issued (Download)"]) {
-      expect(await screen.findByText(label)).toBeInTheDocument();
+    const lifecycle = (await screen.findByRole("heading", { name: "Lifecycle" })).closest("section");
+    for (const label of ["Submitted", "Being prepared", "Issued"]) {
+      expect(await within(lifecycle).findByText(label)).toBeInTheDocument();
+    }
+    for (const internal of ["Window ends", "Queued", "In progress", "Issued (Download)", "Being prepared by LauncherDesk"]) {
+      expect(within(lifecycle).queryByText(internal)).not.toBeInTheDocument();
     }
     expect(screen.queryByText(/provider/i)).not.toBeInTheDocument();
   });

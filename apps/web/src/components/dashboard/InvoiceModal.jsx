@@ -1,9 +1,12 @@
+import { useViewerRole } from "../ui/StatusChip";
+import { statusMeta, isClientRole } from "../ui/status";
 import Modal from "../ui/Modal";
 import { useState } from "react";
 import { apiClient } from "../../api/client";
 import { formatCurrency, actionErrorMessage } from "../../utils/format";
 
 export default function InvoiceModal({ payment, organizationName, userName, userEmail, onClose }) {
+  const viewerRole = useViewerRole();
   const [txDetail, setTxDetail] = useState(null);
   const [txLoading, setTxLoading] = useState(false);
   const [txError, setTxError] = useState(null);
@@ -89,7 +92,7 @@ export default function InvoiceModal({ payment, organizationName, userName, user
           <p>Payment Method: Razorpay Secure Gateway</p>
           <p className="font-mono">Transaction ID: {txId}</p>
           <p>
-            Status: <span className="font-semibold text-emerald-700">{payment.status || "SUCCESS"}</span>
+            Status: <span className="font-semibold text-emerald-700">{statusMeta(payment.status || "SUCCESS", { kind: "payment", client: isClientRole(viewerRole) }).label}</span>
           </p>
           <button
             onClick={handleViewTransaction}

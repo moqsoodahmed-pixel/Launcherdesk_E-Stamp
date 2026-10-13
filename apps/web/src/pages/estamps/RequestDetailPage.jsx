@@ -1,3 +1,5 @@
+import { clientRequestSteps } from "../../utils/clientTimeline";
+import { isClientRole } from "../../components/ui/status";
 import Toast from "../../components/ui/Toast";
 import { useConfirm } from "../../components/ui/useConfirm";
 import VerifyDocumentsDialog from "../../components/estamps/VerifyDocumentsDialog";
@@ -378,7 +380,7 @@ export default function RequestDetailPage() {
 
       {/* Lifecycle timeline */}
       <Section title="Lifecycle">
-        <RequestTimeline request={request} order={order} manual={isManualFulfilment(user)} />
+        <RequestTimeline request={request} order={order} manual={isManualFulfilment(user)} client={isClientRole(user?.role)} />
         {request.status === "MODIFICATION_WINDOW" && (
           <div className="mt-4 pt-4 border-t border-slate-100">
             <p className="text-sm text-slate-600 mb-3">
@@ -468,7 +470,10 @@ function manualSteps(request, order) {
   return steps;
 }
 
-function RequestTimeline({ request, order, manual }) {
+function RequestTimeline({ request, order, manual, client }) {
+  // Clients only ever see Submitted, Being prepared and Issued (or Failed /
+  // Cancelled), whichever fulfilment mode is running.
+  if (client) return <TimelineList steps={clientRequestSteps(request, order)} />;
   if (manual) return <TimelineList steps={manualSteps(request, order)} />;
   const steps = [];
   steps.push({ label: "Request created", at: request.createdAt, done: true });
