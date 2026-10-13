@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { apiClient } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
 import { getErrorMessage } from "../../utils/errors";
@@ -31,11 +31,15 @@ export default function ProfilePage() {
   const [saveErr, setSaveErr] = useState(null);
   const [pwMsg, setPwMsg] = useState(null);
 
-  useEffect(() => {
-    if (!me) return;
+  // Fill the form in the same render that first shows the loaded profile
+  // (not in an effect afterwards), so the fields are never on screen empty
+  // next to loaded account details.
+  const [formFor, setFormFor] = useState(null);
+  if (me && me !== formFor) {
+    setFormFor(me);
     setName(me.name || "");
     setPhone(me.phone || "");
-  }, [me]);
+  }
 
   async function saveProfile(e) {
     e.preventDefault();
