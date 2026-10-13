@@ -1,3 +1,4 @@
+import StatusChip from "../../components/ui/StatusChip";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -167,9 +168,7 @@ export default function UsersListPage() {
                   <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs">{u.role.replace(/_/g, " ")}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${u.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                    {u.isActive ? "Active" : "Inactive"}
-                  </span>
+                  <StatusChip kind="account" status={u.isActive ? "ACTIVE" : "INACTIVE"} label={u.isActive ? "Active" : "Inactive"} />
                 </td>
                 <td className="px-4 py-3 text-slate-500">{new Date(u.createdAt).toLocaleDateString()}</td>
                 {isMaster && (

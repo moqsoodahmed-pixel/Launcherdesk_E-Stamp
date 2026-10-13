@@ -1,3 +1,5 @@
+import { Download, Stamp } from "lucide-react";
+import StampCard from "../../components/ui/StampCard";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -13,7 +15,7 @@ import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 
 const LIMIT = 20;
-const inputClass = "rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
+const inputClass = "input w-auto";
 const CERTIFICATE_LABELS = { NOT_AVAILABLE: "Not available", AVAILABLE: "Available", DOWNLOADED: "Downloaded" };
 
 function fmt(date) {
@@ -105,13 +107,13 @@ export default function EStampsPage() {
 
       <div className="flex flex-wrap items-end gap-3 mb-4">
         <div>
-          <label htmlFor="estamps-search" className="block text-xs font-medium text-slate-600 mb-1">
+          <label htmlFor="estamps-search" className="mb-1.5 block text-sm font-medium text-slate-800">
             Search
           </label>
           <input id="estamps-search" placeholder={isManualFulfilment(user) ? "Order # or stamp reference" : "Order # or provider reference"} value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className={`${inputClass} w-full sm:w-72`} />
         </div>
         <div>
-          <label htmlFor="estamps-state" className="block text-xs font-medium text-slate-600 mb-1">
+          <label htmlFor="estamps-state" className="mb-1.5 block text-sm font-medium text-slate-800">
             State
           </label>
           {states.length > 0 ? (
@@ -128,13 +130,13 @@ export default function EStampsPage() {
           )}
         </div>
         <div>
-          <label htmlFor="estamps-from" className="block text-xs font-medium text-slate-600 mb-1">
+          <label htmlFor="estamps-from" className="mb-1.5 block text-sm font-medium text-slate-800">
             From
           </label>
           <input id="estamps-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label htmlFor="estamps-to" className="block text-xs font-medium text-slate-600 mb-1">
+          <label htmlFor="estamps-to" className="mb-1.5 block text-sm font-medium text-slate-800">
             To
           </label>
           <input id="estamps-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={inputClass} />
@@ -148,7 +150,7 @@ export default function EStampsPage() {
               setDateFrom("");
               setDateTo("");
             }}
-            className="text-sm text-slate-500 hover:underline pb-2"
+            className="min-h-[44px] text-sm text-slate-600 hover:text-slate-900 hover:underline"
           >
             Clear filters
           </button>
@@ -169,50 +171,51 @@ export default function EStampsPage() {
         </div>
       )}
       {!loading && !error && items.length > 0 && (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm min-w-[720px]">
-            <thead className="bg-slate-50 text-xs text-slate-600">
-              <tr>
-                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Order</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">State</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-right font-semibold">Amount</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Issued</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Certificate</th>
-                <th className="px-4 py-3">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((o) => (
-                <tr key={o._id} className="border-t border-slate-100">
-                  <td className="px-4 py-3">
-                    <Link to={`/orders/${o._id}`} className="font-medium text-brand-600 hover:underline">
+        <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3" aria-label="Issued E-Stamp certificates">
+          {items.map((o) => (
+            <li key={o._id}>
+              <StampCard className="h-full" innerClassName="flex h-full flex-col gap-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link to={`/orders/${o._id}`} className="font-display text-lg font-semibold text-slate-900 hover:text-brand-700 hover:underline">
                       {o.orderNumber}
                     </Link>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{o.stateCode || "-"}</td>
-                  <td className="px-4 py-3 text-right">{formatCurrency(o.amount)}</td>
-                  <td className="px-4 py-3 text-slate-500">{fmt(o.issuedAt)}</td>
-                  <td className="px-4 py-3 text-slate-600">{CERTIFICATE_LABELS[o.downloadStatus] || o.downloadStatus || "-"}</td>
-                  <td className="px-4 py-3 text-right">
-                    {canDownload && o.downloadStatus && o.downloadStatus !== "NOT_AVAILABLE" && (
-                      <button
-                        type="button"
-                        onClick={() => handleDownload(o)}
-                        disabled={downloadingId === o._id}
-                        aria-label={`Download certificate for ${o.orderNumber}`}
-                        className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-                      >
-                        {downloadingId === o._id ? "Downloading..." : "Download"}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    <p className="mt-0.5 text-sm text-slate-600">{o.stateCode || "-"}</p>
+                  </div>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                    <Stamp size={20} strokeWidth={1.75} aria-hidden="true" />
+                  </span>
+                </div>
+                <dl className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt className="text-slate-500">Amount</dt>
+                    <dd className="font-medium text-slate-900 tabular-nums">{formatCurrency(o.amount)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Issued</dt>
+                    <dd className="font-medium text-slate-900 tabular-nums">{fmt(o.issuedAt)}</dd>
+                  </div>
+                  <div className="col-span-2">
+                    <dt className="text-slate-500">Certificate</dt>
+                    <dd className="font-medium text-slate-900">{CERTIFICATE_LABELS[o.downloadStatus] || o.downloadStatus || "-"}</dd>
+                  </div>
+                </dl>
+                {canDownload && o.downloadStatus && o.downloadStatus !== "NOT_AVAILABLE" && (
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(o)}
+                    disabled={downloadingId === o._id}
+                    aria-label={`Download certificate for ${o.orderNumber}`}
+                    className="mt-auto inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+                  >
+                    <Download size={16} aria-hidden="true" />
+                    {downloadingId === o._id ? "Downloading..." : "Download"}
+                  </button>
+                )}
+              </StampCard>
+            </li>
+          ))}
+        </ul>
       )}
 
       {!error && total > 0 && (

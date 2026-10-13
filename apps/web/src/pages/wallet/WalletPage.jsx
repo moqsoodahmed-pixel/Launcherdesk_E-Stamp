@@ -1,3 +1,4 @@
+import StampCard from "../../components/ui/StampCard";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -234,13 +235,13 @@ export default function WalletPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {canViewWallet && (
-              <div className="card p-6">
-                <p className="text-sm text-slate-500 mb-1">Available balance</p>
+              <StampCard>
+                <p className="mb-1 text-sm text-slate-600">Available balance</p>
                 {sectionErrors.balance ? (
                   <p className="text-sm text-red-600">{sectionErrors.balance}</p>
                 ) : (
                   <>
-                    <p className="text-3xl font-semibold text-slate-900 tabular-nums">
+                    <p className="font-display text-4xl font-semibold text-slate-900 tabular-nums">
                       {loading && balance === null ? "…" : formatCurrency(balance?.availableBalance ?? balance?.balance ?? 0)}
                     </p>
                     {balance?.reservedBalance !== undefined && (
@@ -259,7 +260,7 @@ export default function WalletPage() {
                   </>
                 )}
                 <p className="text-xs text-slate-400 mt-2">A request reserves its amount when submitted and is charged when its 20-minute window ends. Cancelling inside the window costs nothing.</p>
-              </div>
+              </StampCard>
             )}
 
             {canFund && (

@@ -1,3 +1,4 @@
+import SharedStepper from "../../components/ui/Stepper";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -427,20 +428,7 @@ export default function NewRequestPage() {
 }
 
 function Stepper({ step }) {
-  return (
-    <ol className="flex flex-wrap gap-2 mb-4 text-xs">
-      {STEPS.map((label, i) => (
-        <li
-          key={label}
-          className={`rounded-full px-3 py-1 font-medium ${
-            i === step ? "bg-brand-600 text-white" : i < step ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
-          }`}
-        >
-          {i + 1}. {label}
-        </li>
-      ))}
-    </ol>
-  );
+  return <SharedStepper steps={STEPS} current={step} label="Request steps" className="mb-6" numbered />;
 }
 
 function AddFundsHint({ canOpenWallet }) {
