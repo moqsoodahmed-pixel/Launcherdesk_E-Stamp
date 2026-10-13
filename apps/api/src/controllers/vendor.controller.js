@@ -248,7 +248,8 @@ function contextFor(order, ctx) {
 }
 const VENDOR_FILTER_STATUSES = [shared_1.VendorStatus.SENT, shared_1.VendorStatus.ACCEPTED, shared_1.VendorStatus.UPLOADED, shared_1.VendorStatus.REJECTED, shared_1.VendorStatus.APPROVED];
 exports.listMyOrders = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const filter = { vendorId: new mongoose_1.Types.ObjectId(req.user.id) };
+    const vid = mongoose_1.Types.ObjectId.isValid(req.user.id) ? new mongoose_1.Types.ObjectId(req.user.id) : req.user.id;
+    const filter = { vendorId: { $in: [vid, req.user.id] } };
     const { status, batch, search, page = "1", limit = "50" } = req.query;
     if (status) {
         if (!VENDOR_FILTER_STATUSES.includes(status))

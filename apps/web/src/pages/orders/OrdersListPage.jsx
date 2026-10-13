@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { isManualFulfilment } from "../../utils/fulfilment";
@@ -23,6 +23,7 @@ function fmt(date) {
 }
 
 export default function OrdersListPage() {
+  const location = useLocation();
   const { user } = useAuth();
   const manual = isManualFulfilment(user);
   const refLabel = manual ? "Stamp reference" : "Provider reference";
@@ -317,12 +318,16 @@ export default function OrdersListPage() {
                 <tr key={o._id} className="border-t border-slate-100">
                   <td className="px-4 py-3 font-medium text-slate-900">{o.orderNumber}</td>
                   <td className="px-4 py-3 text-slate-600">
-                    {o.requestNumber ? (
-                      <Link to={`/estamps/requests/${o.requestId}`} className="text-brand-600 hover:underline">
+                    {o.requestNumber && o.requestId ? (
+                      <Link
+                        to={`/estamps/requests/${o.requestId}`}
+                        state={{ from: location.pathname + location.search, label: "Orders" }}
+                        className="text-brand-600 hover:underline"
+                      >
                         {o.requestNumber}
                       </Link>
                     ) : (
-                      "-"
+                      o.requestNumber || "-"
                     )}
                   </td>
                   {isInternal && <td className="px-4 py-3 text-slate-600">{o.organizationName || "-"}</td>}
@@ -342,7 +347,11 @@ export default function OrdersListPage() {
                   <td className="px-4 py-3 text-slate-500">{fmt(o.createdAt)}</td>
                   <td className="px-4 py-3 text-slate-500">{fmt(o.updatedAt)}</td>
                   <td className="px-4 py-3">
-                    <Link to={`/orders/${o._id}`} className="text-brand-600 hover:underline">
+                    <Link
+                      to={`/orders/${o._id}`}
+                      state={{ from: location.pathname + location.search, label: "Orders" }}
+                      className="text-brand-600 hover:underline font-medium"
+                    >
                       View
                     </Link>
                   </td>
@@ -362,7 +371,12 @@ export default function OrdersListPage() {
         )}
         {!loading &&
           items.map((o) => (
-            <Link key={o._id} to={`/orders/${o._id}`} className="block bg-white rounded-2xl border border-slate-200 p-4">
+            <Link
+              key={o._id}
+              to={`/orders/${o._id}`}
+              state={{ from: location.pathname + location.search, label: "Orders" }}
+              className="block bg-white rounded-2xl border border-slate-200 p-4"
+            >
               <div className="flex items-start justify-between gap-2">
                 <span className="font-medium text-slate-900 break-all">{o.orderNumber}</span>
                 <StatusBadge status={o.eStampStatus} />

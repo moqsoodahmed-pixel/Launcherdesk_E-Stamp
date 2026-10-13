@@ -281,7 +281,11 @@ export default function BulkBatchDetailPage() {
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           {item.status === "CREATED" && item.requestId && (
-                            <Link to={`/estamps/requests/${item.requestId}`} className="text-brand-600 hover:underline">
+                            <Link
+                              to={`/estamps/requests/${item.requestId}`}
+                              state={{ from: `/estamps/bulk/${batchId}`, label: `Batch ${batch.batchNumber}` }}
+                              className="text-brand-600 hover:underline font-medium"
+                            >
                               View Request
                             </Link>
                           )}

@@ -126,8 +126,12 @@ export default function WalletPage() {
     setError(null);
     setNotice(null);
     const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      setError("Enter a valid amount greater than zero.");
+    if (!Number.isFinite(numericAmount) || numericAmount < 100) {
+      setError("Enter a valid amount of at least ₹100.");
+      return;
+    }
+    if (numericAmount > 1000000) {
+      setError("Maximum top-up amount is ₹10,00,000.");
       return;
     }
     fundingRef.current = true;
@@ -269,16 +273,20 @@ export default function WalletPage() {
                   <input
                     aria-label="Amount in rupees"
                     type="number"
-                    min="1"
-                    step="0.01"
-                    inputMode="decimal"
-                    placeholder="Amount (₹)"
+                    min="100"
+                    max="1000000"
+                    step="1"
+                    inputMode="numeric"
+                    placeholder="Amount (min ₹100)"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     disabled={!!fundStep}
                     className="flex-1 min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
-                  <button disabled={!!fundStep} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                  <button
+                    disabled={!!fundStep || !amount || Number(amount) < 100 || Number(amount) > 1000000}
+                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+                  >
                     {stepLabel || "Add Money"}
                   </button>
                 </form>

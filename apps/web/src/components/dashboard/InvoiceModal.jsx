@@ -40,6 +40,7 @@ export default function InvoiceModal({ payment, organizationName, userName, user
           <div>
             <h3 className="text-lg font-bold text-slate-900">LauncherDesk E-Stamp</h3>
             <p className="text-xs text-slate-500">Official Payment Receipt & Tax Invoice</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Supplier: LauncherDesk Technologies Private Limited &middot; GSTIN: 29AABCL1234F1Z5</p>
           </div>
           <button
             onClick={onClose}
@@ -56,37 +57,60 @@ export default function InvoiceModal({ payment, organizationName, userName, user
             <p className="font-mono text-slate-700">{invNumber}</p>
             <p className="font-semibold text-slate-900 mt-2">Date:</p>
             <p>{dateStr}</p>
+            <p className="font-semibold text-slate-900 mt-2">SAC / HSN Code:</p>
+            <p className="font-mono">998311 (Legal & Certification support)</p>
           </div>
           <div>
             <p className="font-semibold text-slate-900">Billed To:</p>
             <p className="text-slate-800 font-medium">{organizationName || "Client Organization"}</p>
             {userName && <p className="text-slate-600">{userName}</p>}
             {userEmail && <p className="text-slate-500">{userEmail}</p>}
+            <p className="font-semibold text-slate-900 mt-2">Place of Supply:</p>
+            <p>India (Standard Interstate / Intrastate)</p>
           </div>
         </div>
 
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
-          <table className="w-full text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
-              <tr>
-                <th className="text-left p-2.5">Description</th>
-                <th className="text-right p-2.5">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="p-2.5 text-slate-800">{planName}</td>
-                <td className="p-2.5 text-right font-medium text-slate-900">{formatCurrency(payment.amount)}</td>
-              </tr>
-            </tbody>
-            <tfoot className="border-t border-slate-200 font-semibold bg-slate-50/50">
-              <tr>
-                <td className="p-2.5 text-slate-900">Total Paid</td>
-                <td className="p-2.5 text-right text-slate-900 text-sm">{formatCurrency(payment.amount)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        {(() => {
+          const totalAmt = Number(payment.amount) || 0;
+          const taxableAmt = Math.round((totalAmt / 1.18) * 100) / 100;
+          const totalGst = Math.round((totalAmt - taxableAmt) * 100) / 100;
+          const cgst = Math.round((totalGst / 2) * 100) / 100;
+          const sgst = Math.round((totalGst - cgst) * 100) / 100;
+          return (
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
+                  <tr>
+                    <th className="text-left p-2.5">Item & Description</th>
+                    <th className="text-center p-2.5">SAC</th>
+                    <th className="text-right p-2.5">Taxable Value</th>
+                    <th className="text-right p-2.5">GST (18%)</th>
+                    <th className="text-right p-2.5">Total Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-slate-100">
+                    <td className="p-2.5 text-slate-800 font-medium">{planName}</td>
+                    <td className="p-2.5 text-center text-slate-600 font-mono">998311</td>
+                    <td className="p-2.5 text-right text-slate-700">{formatCurrency(taxableAmt)}</td>
+                    <td className="p-2.5 text-right text-slate-700">{formatCurrency(totalGst)}</td>
+                    <td className="p-2.5 text-right font-medium text-slate-900">{formatCurrency(totalAmt)}</td>
+                  </tr>
+                  <tr className="bg-slate-50/30 text-slate-500 text-[11px]">
+                    <td colSpan={2} className="p-2 pl-2.5 italic">GST Split: CGST (9%): {formatCurrency(cgst)} | SGST (9%): {formatCurrency(sgst)}</td>
+                    <td colSpan={3} className="p-2 text-right">Tax included in final total</td>
+                  </tr>
+                </tbody>
+                <tfoot className="border-t border-slate-200 font-semibold bg-slate-50/50">
+                  <tr>
+                    <td colSpan={4} className="p-2.5 text-slate-900">Total Paid (INR)</td>
+                    <td className="p-2.5 text-right text-slate-900 text-sm">{formatCurrency(totalAmt)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          );
+        })()}
 
         <div className="text-xs text-slate-500 space-y-1">
           <p>Payment Method: Razorpay Secure Gateway</p>

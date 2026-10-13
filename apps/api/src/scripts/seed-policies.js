@@ -5,12 +5,9 @@ const db_1 = require("../config/db");
 const models_1 = require("../models");
 const shared_1 = require("@launcherdesk/shared");
 const logger_1 = require("../utils/logger");
-// Safe to run on an existing database (unlike seed.js, which stops as soon
-// as a Master Admin exists). For every policy type that has NO version at
-// all, creates a DRAFT version 0.1 with clearly-marked placeholder text.
-// Nothing is published: a Master Admin replaces the text and publishes it
-// from Manage Policies. Never invents legal language.
+
 const DRAFT_CONTENT = "DRAFT - REPLACE BEFORE LAUNCH.\n\nThis is placeholder text, not a real policy. Replace it with your approved legal text, then publish it from Manage Policies.";
+
 async function seedDraftPolicies() {
     const master = await models_1.User.findOne({ role: shared_1.Role.MASTER_ADMIN }).select("_id");
     if (!master)
@@ -32,6 +29,7 @@ async function seedDraftPolicies() {
     }
     return created;
 }
+
 if (require.main === module) {
     (async () => {
         await (0, db_1.connectDB)();

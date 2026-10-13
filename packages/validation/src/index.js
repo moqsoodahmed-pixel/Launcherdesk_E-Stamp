@@ -92,14 +92,14 @@ exports.updateAssistantAdminPermissionsSchema = zod_1.z.object({
     permissions: zod_1.z.array(zod_1.z.nativeEnum(shared_1.Permission)),
 });
 exports.createEStampRequestSchema = zod_1.z.object({
-    stateCode: zod_1.z.string().min(2).max(10),
-    articleId: zod_1.z.string().min(1),
-    firstParty: zod_1.z.string().min(1).max(300),
-    secondParty: zod_1.z.string().min(1).max(300),
-    descriptionOfDocument: zod_1.z.string().min(1).max(1000),
-    propertyDescription: zod_1.z.string().max(2000).optional(),
+    stateCode: zod_1.z.string().trim().min(2).max(10),
+    articleId: zod_1.z.string().trim().min(1),
+    firstParty: zod_1.z.string().trim().min(1).max(300),
+    secondParty: zod_1.z.string().trim().min(1).max(300),
+    descriptionOfDocument: zod_1.z.string().trim().min(1).max(1000),
+    propertyDescription: zod_1.z.string().trim().max(2000).optional(),
     considerationPrice: zod_1.z.number().finite().min(0),
-    stampDutyPaidBy: zod_1.z.string().min(1).max(300),
+    stampDutyPaidBy: zod_1.z.string().trim().min(1).max(300),
     numberOfEStamps: zod_1.z.number().int().min(1).max(100).default(1),
     extraFields: zod_1.z.record(zod_1.z.any()).optional(), // extensible, state-specific
     // Client-generated once per form submission (e.g. crypto.randomUUID()),

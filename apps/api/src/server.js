@@ -17,6 +17,11 @@ async function main() {
     setInterval(() => {
         (0, lockExpiredRequests_job_1.runLockExpiredRequestsJob)().catch((err) => logger_1.logger.error("lockExpiredRequests job failed", { message: err.message }));
     }, 60 * 1000);
+    // Periodically expire abandoned checkout sessions left in CREATED
+    const { PaymentService } = require("./services/payment.service");
+    setInterval(() => {
+        PaymentService.expireAbandonedPayments().catch((err) => logger_1.logger.error("expireAbandonedPayments job failed", { message: err.message }));
+    }, 5 * 60 * 1000);
     // Temporary-password reveal: warn once at startup if disabled, and purge
     // values older than 7 days every hour (also checked lazily on read).
     (0, credentialVault_1.isEnabled)();

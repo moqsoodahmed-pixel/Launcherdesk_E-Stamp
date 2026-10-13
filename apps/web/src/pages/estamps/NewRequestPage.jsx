@@ -252,10 +252,20 @@ export default function NewRequestPage() {
 
       <Stepper step={step} />
 
-      {serverError && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{serverError}</div>}
+      {serverError && (
+        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2 flex items-center justify-between">
+          <span>{serverError}</span>
+          <button type="button" onClick={() => setServerError(null)} className="text-red-500 hover:text-red-700 ml-2 font-bold" aria-label="Dismiss error">
+            ✕
+          </button>
+        </div>
+      )}
       {lookupError && (
-        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
-          {lookupError}
+        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2 flex items-center justify-between">
+          <span>{lookupError}</span>
+          <button type="button" onClick={() => setLookupError(null)} className="text-red-500 hover:text-red-700 ml-2 font-bold" aria-label="Dismiss lookup error">
+            ✕
+          </button>
         </div>
       )}
       {balance === 0 && !serverError && (
@@ -268,18 +278,23 @@ export default function NewRequestPage() {
         {step === 0 && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="First Party" error={errors.firstParty?.message}>
-                <input className="input" {...register("firstParty")} />
+              <Field label="First Party" error={errors.firstParty?.message} hint="Full legal name of the first party / executant / transferor">
+                <input className="input" {...register("firstParty")} placeholder="e.g. John Doe / ABC Corp" maxLength={300} />
               </Field>
-              <Field label="Second Party" error={errors.secondParty?.message}>
-                <input className="input" {...register("secondParty")} />
+              <Field label="Second Party" error={errors.secondParty?.message} hint="Full legal name of the second party / claimant / transferee">
+                <input className="input" {...register("secondParty")} placeholder="e.g. Jane Smith / XYZ Ltd" maxLength={300} />
               </Field>
             </div>
-            <Field label="Description of Document" error={errors.descriptionOfDocument?.message}>
-              <textarea className="input" rows={2} {...register("descriptionOfDocument")} />
+            {values.firstParty && values.secondParty && values.firstParty.trim().toLowerCase() === values.secondParty.trim().toLowerCase() && (
+              <div role="alert" className="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2">
+                <strong>Notice:</strong> First Party and Second Party names are identical ("{values.firstParty.trim()}"). Ensure this is intentional for self-declarations or unilateral affidavits.
+              </div>
+            )}
+            <Field label="Description of Document" error={errors.descriptionOfDocument?.message} hint="Brief purpose (e.g. Rental Agreement, Power of Attorney, Affidavit)">
+              <textarea className="input" rows={2} {...register("descriptionOfDocument")} maxLength={1000} placeholder="Purpose of this document..." />
             </Field>
-            <Field label="Property Description">
-              <textarea className="input" rows={2} {...register("propertyDescription")} />
+            <Field label="Property Description" hint="Optional details: address, survey number, or asset identifiers">
+              <textarea className="input" rows={2} {...register("propertyDescription")} maxLength={2000} placeholder="Optional property or asset description..." />
             </Field>
           </div>
         )}
@@ -326,7 +341,7 @@ export default function NewRequestPage() {
 
         {step === 2 && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Field label="Consideration Price (₹)" error={errors.considerationPrice?.message}>
+            <Field label="Consideration Price (₹)" error={errors.considerationPrice?.message} hint="Enter 0 if document has no commercial consideration value">
               <input type="number" className="input" {...register("considerationPrice", { valueAsNumber: true })} />
             </Field>
             {values.firstParty || values.secondParty ? (
@@ -367,7 +382,7 @@ export default function NewRequestPage() {
                 <input className="input" {...register("stampDutyPaidBy")} placeholder="Enter party names on the previous step first" />
               </Field>
             )}
-            <Field label="No. of E-Stamps" error={errors.numberOfEStamps?.message}>
+            <Field label="No. of E-Stamps" error={errors.numberOfEStamps?.message} hint="Default is 1 certificate copy">
               <input type="number" className="input" {...register("numberOfEStamps", { valueAsNumber: true })} />
             </Field>
           </div>
@@ -414,7 +429,18 @@ export default function NewRequestPage() {
             <button
               key="submit-btn"
               type="submit"
-              disabled={submitting || !isFresh || (typeof balance === "number" && calculation && balance < calculation.amount)}
+              disabled={
+                submitting ||
+                !isFresh ||
+                !calculation ||
+                calculation.amount <= 0 ||
+                (calculation.pricing && calculation.pricing.stampDuty <= 0) ||
+                (typeof balance === "number" &&
+                  balance <
+                    (calculation.pricing && typeof calculation.pricing.totalAmount === "number"
+                      ? calculation.pricing.totalAmount
+                      : calculation.amount))
+              }
               className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {submitting ? "Submitting..." : "Create Request"}
@@ -461,14 +487,16 @@ function AddFundsHint({ canOpenWallet }) {
 }
 
 function ReviewStep({ values, calculation, balance, canOpenWallet, articles, states, calculating, calcError, onRetryCalculation, paidBySide }) {
-  const insufficientBalance = calculation && typeof balance === "number" && balance < calculation.amount;
+  const pricing = calculation?.pricing;
+  const requiredAmount = pricing && typeof pricing.totalAmount === "number" ? pricing.totalAmount : (calculation ? calculation.amount : 0);
+  const insufficientBalance = calculation && typeof balance === "number" && balance < requiredAmount;
   const selectedArticle = articles.find((a) => a._id === values.articleId);
   const selectedState = states.find((s) => s.code === values.stateCode);
   // A duty of exactly 0 means this article's rule is not configured, never
   // that the stamp is genuinely free - the engine deliberately refuses to
   // guess a legal amount. Shown as "At Actuals" (billed at the real
   // government charge) rather than a bare "₹0" that reads as a real price.
-  const dutyNotConfigured = calculation && calculation.amount === 0;
+  const dutyNotConfigured = calculation && (calculation.amount === 0 || !pricing || pricing.stampDuty === 0);
   return (
     <div className="space-y-4 text-sm">
       <div className="space-y-2">
@@ -504,7 +532,7 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
 
       {insufficientBalance && (
         <div className="rounded-lg bg-red-50 text-red-700 px-3 py-2">
-          Insufficient balance: this request needs {formatCurrency(calculation.amount)} but the available balance is {formatCurrency(balance)}.{" "}
+          Insufficient balance: this request needs {formatCurrency(requiredAmount)} but the available balance is {formatCurrency(balance)}.{" "}
           <AddFundsHint canOpenWallet={canOpenWallet} />
         </div>
       )}
@@ -587,13 +615,16 @@ function FieldGroup({ label, error, children }) {
   );
 }
 
-function Field({ label, error, children }) {
+function Field({ label, error, hint, children }) {
   return (
-    <label className="block">
-      <span className="block text-sm font-medium text-slate-700 mb-1">{label}</span>
-      {children}
+    <div className="block">
+      <label className="block text-sm font-medium text-slate-700 mb-1">
+        {label}
+        {children}
+      </label>
+      {hint && !error && <span className="block text-xs text-slate-400 mt-1">{hint}</span>}
       {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}
-    </label>
+    </div>
   );
 }
 

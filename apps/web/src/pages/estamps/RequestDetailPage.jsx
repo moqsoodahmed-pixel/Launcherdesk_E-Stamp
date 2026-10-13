@@ -223,15 +223,25 @@ export default function RequestDetailPage() {
   const canCancel = !!request.canCancel && windowOpen && mayCancel;
   const windowStillOpen = (!!request.canModify || !!request.canCancel) && windowOpen;
 
+  const backTo = location.state?.from || "/estamps/requests";
+  const backLabel = location.state?.label || "Requests";
+
   return (
     <div className="max-w-3xl space-y-6 pb-10">
       <div>
-        <Link to="/estamps/requests" className="text-sm text-slate-500 hover:underline">
-          ← Requests
+        <Link to={backTo} className="text-sm text-slate-500 hover:underline">
+          ← {backLabel}
         </Link>
         <div className="flex items-center justify-between mt-1">
           <h1 className="text-xl font-semibold text-slate-900">{request.requestNumber}</h1>
-          <StatusBadge status={request.status} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={request.status === "MODIFICATION_WINDOW" && !windowOpen ? "LOCKED" : request.status} />
+            {request.status === "MODIFICATION_WINDOW" && !windowOpen && (
+              <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-medium">
+                Window Expired
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -395,16 +405,35 @@ export default function RequestDetailPage() {
       </Section>
 
       {/* Order summary (link out to the existing, already-hardened Order detail page rather than duplicating it) */}
-      {order && (
+      {(order || request.orderId) && (
         <Section title="Order">
-          <Row label="Order Number" value={order.order.orderNumber} />
-          <Row label="Processing Status" value={order.order.eStampStatus} />
-          <Row label="Order Status" value={order.order.status} />
-          <Row label="Created" value={new Date(order.order.createdAt).toLocaleString()} />
-          {order.order.issuedAt && <Row label="Issued" value={new Date(order.order.issuedAt).toLocaleString()} />}
-          <Link to={`/orders/${order.order._id}`} className="inline-block mt-2 text-sm text-brand-600 hover:underline">
-            View Order →
-          </Link>
+          {order ? (
+            <>
+              <Row label="Order Number" value={order.order.orderNumber} />
+              <Row label="Processing Status" value={order.order.eStampStatus} />
+              <Row label="Order Status" value={order.order.status} />
+              <Row label="Created" value={new Date(order.order.createdAt).toLocaleString()} />
+              {order.order.issuedAt && <Row label="Issued" value={new Date(order.order.issuedAt).toLocaleString()} />}
+              <Link
+                to={`/orders/${order.order._id}`}
+                state={{ from: `/estamps/requests/${request._id}`, label: `Request ${request.requestNumber}` }}
+                className="inline-block mt-2 text-sm text-brand-600 hover:underline font-medium"
+              >
+                View Order Details →
+              </Link>
+            </>
+          ) : (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-500">Linked Order ID: {request.orderId}</span>
+              <Link
+                to={`/orders/${request.orderId}`}
+                state={{ from: `/estamps/requests/${request._id}`, label: `Request ${request.requestNumber}` }}
+                className="text-sm text-brand-600 hover:underline font-medium"
+              >
+                View Order →
+              </Link>
+            </div>
+          )}
         </Section>
       )}
 

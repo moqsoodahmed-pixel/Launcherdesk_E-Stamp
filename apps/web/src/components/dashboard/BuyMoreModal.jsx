@@ -83,6 +83,10 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
   const finalStamps = isCustom ? Math.floor(finalAmount / 15) : selectedPkg.stampsCount;
   const copy = INTENT_COPY[intent] || INTENT_COPY.buy;
 
+  const isAmountValid =
+    !isCustom ||
+    (Number.isFinite(finalAmount) && finalAmount >= 100 && finalAmount <= 1000000);
+
   async function handleCheckout(e) {
     e.preventDefault();
     if (purchasingRef.current) return;
@@ -90,6 +94,10 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
 
     if (!Number.isFinite(finalAmount) || finalAmount < 100) {
       setError("Please specify an amount of at least ₹100.");
+      return;
+    }
+    if (finalAmount > 1000000) {
+      setError("Maximum top-up amount is ₹10,00,000.");
       return;
     }
 
@@ -386,7 +394,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
           <button
             type="button"
             onClick={handleCheckout}
-            disabled={busy || loadingPackages}
+            disabled={busy || loadingPackages || !isAmountValid}
             className="px-5 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-sm transition disabled:opacity-50"
           >
             {busy ? "Processing Secure Payment..." : `Pay ${formatCurrency(finalAmount)}`}

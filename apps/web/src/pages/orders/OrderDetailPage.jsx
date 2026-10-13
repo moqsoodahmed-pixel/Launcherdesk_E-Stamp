@@ -373,8 +373,12 @@ export default function OrderDetailPage() {
         <Card
           title="Request information"
           action={
-            <Link to={`/estamps/requests/${request._id}`} className="text-sm text-brand-600 hover:underline">
-              View Request →
+            <Link
+              to={`/estamps/requests/${request._id}`}
+              state={{ from: location.pathname + location.search, label: `Order ${order.orderNumber}` }}
+              className="text-sm text-brand-600 hover:underline font-medium"
+            >
+              View Request Details →
             </Link>
           }
         >
