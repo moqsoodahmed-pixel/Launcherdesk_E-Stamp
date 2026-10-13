@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -43,6 +43,7 @@ import ErrorBoundary from "../components/common/ErrorBoundary";
 import NotificationBell from "../components/NotificationBell";
 import GlobalSearch from "../components/GlobalSearch";
 import { LogoMark } from "../components/brand/Brand";
+import { PageSkeleton } from "../components/ui/Skeleton";
 
 // Icon per route (path without the querystring).
 const ICONS = {
@@ -377,7 +378,9 @@ export default function DashboardLayout() {
         <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-content px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
             <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
-              <Outlet />
+              <Suspense fallback={<PageSkeleton />}>
+                <Outlet />
+              </Suspense>
             </ErrorBoundary>
           </div>
         </main>
