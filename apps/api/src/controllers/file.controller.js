@@ -150,7 +150,7 @@ exports.downloadEStamp = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const asset = await models_1.FileAsset.findById(doc.fileAssetId);
     if (!asset)
         throw ApiError_1.ApiError.notFound("Underlying file not found");
-    const url = await file_service_1.FileService.getSignedUrl(asset.cloudinaryPublicId);
+    const url = await file_service_1.FileService.getSignedUrl(asset.cloudinaryPublicId, asset.resourceType);
     // Build a clean, sanitized suggested filename - never trust the raw
     // orderNumber blindly for anything security-relevant (it is
     // server-generated today, but treated as untrusted input defensively).

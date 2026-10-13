@@ -145,12 +145,19 @@ exports.FileService = {
         }
         await models_1.FileAsset.deleteOne({ _id: asset._id });
     },
-    async getSignedUrl(publicId) {
+    async getSignedUrl(publicId, resourceType = "image") {
         if (!env_1.env.CLOUDINARY_CLOUD_NAME) {
             return `https://mock-storage.local/${publicId}`;
         }
         const cloudinary = getCloudinary();
-        // Short-lived signed URL for authorized private access.
-        return cloudinary.utils.private_download_url(publicId, "auto", { expires_at: Math.floor(Date.now() / 1000) + 300 });
+        const resType = resourceType === "raw" ? "raw" : "image";
+        // Generates a secure, signed delivery URL for authorized private access.
+        return cloudinary.url(publicId, {
+            resource_type: resType,
+            type: "private",
+            sign_url: true,
+            secure: true,
+            expires_at: Math.floor(Date.now() / 1000) + 300,
+        });
     },
 };

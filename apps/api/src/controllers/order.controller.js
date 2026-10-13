@@ -505,7 +505,7 @@ exports.getVendorUpload = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const asset = await models_1.FileAsset.findById(upload.fileAssetId);
     if (!asset)
         throw ApiError_1.ApiError.notFound("Underlying file not found");
-    const url = await file_service_1.FileService.getSignedUrl(asset.cloudinaryPublicId);
+    const url = await file_service_1.FileService.getSignedUrl(asset.cloudinaryPublicId, asset.resourceType);
     return (0, ApiResponse_1.ok)(res, {
         url,
         filename: asset.originalFileName,
