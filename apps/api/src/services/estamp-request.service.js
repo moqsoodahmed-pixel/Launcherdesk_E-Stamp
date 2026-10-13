@@ -233,6 +233,9 @@ exports.EStampRequestService = {
             considerationPrice: input.considerationPrice,
             numberOfEStamps: input.numberOfEStamps,
         });
+        if (!amount || amount <= 0) {
+            throw ApiError_1.ApiError.badRequest("Stamp duty rate is not configured for this article. Please select a configured article or contact your administrator.", "DUTY_NOT_CONFIGURED");
+        }
         // RESERVE (not debit) FIRST, atomically and conditionally on the
         // available balance (balance - reservedBalance) - nothing is spent
         // until the modification window closes (see chargeRequest). If this

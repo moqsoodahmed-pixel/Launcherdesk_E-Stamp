@@ -55,7 +55,8 @@ describe("routing", () => {
     await u.type(container.querySelector('input[type="password"]'), "Secret123!");
     await u.click(screen.getByRole("button", { name: "Sign in" }));
     // Back on the remembered page with its query string intact.
-    expect(await screen.findByRole("heading", { name: "Admins" })).toBeInTheDocument();
+    // The Users page is a lazy route; its first import can take over 1s under full-suite load.
+    expect(await screen.findByRole("heading", { name: "Admins" }, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it("an already-signed-in user landing on /login?next= goes straight to that page (no loop)", () => {
@@ -92,7 +93,8 @@ describe("forced password change (mustChangePassword)", () => {
     await u.type(screen.getByLabelText("Confirm new password"), "BrandNew!Pass9");
     await u.click(screen.getByRole("button", { name: "Change password" }));
     expect(mockAuth.changePassword).toHaveBeenCalledWith("Temp-pass-1", "BrandNew!Pass9");
-    expect(await screen.findByRole("heading", { name: "Admins" })).toBeInTheDocument();
+    // The Users page is a lazy route; its first import can take over 1s under full-suite load.
+    expect(await screen.findByRole("heading", { name: "Admins" }, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it("validates mismatched and short passwords before calling the API, and shows server errors", async () => {

@@ -1,7 +1,7 @@
 import { useViewerRole } from "../../components/ui/StatusChip";
 import { statusOptions, isClientRole } from "../../components/ui/status";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission, PERMISSIONS } from "../../utils/permissions";
@@ -29,6 +29,7 @@ const STATUS_OPTIONS = [
 
 export default function RequestsListPage() {
   const viewerRole = useViewerRole();
+  const location = useLocation();
   const { user } = useAuth();
   const isInternal = user?.role === "MASTER_ADMIN" || user?.role === "ASSISTANT_MASTER_ADMIN";
   const canBulk = hasPermission(user, PERMISSIONS.ESTAMP_BULK_CREATE);
@@ -208,7 +209,11 @@ export default function RequestsListPage() {
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatCurrency(r.calculatedStampDuty)}</td>
                     <td className="px-4 py-3 text-slate-500">{new Date(r.createdAt).toLocaleString()}</td>
                     <td className="px-4 py-3">
-                      <Link to={`/estamps/requests/${r._id}`} className="font-medium text-brand-700 hover:underline">
+                      <Link
+                        to={`/estamps/requests/${r._id}`}
+                        state={{ from: location.pathname + location.search, label: "Requests" }}
+                        className="font-medium text-brand-700 hover:underline"
+                      >
                         View
                       </Link>
                     </td>

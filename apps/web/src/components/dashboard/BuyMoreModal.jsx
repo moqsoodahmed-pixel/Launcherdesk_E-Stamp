@@ -85,6 +85,10 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
   const finalStamps = isCustom ? Math.floor(finalAmount / 15) : selectedPkg.stampsCount;
   const copy = INTENT_COPY[intent] || INTENT_COPY.buy;
 
+  const isAmountValid =
+    !isCustom ||
+    (Number.isFinite(finalAmount) && finalAmount >= 100 && finalAmount <= 1000000);
+
   async function handleCheckout(e) {
     e.preventDefault();
     if (purchasingRef.current) return;
@@ -92,6 +96,10 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
 
     if (!Number.isFinite(finalAmount) || finalAmount < 100) {
       setError("Please specify an amount of at least ₹100.");
+      return;
+    }
+    if (finalAmount > 1000000) {
+      setError("Maximum top-up amount is ₹10,00,000.");
       return;
     }
 
@@ -235,7 +243,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
           <button type="button" onClick={onClose} disabled={busy} className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 sm:min-h-[40px]">
             Cancel
           </button>
-          <button type="button" onClick={handleCheckout} disabled={busy || loadingPackages} className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50 sm:min-h-[40px]">
+          <button type="button" onClick={handleCheckout} disabled={busy || loadingPackages || !isAmountValid} className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50 sm:min-h-[40px]">
             {busy ? "Processing Secure Payment..." : `Pay ${formatCurrency(finalAmount)}`}
           </button>
         </>

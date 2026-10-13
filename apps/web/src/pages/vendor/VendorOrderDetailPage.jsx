@@ -102,6 +102,7 @@ export default function VendorOrderDetailPage() {
           <Field label="Property description" value={order.propertyDescription} />
           <Field label="Consideration price" value={order.considerationPrice == null ? "" : formatCurrency(order.considerationPrice)} />
           <Field label="Stamp duty" value={order.stampDuty == null ? "" : formatCurrency(order.stampDuty)} />
+          <Field label="Paid by" value={order.stampDutyPaidBy} />
           <Field label="Number of E-Stamps" value={order.numberOfEStamps} />
           <Field label="Organization" value={order.organizationName} copy={false} />
         </dl>

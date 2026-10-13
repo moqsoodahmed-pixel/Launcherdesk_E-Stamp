@@ -246,9 +246,15 @@ export default function OrderDetailPage() {
               Created {fmt(order.createdAt)} · Last updated {fmt(order.updatedAt)}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={order.status} />
-            <StatusBadge status={order.eStampStatus} />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5 text-sm">
+              <span className="font-medium text-slate-600">Order:</span>
+              <StatusBadge status={order.status} />
+            </div>
+            <div className="flex items-center gap-1.5 text-sm">
+              <span className="font-medium text-slate-600">Processing:</span>
+              <StatusBadge status={order.eStampStatus} />
+            </div>
             <button onClick={() => load(true)} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 sm:min-h-[40px]">
               <RefreshCw size={16} aria-hidden="true" />
               Refresh
@@ -379,8 +385,12 @@ export default function OrderDetailPage() {
         <Card
           title="Request information"
           action={
-            <Link to={`/estamps/requests/${request._id}`} className="text-sm font-medium text-brand-700 hover:underline">
-              View Request →
+            <Link
+              to={`/estamps/requests/${request._id}`}
+              state={{ from: location.pathname + location.search, label: `Order ${order.orderNumber}` }}
+              className="text-sm font-medium text-brand-700 hover:underline"
+            >
+              View Request Details →
             </Link>
           }
         >

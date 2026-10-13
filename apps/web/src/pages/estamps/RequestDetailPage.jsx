@@ -1,3 +1,4 @@
+import StatusChip from "../../components/ui/StatusChip";
 import { clientRequestSteps } from "../../utils/clientTimeline";
 import { isClientRole } from "../../components/ui/status";
 import Toast from "../../components/ui/Toast";
@@ -230,16 +231,25 @@ export default function RequestDetailPage() {
   const canCancel = !!request.canCancel && windowOpen && mayCancel;
   const windowStillOpen = (!!request.canModify || !!request.canCancel) && windowOpen;
 
+  const backTo = location.state?.from || "/estamps/requests";
+  const backLabel = location.state?.label || "Requests";
+
   return (
     <div className="max-w-3xl space-y-6 pb-10">
       {confirmDialog}
       <div>
-        <Link to="/estamps/requests" className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
-          ← Requests
+        <Link to={backTo} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
+          ← {backLabel}
         </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
           <h1 className="font-display text-2xl font-semibold text-slate-900">{request.requestNumber}</h1>
-          <StatusBadge status={request.status} remainingSeconds={request.status === "MODIFICATION_WINDOW" && typeof secondsLeft === "number" ? secondsLeft : undefined} />
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge
+              status={request.status === "MODIFICATION_WINDOW" && !windowOpen ? "LOCKED" : request.status}
+              remainingSeconds={request.status === "MODIFICATION_WINDOW" && typeof secondsLeft === "number" ? secondsLeft : undefined}
+            />
+            {request.status === "MODIFICATION_WINDOW" && !windowOpen && <StatusChip status="WINDOW_EXPIRED" tone="grey" label="Window expired" />}
+          </div>
         </div>
       </div>
 
@@ -403,16 +413,35 @@ export default function RequestDetailPage() {
       </Section>
 
       {/* Order summary (link out to the existing, already-hardened Order detail page rather than duplicating it) */}
-      {order && (
+      {(order || request.orderId) && (
         <Section title="Order">
-          <Row label="Order Number" value={order.order.orderNumber} />
-          <Row label="Processing Status" value={<StatusBadge status={order.order.eStampStatus} />} />
-          <Row label="Order Status" value={<StatusBadge status={order.order.status} />} />
-          <Row label="Created" value={new Date(order.order.createdAt).toLocaleString()} />
-          {order.order.issuedAt && <Row label="Issued" value={new Date(order.order.issuedAt).toLocaleString()} />}
-          <Link to={`/orders/${order.order._id}`} className="inline-block mt-2 text-sm text-brand-600 hover:underline">
-            View Order →
-          </Link>
+          {order ? (
+            <>
+              <Row label="Order Number" value={order.order.orderNumber} />
+              <Row label="Processing Status" value={<StatusBadge status={order.order.eStampStatus} />} />
+              <Row label="Order Status" value={<StatusBadge status={order.order.status} />} />
+              <Row label="Created" value={new Date(order.order.createdAt).toLocaleString()} />
+              {order.order.issuedAt && <Row label="Issued" value={new Date(order.order.issuedAt).toLocaleString()} />}
+              <Link
+                to={`/orders/${order.order._id}`}
+                state={{ from: `/estamps/requests/${request._id}`, label: `Request ${request.requestNumber}` }}
+                className="mt-3 inline-block text-sm font-medium text-brand-700 hover:underline"
+              >
+                View Order Details →
+              </Link>
+            </>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-slate-600">Linked Order ID: {request.orderId}</span>
+              <Link
+                to={`/orders/${request.orderId}`}
+                state={{ from: `/estamps/requests/${request._id}`, label: `Request ${request.requestNumber}` }}
+                className="text-sm font-medium text-brand-700 hover:underline"
+              >
+                View Order →
+              </Link>
+            </div>
+          )}
         </Section>
       )}
 

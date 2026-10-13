@@ -207,7 +207,8 @@ exports.listPayments = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const userMap = new Map(users.map((u) => [u._id.toString(), u]));
         rows = items.map((p) => {
             const u = userMap.get(p.createdBy?.toString());
-            const invoiceNum = p.invoiceNumber || `INV-${new Date(p.createdAt).getFullYear()}-${p._id.toString().slice(-6).toUpperCase()}`;
+            const isSuccess = p.status === shared_1.PaymentStatus.SUCCESS;
+            const invoiceNum = p.invoiceNumber || (isSuccess ? `INV-${new Date(p.createdAt).getFullYear()}-${p._id.toString().slice(-6).toUpperCase()}` : null);
             const row = {
                 ...p.toObject(),
                 createdByName: u?.name ?? null,
@@ -255,7 +256,8 @@ exports.getPayment = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     paymentObj.createdByRole = payment.createdBy?.role || null;
     paymentObj.plan = payment.plan || "Wallet Top-up & E-Stamping Balance";
     paymentObj.transactionId = payment.razorpayPaymentId || payment.razorpayOrderId;
-    paymentObj.invoiceNumber = payment.invoiceNumber || `INV-${new Date(payment.createdAt).getFullYear()}-${payment._id.toString().slice(-6).toUpperCase()}`;
+    const isSuccess = payment.status === shared_1.PaymentStatus.SUCCESS;
+    paymentObj.invoiceNumber = payment.invoiceNumber || (isSuccess ? `INV-${new Date(payment.createdAt).getFullYear()}-${payment._id.toString().slice(-6).toUpperCase()}` : null);
     return (0, ApiResponse_1.ok)(res, { ...paymentObj, walletEffect });
 });
 // Razorpay server-to-server webhook. Deliberately NOT behind `authenticate` -

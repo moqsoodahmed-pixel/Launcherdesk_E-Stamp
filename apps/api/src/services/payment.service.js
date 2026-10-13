@@ -29,12 +29,18 @@ const RUPEES_PER_CUSTOM_STAMP = 15;
 // "payment received" notifications fire once however many times either path
 // is retried or raced.
 async function markPaymentSucceeded(paymentId, razorpayPaymentId) {
+    const existing = await models_1.Payment.findById(paymentId);
+    const invoiceYear = new Date().getFullYear();
+    const invoiceSuffix = String(existing?.razorpayOrderId || razorpayPaymentId || "PAY").slice(-6).toUpperCase();
+    const invoiceNum = existing?.invoiceNumber || `INV-${invoiceYear}-${invoiceSuffix}`;
+
     const updated = await models_1.Payment.findOneAndUpdate({ _id: paymentId, status: { $ne: shared_1.PaymentStatus.SUCCESS } }, {
         $set: {
             status: shared_1.PaymentStatus.SUCCESS,
             razorpayPaymentId,
             verifiedAt: new Date(),
             balanceStatus: "PENDING_CREDIT",
+            invoiceNumber: invoiceNum,
         },
         $unset: { failureReason: "" },
     }, { new: true });
@@ -191,8 +197,6 @@ exports.PaymentService = {
             : (params.stampsCount || Math.floor(params.amount / RUPEES_PER_CUSTOM_STAMP));
         const provider = (0, payment_providers_1.getPaymentProvider)();
         const { razorpayOrderId } = await provider.createOrder({ organizationId: params.organizationId, amount: params.amount });
-        const invoiceYear = new Date().getFullYear();
-        const invoiceSuffix = String(razorpayOrderId || "ORD").slice(-6).toUpperCase();
         const payment = await models_1.Payment.create({
             organizationId: params.organizationId,
             amount: params.amount,
@@ -202,7 +206,6 @@ exports.PaymentService = {
             plan: params.plan || "Wallet Top-up & E-Stamping Balance",
             stampsCount,
             packageKey: params.packageKey || null,
-            invoiceNumber: `INV-${invoiceYear}-${invoiceSuffix}`,
         });
         return { razorpayOrderId, amount: params.amount, paymentId: payment._id, keyId: env_1.env.RAZORPAY_KEY_ID || null };
     },
@@ -318,4 +321,14 @@ exports.PaymentService = {
         await notifyPendingCredit(paid);
         return { handled: true, paymentId: paid._id, status: paid.status };
     },
+    // Expires checkout orders left in CREATED status older than threshold (default 30 minutes)
+    async expireAbandonedPayments(olderThanMs = 30 * 60 * 1000) {
+        const cutoff = new Date(Date.now() - olderThanMs);
+        const result = await models_1.Payment.updateMany(
+            { status: shared_1.PaymentStatus.CREATED, createdAt: { $lt: cutoff } },
+            { $set: { status: shared_1.PaymentStatus.FAILED, failureReason: "Checkout session expired" } }
+        );
+        return result.modifiedCount || 0;
+    },
 };
+

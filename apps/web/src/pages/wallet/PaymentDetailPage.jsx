@@ -1,3 +1,4 @@
+import GstBreakdownTable from "../../components/payments/GstBreakdownTable";
 import { statusMeta, isClientRole } from "../../components/ui/status";
 import Modal from "../../components/ui/Modal";
 import { FileText } from "lucide-react";
@@ -97,12 +98,14 @@ export default function PaymentDetailPage() {
             <p className="text-xs text-slate-500 mt-0.5">{payment.plan || "Wallet Top-up & E-Stamping Balance"}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowInvoiceModal(true)}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <FileText size={14} aria-hidden="true" /> View Invoice
-            </button>
+            {payment.status === "SUCCESS" && (
+              <button
+                onClick={() => setShowInvoiceModal(true)}
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <FileText size={14} aria-hidden="true" /> View Invoice
+              </button>
+            )}
             <PaymentStatusBadge status={payment.status} />
           </div>
         </div>
@@ -222,43 +225,28 @@ export default function PaymentDetailPage() {
           }
         >
           <div className="space-y-6">
+            <p className="-mt-3 text-xs text-slate-600">Supplier: LauncherDesk Technologies Private Limited &middot; GSTIN: 29AABCL1234F1Z5</p>
+
             <div className="grid grid-cols-2 gap-4 text-xs text-slate-600">
               <div>
                 <p className="font-semibold text-slate-900">Invoice Number:</p>
                 <p className="font-mono text-slate-700">{invNumber}</p>
                 <p className="font-semibold text-slate-900 mt-2">Date:</p>
                 <p>{new Date(payment.createdAt).toLocaleDateString()}</p>
+                <p className="font-semibold text-slate-900 mt-2">SAC / HSN Code:</p>
+                <p className="font-mono">998311 (Legal & Certification support)</p>
               </div>
               <div>
                 <p className="font-semibold text-slate-900">Billed To:</p>
                 <p className="text-slate-800 font-medium">{orgName || "Client Organization"}</p>
                 {userName && <p className="text-slate-600">{userName}</p>}
                 {userEmail && <p className="text-slate-500">{userEmail}</p>}
+                <p className="font-semibold text-slate-900 mt-2">Place of Supply:</p>
+                <p>India (Standard Interstate / Intrastate)</p>
               </div>
             </div>
 
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
-                  <tr>
-                    <th className="text-left p-2.5">Description</th>
-                    <th className="text-right p-2.5">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="p-2.5 text-slate-800">{payment.plan || "Wallet Top-up & E-Stamping Balance"}</td>
-                    <td className="p-2.5 text-right font-medium text-slate-900">{formatCurrency(payment.amount)}</td>
-                  </tr>
-                </tbody>
-                <tfoot className="border-t border-slate-200 font-semibold bg-slate-50/50">
-                  <tr>
-                    <td className="p-2.5 text-slate-900">Total Paid</td>
-                    <td className="p-2.5 text-right text-slate-900 text-sm">{formatCurrency(payment.amount)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+            <GstBreakdownTable amount={payment.amount} description={payment.plan || "Wallet Top-up & E-Stamping Balance"} />
 
             <div className="text-xs text-slate-500 space-y-1">
               <p>Payment Method: Razorpay</p>

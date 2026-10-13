@@ -298,4 +298,38 @@ describe("Assistant Master Admin oversight", () => {
     expect(notification.type).toBe("ASSISTANT_ADMIN_ACTIVITY");
     expect(res.body.data.paymentId).toBeDefined();
   });
+
+  it("does not generate invoiceNumber at order creation, but assigns invoiceNumber on successful confirmation", async () => {
+    const org = await makeOrgWithWallet();
+    const orderResult = await PaymentService.createOrder({ organizationId: org._id, userId: new mongoose.Types.ObjectId(), amount: 500 });
+    const createdPayment = await Payment.findById(orderResult.paymentId);
+    expect(createdPayment.invoiceNumber).toBeUndefined();
+
+    const razorpayPaymentId = `pay_${new mongoose.Types.ObjectId()}`;
+    const signature = mockCheckoutSignature(orderResult.razorpayOrderId, razorpayPaymentId);
+    const confirmed = await PaymentService.confirmPayment({
+      razorpayOrderId: orderResult.razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature: signature,
+      userId: new mongoose.Types.ObjectId(),
+    });
+    expect(confirmed.status).toBe(PaymentStatus.SUCCESS);
+    expect(confirmed.invoiceNumber).toBeDefined();
+    expect(confirmed.invoiceNumber).toMatch(/^INV-\d{4}-/);
+  });
+
+  it("expireAbandonedPayments marks old CREATED payments as FAILED", async () => {
+    const org = await makeOrgWithWallet();
+    const orderResult = await PaymentService.createOrder({ organizationId: org._id, userId: new mongoose.Types.ObjectId(), amount: 500 });
+    // Backdate the payment createdAt by 1 hour
+    await Payment.collection.updateOne({ _id: orderResult.paymentId }, { $set: { createdAt: new Date(Date.now() - 3600 * 1000) } });
+
+    const expiredCount = await PaymentService.expireAbandonedPayments(30 * 60 * 1000);
+    expect(expiredCount).toBeGreaterThanOrEqual(1);
+
+    const expiredPayment = await Payment.findById(orderResult.paymentId);
+    expect(expiredPayment.status).toBe(PaymentStatus.FAILED);
+    expect(expiredPayment.failureReason).toBe("Checkout session expired");
+  });
 });
+

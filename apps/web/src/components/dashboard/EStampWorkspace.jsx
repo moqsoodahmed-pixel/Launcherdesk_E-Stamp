@@ -459,7 +459,9 @@ export default function EStampWorkspace({ user, onStateChanged }) {
                   const txId = p.razorpayPaymentId || p.razorpayOrderId || "-";
                   return (
                     <tr key={p._id} className="hover:bg-slate-50/70 transition">
-                      <td className="p-3 font-mono font-medium text-brand-600">{invNum}</td>
+                      <td className="p-3 font-mono font-medium text-brand-700">
+                        {p.status === "SUCCESS" ? invNum : "-"}
+                      </td>
                       <td className="p-3 font-mono text-slate-600 text-xs">{txId}</td>
                       <td className="p-3 font-medium text-slate-800">{p.plan || "Wallet Balance"}</td>
                       <td className="p-3 font-semibold text-slate-900">{formatCurrency(p.amount)}</td>
@@ -470,12 +472,16 @@ export default function EStampWorkspace({ user, onStateChanged }) {
                         <PaymentStatusBadge status={p.status} />
                       </td>
                       <td className="p-3 text-right">
-                        <button
-                          onClick={() => setSelectedInvoicePayment(p)}
-                          className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition inline-flex items-center gap-1"
-                        >
-                          <FileText size={14} aria-hidden="true" /> View Invoice
-                        </button>
+                        {p.status === "SUCCESS" ? (
+                          <button
+                            onClick={() => setSelectedInvoicePayment(p)}
+                            className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition inline-flex items-center gap-1"
+                          >
+                            <FileText size={14} aria-hidden="true" /> View Invoice
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-500">-</span>
+                        )}
                       </td>
                     </tr>
                   );

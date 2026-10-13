@@ -178,6 +178,7 @@ exports.listOrders = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const vendorNameById = new Map(vendors.map((v) => [v._id.toString(), v.name]));
     const enriched = items.map((o) => {
         const plain = isInternalActor(req) ? o.toObject() : (0, models_1.stripVendorFields)(o);
+        plain.requestId = o.requestId ? o.requestId.toString() : null;
         plain.requestNumber = requestNumberById.get(o.requestId.toString()) ?? null;
         if (isQueue) {
             plain.lockedAt = lockedAtById.get(o.requestId.toString()) ?? null;

@@ -588,9 +588,9 @@ exports.FulfilmentService = {
     // Counts for the vendor dashboard (GET /vendor/orders/summary): by
     // vendorStatus, plus the oldest order still waiting on the vendor.
     async vendorSummary(vendorId) {
-        const vid = new mongoose_1.Types.ObjectId(vendorId);
+        const vid = mongoose_1.Types.ObjectId.isValid(vendorId) ? new mongoose_1.Types.ObjectId(vendorId) : vendorId;
         const rows = await models_1.EStampOrder.aggregate([
-            { $match: { vendorId: vid } },
+            { $match: { vendorId: { $in: [vid, String(vendorId)] } } },
             { $group: { _id: "$vendorStatus", count: { $sum: 1 } } },
         ]);
         const summary = { total: 0, SENT: 0, ACCEPTED: 0, UPLOADED: 0, REJECTED: 0, APPROVED: 0 };

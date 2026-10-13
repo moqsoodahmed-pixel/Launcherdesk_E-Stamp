@@ -173,9 +173,15 @@ exports.getRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (!isInternal)
         filter.organizationId = req.user.organizationId;
     const request = await models_1.EStampRequest.findOne(filter);
-    if (!request || (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN && !(await (0, orgAccess_1.canAccessOrganization)(req, request.organizationId))))
+    if (!request || (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN && !(await (0, orgAccess_1.canAccessOrganization)(req, request.organizationId)))) {
         throw ApiError_1.ApiError.notFound("Request not found");
-    return (0, ApiResponse_1.ok)(res, { ...request.toObject(), ...(0, estamp_request_service_1.computeWindowInfo)(request) });
+    }
+    let orderId = request.orderId ? request.orderId.toString() : null;
+    if (!orderId) {
+        const linkedOrder = await models_1.EStampOrder.findOne({ requestId: request._id }).select("_id");
+        if (linkedOrder) orderId = linkedOrder._id.toString();
+    }
+    return (0, ApiResponse_1.ok)(res, { ...request.toObject(), orderId, ...(0, estamp_request_service_1.computeWindowInfo)(request) });
 });
 exports.modifyRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const organizationId = resolveOrgId(req);

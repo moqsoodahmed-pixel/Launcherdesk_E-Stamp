@@ -172,7 +172,8 @@ exports.deleteVendor = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 async function loadMyOrder(req) {
     if (!mongoose_1.Types.ObjectId.isValid(req.params.id))
         throw ApiError_1.ApiError.notFound("Order not found");
-    const order = await models_1.EStampOrder.findOne({ _id: req.params.id, vendorId: req.user.id });
+    const vid = mongoose_1.Types.ObjectId.isValid(req.user.id) ? new mongoose_1.Types.ObjectId(req.user.id) : req.user.id;
+    const order = await models_1.EStampOrder.findOne({ _id: req.params.id, vendorId: { $in: [vid, req.user.id] } });
     if (!order)
         throw ApiError_1.ApiError.notFound("Order not found");
     return order;
@@ -207,6 +208,7 @@ function projectForVendor(order, { request, article, orgName, batch, documents }
         propertyDescription: request?.propertyDescription ?? null,
         considerationPrice: request?.considerationPrice ?? null,
         stampDuty: request?.calculatedStampDuty ?? null,
+        stampDutyPaidBy: request?.stampDutyPaidBy ?? null,
         numberOfEStamps: request?.numberOfEStamps ?? null,
         organizationName: orgName || null,
         vendorStatus: order.vendorStatus,
@@ -230,7 +232,7 @@ function projectForVendor(order, { request, article, orgName, batch, documents }
 async function loadContext(orders) {
     const requestIds = orders.map((o) => o.requestId);
     const [requests, orgs, articles, batchByRequest] = await Promise.all([
-        requestIds.length ? models_1.EStampRequest.find({ _id: { $in: requestIds } }).select("firstParty secondParty descriptionOfDocument propertyDescription considerationPrice calculatedStampDuty numberOfEStamps") : [],
+        requestIds.length ? models_1.EStampRequest.find({ _id: { $in: requestIds } }).select("firstParty secondParty descriptionOfDocument propertyDescription considerationPrice calculatedStampDuty stampDutyPaidBy numberOfEStamps") : [],
         models_1.Organization.find({ _id: { $in: [...new Set(orders.map((o) => o.organizationId.toString()))] } }).select("name"),
         models_1.Article.find({ _id: { $in: [...new Set(orders.map((o) => o.articleId.toString()))] } }).select("title"),
         batchesForRequests(requestIds),
@@ -248,7 +250,8 @@ function contextFor(order, ctx) {
 }
 const VENDOR_FILTER_STATUSES = [shared_1.VendorStatus.SENT, shared_1.VendorStatus.ACCEPTED, shared_1.VendorStatus.UPLOADED, shared_1.VendorStatus.REJECTED, shared_1.VendorStatus.APPROVED];
 exports.listMyOrders = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const filter = { vendorId: new mongoose_1.Types.ObjectId(req.user.id) };
+    const vid = mongoose_1.Types.ObjectId.isValid(req.user.id) ? new mongoose_1.Types.ObjectId(req.user.id) : req.user.id;
+    const filter = { vendorId: { $in: [vid, req.user.id] } };
     const { status, batch, search, page = "1", limit = "50" } = req.query;
     if (status) {
         if (!VENDOR_FILTER_STATUSES.includes(status))

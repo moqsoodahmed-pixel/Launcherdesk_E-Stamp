@@ -98,32 +98,46 @@ export function UploadCertificateForm({ order, onUploaded, compact = false }) {
   }
 
   return (
-    <form onSubmit={submit} className={compact ? "flex flex-wrap items-center gap-2" : "space-y-3"} aria-label={`Upload certificate for ${order.orderNumber}`}>
-      <input
-        ref={fileRef}
-        type="file"
-        accept={ACCEPTED_FILE_TYPES}
-        aria-label={`Certificate file for ${order.orderNumber}`}
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-        className="text-xs max-w-[14rem]"
-      />
-      <input
-        type="text"
-        value={reference}
-        onChange={(e) => setReference(e.target.value)}
-        placeholder="Stamp reference"
-        aria-label={`Stamp reference for ${order.orderNumber}`}
-        maxLength={100}
-        className="rounded-lg border border-slate-300 px-2 py-1 text-xs w-40"
-      />
+    <form onSubmit={submit} className={compact ? "flex flex-wrap items-center gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200/80 mt-2" : "space-y-3.5"} aria-label={`Upload certificate for ${order.orderNumber}`}>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 min-w-0">
+        <input
+          ref={fileRef}
+          type="file"
+          accept={ACCEPTED_FILE_TYPES}
+          aria-label={`Certificate file for ${order.orderNumber}`}
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          className="text-xs text-slate-600 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-200 hover:file:bg-slate-300 file:text-slate-700 cursor-pointer"
+        />
+        <input
+          type="text"
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+          placeholder="Stamp reference (e.g. KA-12345)"
+          aria-label={`Stamp reference for ${order.orderNumber}`}
+          maxLength={100}
+          className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 w-full sm:w-48 shadow-sm"
+        />
+      </div>
       {!compact && (
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" aria-label="Notes" maxLength={1000} rows={2} className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm" />
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Notes (optional)"
+          aria-label="Notes"
+          maxLength={1000}
+          rows={2}
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-brand-500 shadow-sm"
+        />
       )}
-      <button type="submit" disabled={busy} className="rounded-lg bg-brand-600 hover:bg-brand-700 text-white px-3 py-1 text-xs font-medium disabled:opacity-50">
+      <button
+        type="submit"
+        disabled={busy}
+        className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-1.5 text-xs font-semibold shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap"
+      >
         {busy ? "Uploading..." : order.vendorStatus === "UPLOADED" ? "Replace upload" : "Upload certificate"}
       </button>
-      {error && <p role="alert" className="text-xs text-red-600 w-full">{error}</p>}
-      {done && <p className="text-xs text-green-700 w-full">{done}</p>}
+      {error && <p role="alert" className="text-xs font-medium text-red-600 w-full mt-1">{error}</p>}
+      {done && <p className="text-xs font-medium text-emerald-600 w-full mt-1">{done}</p>}
     </form>
   );
 }
