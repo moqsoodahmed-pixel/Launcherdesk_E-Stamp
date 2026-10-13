@@ -1,9 +1,10 @@
-import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
+import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from "lucide-react";
 
 const TONE = {
   success: { cls: "border-emerald-200 bg-emerald-50 text-emerald-800", Icon: CheckCircle2 },
   error: { cls: "border-vermilion-200 bg-vermilion-50 text-vermilion-800", Icon: AlertCircle },
   info: { cls: "border-brand-200 bg-brand-50 text-brand-800", Icon: Info },
+  warning: { cls: "border-marigold-200 bg-marigold-50 text-marigold-800", Icon: AlertTriangle },
 };
 
 // Inline notice or floating toast. role="alert" for errors, "status"

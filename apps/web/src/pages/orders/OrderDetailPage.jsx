@@ -1,8 +1,14 @@
+import { AlertTriangle, Download, Eye, FileText, RefreshCw, Stamp, XCircle } from "lucide-react";
+import { SectionCard, DetailRow } from "../../components/ui/DetailList";
+import Timeline from "../../components/ui/Timeline";
+import Toast from "../../components/ui/Toast";
+import StampCard from "../../components/ui/StampCard";
+import StatusChip from "../../components/ui/StatusChip";
+import LoadingState from "../../components/common/LoadingState";
 import { clientOrderTimeline } from "../../utils/clientTimeline";
 import { isClientRole } from "../../components/ui/status";
 import Modal from "../../components/ui/Modal";
 import VerifyDocumentsDialog from "../../components/estamps/VerifyDocumentsDialog";
-import { CheckCircle2 } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -197,7 +203,7 @@ export default function OrderDetailPage() {
     }
   }
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Loading...</div>;
+  if (loading) return <LoadingState text="Loading..." />;
   if (error && !data) {
     return (
       <div className="space-y-3">
@@ -228,51 +234,50 @@ export default function OrderDetailPage() {
   const canSync = !!availableActions.sync;
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-4xl space-y-6 pb-10">
       <div>
         <Link to={backTo} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           ← {backLabel}
         </Link>
         <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900 break-all">{order.orderNumber}</h1>
-            <p className="text-xs text-slate-500 mt-1">
+          <div className="min-w-0">
+            <h1 className="break-all font-display text-2xl font-semibold text-slate-900">{order.orderNumber}</h1>
+            <p className="mt-1 text-sm text-slate-600 tabular-nums">
               Created {fmt(order.createdAt)} · Last updated {fmt(order.updatedAt)}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={order.status} />
             <StatusBadge status={order.eStampStatus} />
-            <button onClick={() => load(true)} className="text-sm rounded-lg border border-slate-300 px-3 py-1 text-slate-600 hover:bg-slate-50">
+            <button onClick={() => load(true)} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 sm:min-h-[40px]">
+              <RefreshCw size={16} aria-hidden="true" />
               Refresh
             </button>
           </div>
         </div>
       </div>
 
-      {notice && (
-        <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">
-          {notice}
-        </div>
-      )}
-      {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-      {pollStopped && inFlight && <div className="rounded-lg bg-amber-50 text-amber-800 text-sm px-3 py-2">Automatic refresh paused after an error. Use Refresh to update.</div>}
+      {notice && <Toast tone="success">{notice}</Toast>}
+      {error && <Toast tone="error">{error}</Toast>}
+      {pollStopped && inFlight && <Toast tone="info">Automatic refresh paused after an error. Use Refresh to update.</Toast>}
 
       {isFailed && (
-        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-5 space-y-1">
-          <h2 className="font-medium text-red-800">Processing Failed</h2>
+        <div role="alert" className="space-y-1 rounded-card border border-vermilion-200 bg-vermilion-50 p-5">
+          <h2 className="flex items-center gap-2 font-display text-base font-semibold text-vermilion-800">
+            <XCircle size={18} aria-hidden="true" />
+            Processing Failed
+          </h2>
           <p className="text-sm text-red-700">Failure Reason</p>
           <p className="text-sm text-red-900 break-words">{order.failureReason || "No failure reason was recorded."}</p>
           <p className="text-xs text-red-700 pt-1">FAILED is a terminal state; the backend does not offer an in-place retry or resubmission for it.</p>
         </div>
       )}
       {ambiguousSubmit && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-1">
-          <h2 className="font-medium text-amber-800">Submission outcome unconfirmed</h2>
+        <div className="space-y-1 rounded-card border border-marigold-200 bg-marigold-50 p-5">
+          <h2 className="flex items-center gap-2 font-display text-base font-semibold text-marigold-800">
+            <AlertTriangle size={18} aria-hidden="true" />
+            Submission outcome unconfirmed
+          </h2>
           <p className="text-sm text-amber-900">
             The provider did not return a confirmed result for this submission. To avoid a duplicate submission the system will not resubmit this order automatically, and there is no provider reference yet to sync
             against.
@@ -296,33 +301,33 @@ export default function OrderDetailPage() {
 
       {/* Current status: E-Stamp vs Certificate are deliberately separate */}
       <Card title="Current status">
-        <div className="grid sm:grid-cols-3 gap-4 text-sm">
-          <div>
-            <p className="text-xs text-slate-500 mb-1">Processing status</p>
+        <div className="grid gap-3 text-sm sm:grid-cols-3">
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="mb-1.5 text-xs text-slate-600">Processing status</p>
             <StatusBadge status={order.eStampStatus} />
           </div>
-          <div>
-            <p className="text-xs text-slate-500 mb-1">E-Stamp</p>
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="mb-1.5 text-xs text-slate-600">E-Stamp</p>
             <p className="font-medium text-slate-900">{isIssued ? "Issued" : isFailed ? "Failed" : manual ? "Being prepared by LauncherDesk" : "Not issued yet"}</p>
           </div>
-          <div>
-            <p className="text-xs text-slate-500 mb-1">Certificate</p>
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="mb-1.5 text-xs text-slate-600">Certificate</p>
             <p className="font-medium text-slate-900">{certificateReady ? "Available" : isIssued ? "Not yet available" : "Not available"}</p>
           </div>
         </div>
         <div className="mt-4 space-y-3 text-sm">
-          <Row label="Amount" value={formatCurrency(order.amount)} />
+          <Row label="Amount" value={<span className="tabular-nums">{formatCurrency(order.amount)}</span>} />
         </div>
         {(canProcess || canSync) && (
           <div className="mt-4 border-t border-slate-100 pt-4">
             <div className="flex flex-wrap gap-2">
               {canProcess && (
-                <button disabled={!!busyAction || !!confirming} onClick={() => setConfirming("process")} className="text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 disabled:opacity-50">
+                <button disabled={!!busyAction || !!confirming} onClick={() => setConfirming("process")} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50 sm:min-h-[40px]">
                   {busyAction === "process" ? "Processing..." : "Process Order"}
                 </button>
               )}
               {canSync && (
-                <button disabled={!!busyAction || !!confirming} onClick={() => setConfirming("sync")} className="text-sm rounded-lg border border-slate-300 px-4 py-2 disabled:opacity-50 hover:bg-slate-50">
+                <button disabled={!!busyAction || !!confirming} onClick={() => setConfirming("sync")} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 sm:min-h-[40px]">
                   {busyAction === "sync" ? "Syncing..." : "Sync Status"}
                 </button>
               )}
@@ -335,10 +340,10 @@ export default function OrderDetailPage() {
                     : "Ask the provider for this order's current status? This does not charge the wallet."}
                 </p>
                 <div className="flex gap-2">
-                  <button onClick={() => runAction(confirming)} className="rounded-lg bg-slate-900 text-white px-3 py-1.5 text-sm">
+                  <button onClick={() => runAction(confirming)} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50 sm:min-h-[40px]">
                     Confirm
                   </button>
-                  <button onClick={() => setConfirming(null)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+                  <button onClick={() => setConfirming(null)} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 sm:min-h-[40px]">
                     Cancel
                   </button>
                 </div>
@@ -354,27 +359,20 @@ export default function OrderDetailPage() {
 
       <Card title="Processing timeline">
         {shownTimeline.length > 0 ? (
-          <ol className="relative border-l border-slate-200 ml-2 space-y-4">
-            {shownTimeline.map((step) => (
-              <li key={`${step.label}-${step.at}`} className="ml-4">
-                <span className={`absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full ${step.label === "Failed" ? "bg-red-500" : "bg-brand-600"}`} />
-                <div className="flex flex-wrap justify-between gap-x-4 text-sm">
-                  <span className="text-slate-800">
-                    {step.label}
-                    {step.upcoming && <span className="text-amber-600"> (upcoming)</span>}
-                    {step.inProgress && <span className="text-slate-500"> (in progress)</span>}
-                    {step.downloadable && <span className="text-slate-500"> (Download below)</span>}
-                  </span>
-                  <span className="text-slate-400">{fmt(step.at)}</span>
-                </div>
-                {step.reason && <p className="text-xs text-red-700 break-words">{step.reason}</p>}
-              </li>
-            ))}
-          </ol>
+          <Timeline
+            label="Processing timeline"
+            steps={shownTimeline.map((step) => ({
+              label: step.label,
+              when: fmt(step.at),
+              state: step.label === "Failed" ? "failed" : step.upcoming ? "upcoming" : step.inProgress ? "current" : "done",
+              suffix: step.upcoming ? " (upcoming)" : step.inProgress ? " (in progress)" : step.downloadable ? " (Download below)" : "",
+              note: step.reason,
+            }))}
+          />
         ) : (
           <p className="text-sm text-slate-500">No timeline events recorded.</p>
         )}
-        <p className="text-xs text-slate-400 mt-3">Only events with a recorded timestamp are shown.</p>
+        <p className="mt-4 text-xs text-slate-500">Only events with a recorded timestamp are shown.</p>
       </Card>
 
       {request ? (
@@ -411,14 +409,9 @@ export default function OrderDetailPage() {
         title="Document Verification"
         action={
           order.documentsVerified || request?.documentsVerified ? (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-              <CheckCircle2 size={14} className="mr-1" aria-hidden="true" />
-              Documents Verified
-            </span>
+            <StatusChip status="VERIFIED" tone="emerald" label="Documents Verified" />
           ) : (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-              Pending Review
-            </span>
+            <StatusChip status="PENDING_REVIEW" tone="marigold" label="Pending Review" />
           )
         }
       >
@@ -444,11 +437,12 @@ export default function OrderDetailPage() {
 
           {Array.isArray(data?.supportingDocuments) && data.supportingDocuments.length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-100">
-              <h4 className="text-xs font-semibold text-slate-500 mb-2">Uploaded Documents ({data.supportingDocuments.length})</h4>
+              <h3 className="mb-2 text-sm font-medium text-slate-800">Uploaded Documents ({data.supportingDocuments.length})</h3>
               <ul className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
                 {data.supportingDocuments.map((doc) => (
-                  <li key={doc._id} className="p-3 flex items-center justify-between text-sm">
-                    <div>
+                  <li key={doc._id} className="flex items-center gap-3 p-3 text-sm">
+                    <FileText size={18} className="shrink-0 text-slate-500" aria-hidden="true" />
+                    <div className="min-w-0">
                       <p className="font-medium text-slate-800">{doc.originalFileName}</p>
                       <p className="text-xs text-slate-400">
                         {doc.fileType} • {doc.sizeBytes ? `${(doc.sizeBytes / 1024).toFixed(1)} KB` : ""} • {fmt(doc.createdAt)}
@@ -465,7 +459,7 @@ export default function OrderDetailPage() {
               <button
                 type="button"
                 onClick={() => setShowVerifyModal(true)}
-                className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50 sm:min-h-[40px]"
               >
                 Confirm Documents Correct
               </button>
@@ -495,47 +489,45 @@ export default function OrderDetailPage() {
       </Card>
       )}
 
-      <Card title="Certificate">
+      <CertificateCard ready={certificateReady}>
         <div className="text-sm space-y-2">
           {!isIssued ? (
             <p className="text-slate-500">No certificate is available yet. A certificate can only exist once the E-Stamp has been issued.</p>
           ) : !certificateReady ? (
             <>
-              <p className="font-medium text-slate-900">E-Stamp Issued</p>
+              <p className="font-display text-lg font-semibold text-slate-900">E-Stamp Issued</p>
               <p className="text-slate-500">Certificate document is not currently available.</p>
             </>
           ) : (
             <>
-              <p className="font-medium text-slate-900">Certificate Available</p>
+              <p className="font-display text-lg font-semibold text-slate-900">Certificate Available</p>
               {certificateDocument && (
                 <div className="text-slate-600 space-y-0.5">
                   {certificateDocument.filename && <p className="break-all">{certificateDocument.filename}</p>}
-                  {typeof certificateDocument.fileSize === "number" && <p className="text-slate-400">{(certificateDocument.fileSize / 1024).toFixed(1)} KB</p>}
-                  {certificateDocument.createdAt && <p className="text-slate-400">Attached {fmt(certificateDocument.createdAt)}</p>}
+                  {typeof certificateDocument.fileSize === "number" && <p className="text-slate-500">{(certificateDocument.fileSize / 1024).toFixed(1)} KB</p>}
+                  {certificateDocument.createdAt && <p className="text-slate-500">Attached {fmt(certificateDocument.createdAt)}</p>}
                 </div>
               )}
-              {downloadError && (
-                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-                  {downloadError}
-                </div>
-              )}
+              {downloadError && <Toast tone="error">{downloadError}</Toast>}
               {canDownload ? (
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={handleView} disabled={viewing || downloading} className="border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                  <button onClick={handleView} disabled={viewing || downloading} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 sm:min-h-[40px]">
+                    <Eye size={16} aria-hidden="true" />
                     {viewing ? "Opening…" : "View Certificate"}
                   </button>
                   <button onClick={handleDownload} disabled={downloading || viewing} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
+                    <Download size={16} aria-hidden="true" />
                     {downloading ? "Downloading…" : downloadError ? "Retry download" : "Download Certificate"}
                   </button>
                 </div>
               ) : (
                 <p className="text-xs text-slate-500">You do not have permission to view or download certificates.</p>
               )}
-              <p className="text-xs text-slate-400">Certificates are never sent by email - view and download them here.</p>
+              <p className="text-xs text-slate-500">Certificates are never sent by email - view and download them here.</p>
             </>
           )}
         </div>
-      </Card>
+      </CertificateCard>
 
       {/* Activity / audit - only returned by the server to actors with AUDIT_VIEW */}
       {Array.isArray(history) && (
@@ -546,10 +538,10 @@ export default function OrderDetailPage() {
             <ol className="space-y-2 text-sm">
               {history.map((h) => (
                 <li key={h._id || `${h.action}-${h.createdAt}`} className="flex flex-wrap justify-between gap-x-4 border-b border-slate-100 pb-2 last:border-0">
-                  <span className="text-slate-700">
-                    {h.action} <span className="text-slate-400">({h.actorRole})</span>
+                  <span className="text-slate-800">
+                    {h.action} <span className="text-slate-500">({h.actorRole})</span>
                   </span>
-                  <span className="text-slate-400">{fmt(h.createdAt)}</span>
+                  <span className="text-slate-500 tabular-nums">{fmt(h.createdAt)}</span>
                 </li>
               ))}
             </ol>
@@ -583,21 +575,26 @@ export default function OrderDetailPage() {
 
 function Card({ title, action, children }) {
   return (
-    <section className="card p-5 sm:p-6">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-medium text-slate-900">{title}</h2>
-        {action}
-      </div>
+    <SectionCard title={title} action={action}>
       {children}
-    </section>
+    </SectionCard>
   );
 }
 
 function Row({ label, value }) {
+  return <DetailRow label={label} value={value} />;
+}
+
+// Certificate panel: the perforated stamp edge once a certificate is ready.
+function CertificateCard({ ready, children }) {
+  if (!ready) return <Card title="Certificate">{children}</Card>;
   return (
-    <div className="flex justify-between gap-4 border-b border-slate-100 pb-2 last:border-0">
-      <span className="text-slate-500 shrink-0">{label}</span>
-      <span className="font-medium text-slate-900 text-right break-words min-w-0">{value}</span>
-    </div>
+    <StampCard as="section" aria-label="Certificate">
+      <h2 className="mb-4 flex items-center gap-2 font-display text-base font-semibold text-slate-900">
+        <Stamp size={18} strokeWidth={1.75} className="text-emerald-700" aria-hidden="true" />
+        Certificate
+      </h2>
+      {children}
+    </StampCard>
   );
 }

@@ -1,3 +1,5 @@
+import { KeyRound, Mail, ShieldCheck } from "lucide-react";
+import Toast from "../../components/ui/Toast";
 import { useState } from "react";
 import { apiClient } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
@@ -7,7 +9,6 @@ import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import ChangePasswordForm from "../../components/common/ChangePasswordForm";
 
-const inputClass = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
 
 const ROLE_LABELS = {
   MASTER_ADMIN: "Master Admin",
@@ -62,64 +63,92 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-5xl">
       <PageHeader title="Profile" subtitle="Your account details" />
       {loading && <LoadingState text="Loading your profile..." />}
       {!loading && error && <ErrorState message={error} onRetry={refetch} />}
       {!loading && !error && me && (
         <div className="space-y-6">
-          <section className="card p-6">
-            <h2 className="text-base font-semibold text-slate-900 mb-4">Account</h2>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm">
-              <div>
-                <dt className="text-slate-500">Email</dt>
-                <dd className="text-slate-900 break-all">{me.email}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Role</dt>
-                <dd className="text-slate-900">{ROLE_LABELS[me.role] || me.role}</dd>
-              </div>
-            </dl>
-            {saveMsg && (
-              <div role="status" className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">
-                {saveMsg}
-              </div>
-            )}
-            {saveErr && (
-              <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-                {saveErr}
-              </div>
-            )}
-            <form onSubmit={saveProfile} className="space-y-4">
-              <div>
-                <label htmlFor="profile-name" className="mb-1.5 block text-sm font-medium text-slate-800">
-                  Name
-                </label>
-                <input id="profile-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={150} className={inputClass} />
-              </div>
-              <div>
-                <label htmlFor="profile-phone" className="mb-1.5 block text-sm font-medium text-slate-800">
-                  Phone (optional)
-                </label>
-                <input id="profile-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} className={inputClass} />
-              </div>
-              <button disabled={saving} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
-                {saving ? "Saving..." : "Save changes"}
-              </button>
-            </form>
+          <section className="card flex flex-wrap items-center gap-4 p-5 sm:p-6">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-brand-100 font-display text-lg font-semibold text-brand-800" aria-hidden="true">
+              {initialsOf(me.name || me.email)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-display text-lg font-semibold text-slate-900">{me.name}</p>
+              <dl className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <dt className="sr-only">Email</dt>
+                  <Mail size={14} className="shrink-0 text-slate-500" aria-hidden="true" />
+                  <dd className="break-all text-slate-700">{me.email}</dd>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <dt className="sr-only">Role</dt>
+                  <ShieldCheck size={14} className="shrink-0 text-slate-500" aria-hidden="true" />
+                  <dd className="text-slate-700">{ROLE_LABELS[me.role] || me.role}</dd>
+                </div>
+              </dl>
+            </div>
           </section>
 
-          <section className="card p-6">
-            <h2 className="text-base font-semibold text-slate-900 mb-4">Change password</h2>
-            {pwMsg && (
-              <div role="status" className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">
-                {pwMsg}
-              </div>
-            )}
-            <ChangePasswordForm submitClassName="" onSuccess={() => setPwMsg("Password changed. Other devices have been signed out.")} />
-          </section>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section className="card p-5 sm:p-6">
+              <h2 className="mb-1 font-display text-base font-semibold text-slate-900">Account</h2>
+              <p className="mb-4 text-sm text-slate-600">Your email and role are managed by your administrator.</p>
+              {saveMsg && (
+                <Toast tone="success" className="mb-4">
+                  {saveMsg}
+                </Toast>
+              )}
+              {saveErr && (
+                <Toast tone="error" className="mb-4">
+                  {saveErr}
+                </Toast>
+              )}
+              <form onSubmit={saveProfile} className="space-y-4">
+                <div>
+                  <label htmlFor="profile-name" className="mb-1.5 block text-sm font-medium text-slate-800">
+                    Name
+                  </label>
+                  <input id="profile-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={150} className="input" />
+                </div>
+                <div>
+                  <label htmlFor="profile-phone" className="mb-1.5 block text-sm font-medium text-slate-800">
+                    Phone (optional)
+                  </label>
+                  <input id="profile-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} className="input" />
+                </div>
+                <button disabled={saving} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50 sm:min-h-[40px]">
+                  {saving ? "Saving..." : "Save changes"}
+                </button>
+              </form>
+            </section>
+
+            <section className="card p-5 sm:p-6">
+              <h2 className="mb-4 flex items-center gap-2 font-display text-base font-semibold text-slate-900">
+                <KeyRound size={18} strokeWidth={1.75} className="text-slate-500" aria-hidden="true" />
+                Change password
+              </h2>
+              {pwMsg && (
+                <Toast tone="success" className="mb-4">
+                  {pwMsg}
+                </Toast>
+              )}
+              <ChangePasswordForm submitClassName="" onSuccess={() => setPwMsg("Password changed. Other devices have been signed out.")} />
+            </section>
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+function initialsOf(text) {
+  return (
+    String(text || "")
+      .split(/[\s@.]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "U"
   );
 }

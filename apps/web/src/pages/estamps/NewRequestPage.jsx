@@ -1,3 +1,5 @@
+import { Loader2, ReceiptText, Stamp, Users, Wallet } from "lucide-react";
+import Toast from "../../components/ui/Toast";
 import SharedStepper from "../../components/ui/Stepper";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -234,16 +236,17 @@ export default function NewRequestPage() {
 
   return (
     <div className="max-w-2xl pb-24">
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-semibold text-slate-900">Create E-Stamp Request</h1>
         {balance !== null && (
-          <div className="text-sm text-slate-500">
-            Available balance: <span className="font-semibold text-slate-900">{formatCurrency(balance)}</span>
+          <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm text-slate-600 ring-1 ring-inset ring-slate-200">
+            <Wallet size={16} className="text-brand-700" aria-hidden="true" />
+            Available balance: <span className="font-semibold text-slate-900 tabular-nums">{formatCurrency(balance)}</span>
           </div>
         )}
       </div>
 
-      <p className="text-sm text-slate-500 mb-4">
+      <p className="mb-6 text-sm text-slate-600">
         Need to create many at once?{" "}
         <Link to="/estamps/bulk" className="font-medium text-brand-700 hover:underline">
           Use Bulk E-Stamp
@@ -253,19 +256,19 @@ export default function NewRequestPage() {
 
       <Stepper step={step} />
 
-      {serverError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{serverError}</div>}
+      {serverError && <Toast tone="error" className="mb-4">{serverError}</Toast>}
       {lookupError && (
-        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+        <Toast tone="error" className="mb-4">
           {lookupError}
-        </div>
+        </Toast>
       )}
       {balance === 0 && !serverError && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+        <Toast tone="warning" className="mb-4">
           Your organization's available balance is ₹0. This request will be rejected unless funds are added first. <AddFundsHint canOpenWallet={canOpenWallet} />
-        </div>
+        </Toast>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="card p-6 space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="card space-y-5 p-5 sm:p-6">
         {step === 0 && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -389,12 +392,12 @@ export default function NewRequestPage() {
           />
         )}
 
-        <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div className="sticky bottom-0 -mx-5 -mb-5 mt-6 flex items-center justify-between rounded-b-card border-t border-slate-200 bg-white px-5 py-4 sm:-mx-6 sm:-mb-6 sm:px-6">
           <button
             type="button"
             onClick={goBack}
             disabled={step === 0}
-            className="text-sm text-slate-600 border border-slate-300 rounded-lg px-4 py-2 disabled:opacity-40"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 sm:min-h-[40px]"
           >
             Back
           </button>
@@ -458,15 +461,18 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
   // government charge) rather than a bare "₹0" that reads as a real price.
   const dutyNotConfigured = calculation && calculation.amount === 0;
   return (
-    <div className="space-y-4 text-sm">
-      <div className="space-y-2">
+    <div className="space-y-6 text-sm">
+      <p className="text-slate-600">Check the details below before you submit.</p>
+      <ReviewGroup title="Agreement" icon={Users}>
         <Row label="First Party" value={values.firstParty} />
         <Row label="Second Party" value={values.secondParty} />
         <Row label="Description" value={values.descriptionOfDocument} />
         <Row label="Property Description" value={values.propertyDescription || "-"} />
+      </ReviewGroup>
+      <ReviewGroup title="Stamp" icon={Stamp}>
         <Row label="State" value={selectedState ? selectedState.name : values.stateCode} />
         <Row label="Article" value={selectedArticle ? `${selectedArticle.articleCode} - ${selectedArticle.title}` : "-"} />
-        <Row label="Consideration Price" value={formatCurrency(values.considerationPrice)} />
+        <Row label="Consideration Price" value={<span className="tabular-nums">{formatCurrency(values.considerationPrice)}</span>} />
         {/* Names the party as well as the name, so a payer who shares a name
             with the other party is still unambiguous on the final check. */}
         <Row
@@ -478,25 +484,37 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
           }
         />
         <Row label="No. of E-Stamps" value={values.numberOfEStamps} />
-      </div>
+      </ReviewGroup>
 
       <PriceSummary calculation={calculation} calculating={calculating} calcError={calcError} onRetry={onRetryCalculation} balance={balance} />
 
       {dutyNotConfigured && (
-        <div className="rounded-lg bg-amber-50 text-amber-800 px-3 py-2">
+        <Toast tone="warning">
           This article has no fixed duty in the official rate list, so the stamp duty is shown "At Actuals" - it is billed at the real
           government charge rather than a guessed amount. Ask your Master Admin to set the rate for "
           {selectedArticle ? selectedArticle.title : "this article"}" if it should be a fixed figure.
-        </div>
+        </Toast>
       )}
 
       {insufficientBalance && (
-        <div className="rounded-lg bg-red-50 text-red-700 px-3 py-2">
+        <Toast tone="error">
           Insufficient balance: this request needs {formatCurrency(calculation.amount)} but the available balance is {formatCurrency(balance)}.{" "}
           <AddFundsHint canOpenWallet={canOpenWallet} />
-        </div>
+        </Toast>
       )}
     </div>
+  );
+}
+
+function ReviewGroup({ title, icon: IconCmp, children }) {
+  return (
+    <section>
+      <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+        <IconCmp size={16} className="text-slate-500" aria-hidden="true" />
+        {title}
+      </h3>
+      <div className="rounded-lg border border-slate-200 px-4 py-3">{children}</div>
+    </section>
   );
 }
 
@@ -508,9 +526,9 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
 function PriceSummary({ calculation, calculating, calcError, onRetry, balance }) {
   if (calcError) {
     return (
-      <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-        <p className="text-red-700">{calcError}</p>
-        <button type="button" onClick={onRetry} className="mt-2 text-sm font-medium text-red-700 underline">
+      <div className="rounded-lg border border-vermilion-200 bg-vermilion-50 px-4 py-3">
+        <p className="text-vermilion-800">{calcError}</p>
+        <button type="button" onClick={onRetry} className="mt-2 min-h-[36px] text-sm font-medium text-vermilion-700 underline">
           Retry
         </button>
       </div>
@@ -518,7 +536,8 @@ function PriceSummary({ calculation, calculating, calcError, onRetry, balance })
   }
   if (!calculation) {
     return (
-      <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-slate-500">
+      <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-600" role="status">
+        <Loader2 size={16} className="animate-spin" aria-hidden="true" />
         {calculating ? "Working out the price..." : "Preparing the price summary..."}
       </div>
     );
@@ -526,7 +545,7 @@ function PriceSummary({ calculation, calculating, calcError, onRetry, balance })
   const pricing = calculation.pricing;
   if (!pricing) {
     return (
-      <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
         <Row label="Stamp Duty to be Reserved" value={formatCurrency(calculation.amount)} />
         <Row label="Available Balance" value={formatCurrency(balance)} />
       </div>
@@ -535,16 +554,19 @@ function PriceSummary({ calculation, calculating, calcError, onRetry, balance })
   const atActuals = pricing.stampDuty === 0;
   const dutyDisplay = atActuals ? "At Actuals" : formatCurrency(pricing.stampDuty);
   return (
-    <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
-      <p className="font-medium text-slate-900 mb-2">Price summary</p>
+    <section className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+      <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+        <ReceiptText size={16} className="text-slate-500" aria-hidden="true" />
+        Price summary
+      </h3>
       <Row label="Stamp duty" value={dutyDisplay} />
       <Row label="Convenience Fee" value={formatCurrency(pricing.convenienceFee)} />
       <Row label="Procurement Charge" value={formatCurrency(pricing.procurementFee)} />
       <Row label="GST (18%)" value={formatCurrency(pricing.gst)} />
       <Row label="Government Fees" value={dutyDisplay} />
-      <div className="flex justify-between pt-2 mt-1 border-t border-slate-300">
+      <div className="mt-2 flex items-baseline justify-between border-t border-slate-300 pt-3">
         <span className="font-semibold text-slate-900">Total payable</span>
-        <span className="font-semibold text-slate-900">{pricing.totalAmount === null ? "-" : formatCurrency(pricing.totalAmount)}</span>
+        <span className="font-display text-2xl font-semibold text-slate-900 tabular-nums">{pricing.totalAmount === null ? "-" : formatCurrency(pricing.totalAmount)}</span>
       </div>
       <p className="text-xs text-slate-500 pt-2">
         All taxes included. GST applies to the fees, not to the government stamp duty.
@@ -556,7 +578,7 @@ function PriceSummary({ calculation, calculating, calcError, onRetry, balance })
           Only the stamp duty is reserved when you submit and charged when the 20-minute window ends. Fees are billed separately.
         </p>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -570,7 +592,7 @@ function FieldGroup({ label, error, children }) {
     <div role="group" aria-label={label}>
       <span className="mb-1.5 block text-sm font-medium text-slate-800">{label}</span>
       {children}
-      {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}
+      {error && <span className="mt-1 block text-xs text-vermilion-700">{error}</span>}
     </div>
   );
 }
@@ -580,16 +602,16 @@ function Field({ label, error, children }) {
     <label className="block">
       <span className="mb-1.5 block text-sm font-medium text-slate-800">{label}</span>
       {children}
-      {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}
+      {error && <span className="mt-1 block text-xs text-vermilion-700">{error}</span>}
     </label>
   );
 }
 
 function Row({ label, value }) {
   return (
-    <div className="flex justify-between border-b border-slate-100 pb-2 last:border-0">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-900">{value}</span>
+    <div className="flex justify-between gap-4 border-b border-slate-200/70 py-2 last:border-0">
+      <span className="text-slate-600">{label}</span>
+      <span className="min-w-0 break-words text-right font-medium text-slate-900 tabular-nums">{value}</span>
     </div>
   );
 }

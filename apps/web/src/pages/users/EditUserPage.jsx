@@ -1,3 +1,6 @@
+import { ArrowLeft, UserCog } from "lucide-react";
+import StatusChip from "../../components/ui/StatusChip";
+import { SectionCard, DetailRow } from "../../components/ui/DetailList";
 import Toast from "../../components/ui/Toast";
 import { useConfirm } from "../../components/ui/useConfirm";
 import { useEffect, useState, useCallback } from "react";
@@ -88,44 +91,44 @@ export default function EditUserPage() {
   return (
     <div className="max-w-2xl space-y-6">
       {confirmDialog}
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold text-slate-900">{user.name}</h1>
-        <Link to={`/users?role=${user.role}`} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
+      <div>
+        <Link to={`/users?role=${user.role}`} className="inline-flex min-h-[36px] items-center gap-1 text-sm text-slate-600 hover:text-slate-900 hover:underline">
+          <ArrowLeft size={16} aria-hidden="true" />
           Back to list
         </Link>
+        <div className="mt-2 flex flex-wrap items-center gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-100 font-display text-base font-semibold text-brand-800" aria-hidden="true">
+            {String(user.name || "?").trim().charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h1 className="break-words font-display text-2xl font-semibold text-slate-900">{user.name}</h1>
+            <p className="text-sm text-slate-600">{ROLE_LABELS[user.role] || user.role}</p>
+          </div>
+          <StatusChip kind="account" status={user.isActive ? "ACTIVE" : "INACTIVE"} label={user.isActive ? "Active" : "Inactive"} />
+        </div>
       </div>
 
       {notice && <Toast tone="success">{notice}</Toast>}
       {error && <Toast tone="error">{error}</Toast>}
 
       {!canEdit && (
-        <div className="card p-6 space-y-2 text-sm">
-          <h2 className="font-medium text-slate-900 mb-2">Profile</h2>
-          <p>
-            <span className="text-slate-500">Email:</span> {user.email}
-          </p>
-          <p>
-            <span className="text-slate-500">Phone:</span> {user.phone?.trim() ? user.phone : "-"}
-          </p>
-          <p>
-            <span className="text-slate-500">Role:</span> {ROLE_LABELS[user.role] || user.role}
-          </p>
-          <p>
-            <span className="text-slate-500">Status:</span> {user.isActive ? "Active" : "Inactive"}
-          </p>
-          <p className="text-xs text-slate-400 pt-2">You can view this user but not change them.</p>
-        </div>
+        <SectionCard title="Profile">
+          <DetailRow label="Email" value={user.email} />
+          <DetailRow label="Phone" value={user.phone?.trim() ? user.phone : "-"} />
+          <p className="pt-4 text-sm text-slate-600">You can view this user but not change them.</p>
+        </SectionCard>
       )}
 
       {canEdit && (
-      <form onSubmit={handleSave} className="card p-6 space-y-4">
-        <h2 className="font-medium text-slate-900">Profile</h2>
+      <form onSubmit={handleSave} className="card space-y-4 p-5 sm:p-6">
+        <h2 className="font-display text-base font-semibold text-slate-900">Profile</h2>
         <div>
           <label htmlFor="edit-user-name" className="mb-1.5 block text-sm font-medium text-slate-800">
             Name
           </label>
           <input id="edit-user-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="input" />
         </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="edit-user-email" className="mb-1.5 block text-sm font-medium text-slate-800">
             Email
@@ -138,6 +141,7 @@ export default function EditUserPage() {
           </label>
           <input id="edit-user-phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="input" />
         </div>
+        </div>
         <button disabled={saving} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
           {saving ? "Saving..." : "Save changes"}
         </button>
@@ -145,15 +149,18 @@ export default function EditUserPage() {
       )}
 
       {canEdit && (user.role === "ADMIN" || user.role === "USER") && (
-        <div className="card p-6">
-          <h2 className="font-display text-base font-semibold text-slate-900 mb-3">Role</h2>
-          <p className="text-sm text-slate-500 mb-3">
+        <div className="card p-5 sm:p-6">
+          <h2 className="mb-3 flex items-center gap-2 font-display text-base font-semibold text-slate-900">
+            <UserCog size={18} strokeWidth={1.75} className="text-slate-500" aria-hidden="true" />
+            Role
+          </h2>
+          <p className="mb-3 text-sm text-slate-600">
             Current role: <span className="font-medium text-slate-900">{user.role}</span>
           </p>
           <button
             disabled={roleBusy}
             onClick={() => handleRoleChange(user.role === "ADMIN" ? "USER" : "ADMIN")}
-            className="text-sm rounded-lg border border-slate-300 px-4 py-2 disabled:opacity-50 hover:bg-slate-50"
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 sm:min-h-[40px]"
           >
             Change to {user.role === "ADMIN" ? "User" : "Admin"}
           </button>

@@ -1,3 +1,4 @@
+import { FileSpreadsheet } from "lucide-react";
 import Toast from "../../components/ui/Toast";
 import { useConfirm } from "../../components/ui/useConfirm";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -163,12 +164,17 @@ export default function BulkBatchDetailPage() {
       {error && <Toast tone="error" className="mb-4">{error}</Toast>}
       {notice && <Toast tone="success" className="mb-4">{notice}</Toast>}
 
-      <div className="card p-6 mb-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div>
-            <p className="text-sm text-slate-500">Batch</p>
-            <p className="text-lg font-semibold text-slate-900">{batch.batchNumber}</p>
-            {batch.fileName && <p className="text-xs text-slate-400">{batch.fileName}</p>}
+      <div className="card mb-6 p-5 sm:p-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm text-slate-600">Batch</p>
+            <h1 className="break-all font-display text-2xl font-semibold text-slate-900">{batch.batchNumber}</h1>
+            {batch.fileName && (
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">
+                <FileSpreadsheet size={14} aria-hidden="true" />
+                {batch.fileName}
+              </p>
+            )}
           </div>
           <StatusBadge status={batch.status} kind="batch" />
         </div>
@@ -191,7 +197,7 @@ export default function BulkBatchDetailPage() {
           </div>
         )}
 
-        {batch.errorSummary && <p className="text-sm text-red-600 mb-4">{batch.errorSummary}</p>}
+        {batch.errorSummary && <Toast tone="error" className="mb-4">{batch.errorSummary}</Toast>}
 
         <div className="flex flex-wrap gap-3">
           {canConfirm && (
@@ -205,39 +211,42 @@ export default function BulkBatchDetailPage() {
             </button>
           )}
           {canCancel && (
-            <button type="button" onClick={handleCancel} className="text-sm text-red-600 border border-red-200 rounded-lg px-4 py-2">
+            <button type="button" onClick={handleCancel} className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-vermilion-200 bg-white px-4 text-sm font-medium text-vermilion-700 hover:bg-vermilion-50 sm:min-h-[40px]">
               Cancel batch
             </button>
           )}
-          {batch.status === "PROCESSING" && <span className="text-sm text-slate-500 self-center">Processing... this page refreshes automatically.</span>}
+          {batch.status === "PROCESSING" && <span className="self-center text-sm text-slate-600" role="status">Processing... this page refreshes automatically.</span>}
         </div>
       </div>
 
       <div className="card overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 text-sm font-medium text-slate-700">Rows</div>
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <h2 className="font-display text-base font-semibold text-slate-900">Rows</h2>
+          <span className="text-sm text-slate-500 tabular-nums">{itemsTotal} row(s)</span>
+        </div>
         {items.length === 0 ? (
           <EmptyState text="No rows to show." />
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 whitespace-nowrap">
+            <div className="max-h-[70vh] overflow-auto">
+              <table className="w-full min-w-[1100px] text-left text-sm">
+                <thead className="whitespace-nowrap text-xs text-slate-600">
                   <tr>
-                    <th className="px-3 py-3">Row</th>
-                    <th className="px-3 py-3">Status</th>
-                    <th className="px-3 py-3">State</th>
-                    <th className="px-3 py-3">Article</th>
-                    <th className="px-3 py-3">First Party</th>
-                    <th className="px-3 py-3">Second Party</th>
-                    <th className="px-3 py-3">Document / Property</th>
-                    <th className="px-3 py-3 text-right">Consideration</th>
-                    <th className="px-3 py-3">Paid By</th>
-                    <th className="px-3 py-3 text-center">Qty</th>
-                    <th className="px-3 py-3 text-right">Stamp Duty</th>
-                    <th className="px-3 py-3 text-right">Fees & GST</th>
-                    <th className="px-3 py-3 text-right">Total Amount</th>
-                    <th className="px-3 py-3">Notes</th>
-                    <th className="px-3 py-3"></th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold">Row</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold">Status</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold">State</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold">Article</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold">First Party</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold">Second Party</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold">Document / Property</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold text-right">Consideration</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold">Paid By</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold text-center">Qty</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold text-right">Stamp Duty</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold text-right">Fees & GST</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold text-right">Total Amount</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold">Notes</th>
+                    <th scope="col" className="sticky top-0 z-[1] border-b border-slate-200 bg-slate-50 px-3 py-2.5 font-semibold"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -247,11 +256,11 @@ export default function BulkBatchDetailPage() {
                       : item.inputData?.articleId || "-";
                     const feesAndGst = (item.convenienceFee || 0) + (item.procurementFee || 99) + (item.gst || 0);
                     return (
-                      <tr key={item._id} className="hover:bg-slate-50/60 transition-colors">
+                      <tr key={item._id} className="align-top transition-colors hover:bg-brand-50/40">
                         <td className="px-3 py-2.5 font-medium text-slate-900">{item.rowNumber}</td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           <StatusBadge status={item.status} />
-                          {item.isDuplicateSuspect && <span className="ml-1 text-amber-600 text-xs font-semibold block">duplicate?</span>}
+                          {item.isDuplicateSuspect && <span className="mt-1 block text-xs font-semibold text-marigold-700">duplicate?</span>}
                         </td>
                         <td className="px-3 py-2.5 font-medium text-slate-800 whitespace-nowrap">{item.inputData?.stateCode || "-"}</td>
                         <td className="px-3 py-2.5 max-w-[180px] truncate" title={articleText}>
@@ -264,28 +273,28 @@ export default function BulkBatchDetailPage() {
                             {item.inputData?.descriptionOfDocument || "-"}
                           </div>
                           {item.inputData?.propertyDescription && (
-                            <div className="truncate text-xs text-slate-400" title={item.inputData?.propertyDescription}>
+                            <div className="truncate text-xs text-slate-500" title={item.inputData?.propertyDescription}>
                               {item.inputData?.propertyDescription}
                             </div>
                           )}
                         </td>
-                        <td className="px-3 py-2.5 text-right font-medium text-slate-700 whitespace-nowrap">
+                        <td className="px-3 py-2.5 tabular-nums text-right font-medium text-slate-700 whitespace-nowrap">
                           {item.inputData?.considerationPrice != null ? formatCurrency(item.inputData.considerationPrice) : "-"}
                         </td>
                         <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap">{item.inputData?.stampDutyPaidBy || "-"}</td>
                         <td className="px-3 py-2.5 text-center font-medium text-slate-800">{item.inputData?.numberOfEStamps || 1}</td>
-                        <td className="px-3 py-2.5 text-right font-medium text-slate-900 whitespace-nowrap">
+                        <td className="px-3 py-2.5 tabular-nums text-right font-medium text-slate-900 whitespace-nowrap">
                           {item.stampDuty != null ? formatCurrency(item.stampDuty) : (item.calculatedAmount != null ? formatCurrency(item.calculatedAmount) : "-")}
                         </td>
-                        <td className="px-3 py-2.5 text-right text-slate-600 whitespace-nowrap" title={`Conv: ₹${item.convenienceFee || 0}, Proc: ₹${item.procurementFee || 99}, GST: ₹${item.gst || 0}`}>
+                        <td className="px-3 py-2.5 tabular-nums text-right text-slate-600 whitespace-nowrap" title={`Conv: ₹${item.convenienceFee || 0}, Proc: ₹${item.procurementFee || 99}, GST: ₹${item.gst || 0}`}>
                           {formatCurrency(feesAndGst)}
                         </td>
-                        <td className="px-3 py-2.5 text-right font-semibold text-slate-900 whitespace-nowrap">
+                        <td className="px-3 py-2.5 tabular-nums text-right font-semibold text-slate-900 whitespace-nowrap">
                           {item.totalAmount != null ? formatCurrency(item.totalAmount) : (item.calculatedAmount != null ? formatCurrency(item.calculatedAmount) : "-")}
                         </td>
-                        <td className="px-3 py-2.5 text-slate-500 text-xs">
+                        <td className="min-w-[180px] px-3 py-2.5 text-xs text-slate-600">
                           {item.validationErrors?.length > 0 && <div>{item.validationErrors.join("; ")}</div>}
-                          {item.failureReason && <div className="text-red-600">{item.failureReason}</div>}
+                          {item.failureReason && <div className="text-vermilion-700">{item.failureReason}</div>}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           {item.status === "CREATED" && item.requestId && (
@@ -324,9 +333,9 @@ export default function BulkBatchDetailPage() {
 
 function Stat({ label, value }) {
   return (
-    <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-base font-semibold text-slate-900">{value ?? 0}</p>
+    <div className="rounded-lg bg-slate-50 px-3 py-2.5">
+      <p className="text-xs text-slate-600">{label}</p>
+      <p className="font-display text-lg font-semibold text-slate-900 tabular-nums">{value ?? 0}</p>
     </div>
   );
 }

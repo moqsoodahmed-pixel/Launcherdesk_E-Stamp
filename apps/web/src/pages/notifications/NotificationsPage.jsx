@@ -1,3 +1,7 @@
+import { Bell, CheckCheck, CreditCard, ShieldAlert, Stamp, Store, UserCog } from "lucide-react";
+import Toast from "../../components/ui/Toast";
+import { useViewerRole } from "../../components/ui/StatusChip";
+import { isClientRole } from "../../components/ui/status";
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -6,13 +10,34 @@ import { safeRouteFor, NOTIFICATION_TYPE_LABELS, NOTIFICATION_TYPES } from "../.
 import EmptyState from "../../components/dashboard/EmptyState";
 import { TableSkeleton } from "../../components/dashboard/LoadingSkeleton";
 
-const inputClass = "rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
+const inputClass = "input w-auto";
+
+// One icon per notification type, so the list scans by kind.
+const TYPE_ICON = {
+  ASSISTANT_ADMIN_ACTIVITY: UserCog,
+  SECURITY_ALERT: ShieldAlert,
+  ESTAMP_STATUS: Stamp,
+  PAYMENT: CreditCard,
+  GENERAL: Bell,
+  VENDOR_ACTIVITY: Store,
+};
+const TYPE_TONE = {
+  SECURITY_ALERT: "bg-vermilion-50 text-vermilion-700",
+  ESTAMP_STATUS: "bg-brand-50 text-brand-700",
+  PAYMENT: "bg-emerald-50 text-emerald-700",
+  VENDOR_ACTIVITY: "bg-magenta-50 text-magenta-700",
+};
+// Internal activity types never reach client roles; their filter options
+// are hidden from them too.
+const STAFF_ONLY_TYPES = ["ASSISTANT_ADMIN_ACTIVITY", "VENDOR_ACTIVITY"];
 
 function fmt(d) {
   return d ? new Date(d).toLocaleString() : "-";
 }
 
 export default function NotificationsPage() {
+  const viewerRole = useViewerRole();
+  const typeOptions = isClientRole(viewerRole) ? NOTIFICATION_TYPES.filter((t) => !STAFF_ONLY_TYPES.includes(t)) : NOTIFICATION_TYPES;
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -94,15 +119,16 @@ export default function NotificationsPage() {
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
           <h1 className="font-display text-2xl font-semibold text-slate-900">Notifications</h1>
-          <p className="text-sm text-slate-500">Stay updated on E-Stamp requests, payments, orders and account activity.</p>
+          <p className="mt-1 text-sm text-slate-600">Stay updated on E-Stamp requests, payments, orders and account activity.</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-xs text-slate-500">Unread</p>
-            <p className="text-lg font-semibold text-slate-900 tabular-nums">{unreadCount}</p>
+          <div className="rounded-lg bg-white px-3 py-1.5 text-right ring-1 ring-inset ring-slate-200">
+            <p className="text-xs text-slate-600">Unread</p>
+            <p className="font-display text-lg font-semibold leading-tight text-slate-900 tabular-nums">{unreadCount}</p>
           </div>
           {unreadCount > 0 && (
-            <button onClick={handleMarkAllRead} className="text-sm rounded-lg border border-slate-300 px-3 py-2 text-slate-600 hover:bg-slate-50">
+            <button onClick={handleMarkAllRead} className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700 sm:min-h-[40px]">
+              <CheckCheck size={16} aria-hidden="true" />
               Mark all as read
             </button>
           )}
@@ -113,13 +139,13 @@ export default function NotificationsPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <input type="checkbox" checked={unreadOnly} onChange={(e) => reset(setUnreadOnly)(e.target.checked)} className="rounded border-slate-300" />
+        <label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={unreadOnly} onChange={(e) => reset(setUnreadOnly)(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-600" />
           Unread only
         </label>
         <select aria-label="Type" value={type} onChange={(e) => reset(setType)(e.target.value)} className={inputClass}>
           <option value="">All types</option>
-          {NOTIFICATION_TYPES.map((t) => (
+          {typeOptions.map((t) => (
             <option key={t} value={t}>
               {NOTIFICATION_TYPE_LABELS[t]}
             </option>
@@ -127,7 +153,7 @@ export default function NotificationsPage() {
         </select>
         <div className="flex items-center gap-2">
           <input aria-label="Created from" type="date" value={dateFrom} onChange={(e) => reset(setDateFrom)(e.target.value)} className={inputClass} />
-          <span className="text-slate-400 text-sm">to</span>
+          <span className="text-sm text-slate-600">to</span>
           <input aria-label="Created to" type="date" value={dateTo} onChange={(e) => reset(setDateTo)(e.target.value)} className={inputClass} />
         </div>
         {hasFilters && (
@@ -147,14 +173,14 @@ export default function NotificationsPage() {
       </div>
 
       {error && (
-        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+        <Toast tone="error" className="mb-4">
           {error}
-        </div>
+        </Toast>
       )}
       {actionError && (
-        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+        <Toast tone="error" className="mb-4">
           {actionError}
-        </div>
+        </Toast>
       )}
 
       <div className="card overflow-hidden">
@@ -170,28 +196,29 @@ export default function NotificationsPage() {
           <ul className="divide-y divide-slate-100">
             {items.map((n) => {
               const navigable = !!safeRouteFor(n);
+              const TypeIcon = TYPE_ICON[n.type] || Bell;
               return (
                 <li key={n._id}>
                   <button
                     onClick={() => handleItemClick(n)}
-                    className={`w-full text-left flex items-start gap-3 px-4 py-4 hover:bg-slate-50 ${!n.isRead ? "bg-brand-50/40" : ""}`}
+                    className={`relative flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-slate-50 sm:px-5 ${!n.isRead ? "bg-brand-50/40" : ""}`}
                   >
-                    <span
-                      aria-hidden="true"
-                      className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${!n.isRead ? "bg-brand-600" : "bg-transparent"}`}
-                    />
+                    {!n.isRead && <span aria-hidden="true" className="absolute inset-y-3 left-0 w-[3px] rounded-r-full bg-brand-600" />}
+                    <span aria-hidden="true" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${TYPE_TONE[n.type] || "bg-slate-100 text-slate-600"}`}>
+                      <TypeIcon size={18} strokeWidth={1.75} />
+                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-2">
                         <span className={`text-sm ${!n.isRead ? "font-semibold text-slate-900" : "font-medium text-slate-700"}`}>{n.title}</span>
-                        <span className="text-xs text-slate-400">{NOTIFICATION_TYPE_LABELS[n.type] || n.type}</span>
+                        <span className="text-xs text-slate-500">{NOTIFICATION_TYPE_LABELS[n.type] || n.type}</span>
                         {!n.isRead && (
-                          <span className="text-xs font-medium text-brand-700 bg-brand-100 rounded-full px-1.5 py-0.5">Unread</span>
+                          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-800">Unread</span>
                         )}
                       </span>
-                      <p className="text-sm text-slate-500 mt-0.5 break-words">{n.message}</p>
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="mt-0.5 break-words text-sm text-slate-600">{n.message}</p>
+                      <p className="mt-1 text-xs text-slate-500 tabular-nums">
                         {fmt(n.createdAt)}
-                        {navigable && <span className="text-brand-600"> · View details</span>}
+                        {navigable && <span className="font-medium text-brand-700"> · View details</span>}
                       </p>
                     </span>
                   </button>

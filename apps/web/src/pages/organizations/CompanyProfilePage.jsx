@@ -1,3 +1,5 @@
+import { Building2, Mail, MapPin, Phone, ReceiptText, Stamp } from "lucide-react";
+import StatusChip from "../../components/ui/StatusChip";
 import { apiClient } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
 import PageHeader from "../../components/common/PageHeader";
@@ -5,11 +7,14 @@ import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 
-function Field({ label, children }) {
+function Field({ label, icon: IconCmp, children }) {
   return (
-    <div>
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="text-slate-900 break-words">{children || "Not provided"}</dd>
+    <div className="flex gap-3">
+      {IconCmp && <IconCmp size={18} strokeWidth={1.75} className="mt-0.5 shrink-0 text-slate-500" aria-hidden="true" />}
+      <div className="min-w-0">
+        <dt className="text-slate-600">{label}</dt>
+        <dd className={`break-words font-medium ${children ? "text-slate-900" : "text-slate-500"}`}>{children || "Not provided"}</dd>
+      </div>
     </div>
   );
 }
@@ -31,7 +36,7 @@ export default function CompanyProfilePage() {
   );
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-4xl">
       <PageHeader title="Company Profile" subtitle="Your organization's details" />
       {loading && <LoadingState text="Loading company profile..." />}
       {!loading && error && <ErrorState message={error} onRetry={refetch} />}
@@ -41,21 +46,39 @@ export default function CompanyProfilePage() {
         </div>
       )}
       {!loading && !error && org && (
-        <section className="card p-6">
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <Field label="Company name">{org.name}</Field>
-            <Field label="Status">{org.status}</Field>
-            <Field label="Contact email">{org.contactEmail}</Field>
-            <Field label="Contact phone">{org.contactPhone}</Field>
-            <Field label="GSTIN">{org.gstin}</Field>
-            <Field label="E-Stamp service">{org.isEstampServiceEnabled ? "Enabled" : "Disabled"}</Field>
-            <div className="sm:col-span-2">
-              <Field label="Address">{org.address}</Field>
+        <div className="space-y-6">
+          <section className="card flex flex-wrap items-center gap-4 p-5 sm:p-6">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700" aria-hidden="true">
+              <Building2 size={26} strokeWidth={1.75} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="break-words font-display text-xl font-semibold text-slate-900">{org.name}</h2>
+              <p className="mt-0.5 text-sm text-slate-600">
+                Member since <span className="tabular-nums">{org.createdAt ? new Date(org.createdAt).toLocaleDateString() : "Not provided"}</span>
+              </p>
             </div>
-            <Field label="Member since">{org.createdAt ? new Date(org.createdAt).toLocaleDateString() : null}</Field>
-          </dl>
-          <p className="mt-6 text-xs text-slate-500">To change company details contact support.</p>
-        </section>
+            <StatusChip kind="account" status={org.status} label={org.status === "ACTIVE" ? "Active" : undefined} />
+          </section>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <section className="card p-5 sm:p-6">
+              <h3 className="mb-4 font-display text-base font-semibold text-slate-900">Contact</h3>
+              <dl className="space-y-4 text-sm">
+                <Field label="Contact email" icon={Mail}>{org.contactEmail}</Field>
+                <Field label="Contact phone" icon={Phone}>{org.contactPhone}</Field>
+                <Field label="Address" icon={MapPin}>{org.address}</Field>
+              </dl>
+            </section>
+            <section className="card p-5 sm:p-6">
+              <h3 className="mb-4 font-display text-base font-semibold text-slate-900">Registration</h3>
+              <dl className="space-y-4 text-sm">
+                <Field label="GSTIN" icon={ReceiptText}>{org.gstin}</Field>
+                <Field label="E-Stamp service" icon={Stamp}>{org.isEstampServiceEnabled ? "Enabled" : "Disabled"}</Field>
+              </dl>
+            </section>
+          </div>
+          <p className="text-sm text-slate-600">To change company details contact support.</p>
+        </div>
       )}
     </div>
   );
