@@ -6,6 +6,7 @@ import { fulfilmentModeOf } from "../utils/fulfilment";
 import ErrorBoundary from "../components/common/ErrorBoundary";
 import NotificationBell from "../components/NotificationBell";
 import GlobalSearch from "../components/GlobalSearch";
+import logoImg from "../assets/logo.png";
 
 function SidebarNav({ sections, allItems, pathname, search, onNavigate }) {
   // Exactly one item (or none) is highlighted - see getActiveItem.
@@ -68,7 +69,7 @@ export default function DashboardLayout() {
           aria-label="Dashboard - LauncherDesk"
         >
           <img
-            src="/logo.png"
+            src={logoImg}
             alt="LauncherDesk"
             className="h-10 w-auto max-w-[190px] object-contain transition-opacity group-hover:opacity-90"
           />
