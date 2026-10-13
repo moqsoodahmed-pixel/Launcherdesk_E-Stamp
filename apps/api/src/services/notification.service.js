@@ -63,13 +63,8 @@ async function notifyUser(params) {
 // (see notify()'s idempotency above) so a retried caller can't double-notify
 // any single Master Admin, while still reaching every one of them once.
 async function notifyAllMasterAdmins(params) {
-    const masterAdmins = await models_1.User.find({ role: shared_1.Role.MASTER_ADMIN, isActive: true }).select("_id role");
-    await Promise.all(masterAdmins.map((admin) => notify({
-        recipientId: admin._id.toString(),
-        recipientRole: admin.role,
-        ...params,
-        eventKey: params.eventKey ? `${params.eventKey}:${admin._id.toString()}` : undefined,
-    })));
+    const masterAdmins = await models_1.User.find({ role: shared_1.Role.MASTER_ADMIN, isActive: true }).select("_id role email");
+    await Promise.all(masterAdmins.map((admin) => fanOutTo(admin, params)));
 }
 // Fans a notification out to all active Admins/Super Admins in a specific organization.
 async function notifyOrgAdmins(organizationId, params) {
@@ -77,12 +72,36 @@ async function notifyOrgAdmins(organizationId, params) {
         organizationId,
         role: { $in: [shared_1.Role.SUPER_ADMIN, shared_1.Role.ADMIN] },
         isActive: true,
-    }).select("_id role");
-    await Promise.all(orgAdmins.map((admin) => notify({
-        recipientId: admin._id.toString(),
-        recipientRole: admin.role,
-        ...params,
-        eventKey: params.eventKey ? `${params.eventKey}:${admin._id.toString()}` : undefined,
-    })));
+    }).select("_id role email");
+    await Promise.all(orgAdmins.map((admin) => fanOutTo(admin, params)));
 }
 exports.notifyOrgAdmins = notifyOrgAdmins;
+// Notifies the one Assistant Master Admin who handles this client. Returns
+// false when the organization has no assistant assigned, so callers can fall
+// back to the Master Admins rather than silently telling nobody.
+async function notifyAssignedAssistant(organizationId, params) {
+    const org = await models_1.Organization.findById(organizationId).select("assignedAssistantId");
+    if (!org?.assignedAssistantId)
+        return false;
+    const assistant = await models_1.User.findOne({ _id: org.assignedAssistantId, isActive: true }).select("_id role email");
+    if (!assistant)
+        return false;
+    await fanOutTo(assistant, params);
+    return true;
+}
+exports.notifyAssignedAssistant = notifyAssignedAssistant;
+// Shared tail of every fan-out: routes one recipient through notifyUser so
+// a caller that supplies an `email` descriptor reaches each person on BOTH
+// channels. Callers that omit `email` behave exactly as before (in-app
+// only). The per-recipient eventKey suffix keeps a retried caller from
+// double-notifying any single person while still reaching everyone once.
+function fanOutTo(recipient, params) {
+    const { email, ...rest } = params;
+    return notifyUser({
+        recipientId: recipient._id.toString(),
+        recipientRole: recipient.role,
+        ...rest,
+        eventKey: params.eventKey ? `${params.eventKey}:${recipient._id.toString()}` : undefined,
+        email: email && recipient.email ? { ...email, to: recipient.email } : undefined,
+    });
+}

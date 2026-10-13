@@ -28,7 +28,37 @@ function layout(bodyHtml) {
     </div>
   `;
 }
+// A sign-in-gated link INTO the portal - never to a certificate file. The
+// certificate itself is deliberately never attached or linked from email:
+// it can only be viewed and downloaded after signing in, where the normal
+// role and organization checks apply. `path` is an app route such as
+// "/orders/<id>"; with no portal address configured, no link is rendered.
+function portalLink(path, label) {
+    // Lazy require so a template render never fails module load on config.
+    const { PRIMARY_FRONTEND_URL } = require("../../config/env");
+    if (!PRIMARY_FRONTEND_URL || !path)
+        return "";
+    const url = `${PRIMARY_FRONTEND_URL}${path}`;
+    return `
+      <p style="margin:20px 0 8px;"><a href="${escapeHtml(url)}" style="display:inline-block; background:#1d4ed8; color:#ffffff; text-decoration:none; padding:10px 18px; border-radius:8px; font-weight:600;">${escapeHtml(label)}</a></p>
+      <p style="font-size:12px; color:#64748b; margin:0;">You will be asked to sign in. For security, e-stamp certificates are never sent by email - view and download them from the portal.</p>
+    `;
+}
 const TEMPLATES = {
+    // Generic lifecycle update - one template for every status change along
+    // the order's journey (dispatched, accepted, uploaded, handed back, ...),
+    // so no step goes un-emailed for want of a bespoke template.
+    orderStatusUpdate: (data) => ({
+        // A multi-order event (e.g. a batch dispatched to a vendor) has no
+        // single order number to name.
+        subject: data.orderNumber ? `${data.title} - order ${data.orderNumber}` : String(data.title),
+        html: layout(`
+      <h2 style="margin-top:0;">${escapeHtml(data.title)}</h2>
+      <p>${escapeHtml(data.message)}</p>
+      ${data.status ? `<p style="color:#475569; font-size:13px;"><b>Current status:</b> ${escapeHtml(data.status)}</p>` : ""}
+      ${portalLink(data.portalPath, "Open in LauncherDesk")}
+    `),
+    }),
     otp: (data) => ({
         subject: `Your LauncherDesk ${escapeHtml(data.purpose || "login")} OTP`,
         html: layout(`
@@ -104,23 +134,29 @@ const TEMPLATES = {
     orderIssued: (data) => ({
         subject: `E-Stamp issued for order ${data.orderNumber}`,
         html: layout(`
-      <h2 style="margin-top:0;">E-Stamp issued</h2>
-      <p>Your E-Stamp for order <b>${escapeHtml(data.orderNumber)}</b> has been issued by the provider.</p>
+      <h2 style="margin-top:0;">E-Stamp issued - Success</h2>
+      <p>The E-Stamp for order <b>${escapeHtml(data.orderNumber)}</b> has been issued successfully.</p>
       <p>You will be notified separately once the certificate document is available to download.</p>
+      ${portalLink(data.portalPath, "View order in LauncherDesk")}
     `),
     }),
     orderFailed: (data) => ({
         subject: `E-Stamp processing failed for order ${data.orderNumber}`,
         html: layout(`
-      <h2 style="margin-top:0;">Processing failed</h2>
+      <h2 style="margin-top:0;">E-Stamp processing failed</h2>
       <p>E-Stamp processing for order <b>${escapeHtml(data.orderNumber)}</b> could not be completed.</p>
       ${data.reason ? `<p style="color:#b91c1c;">Reason: ${escapeHtml(data.reason)}</p>` : ""}
       <p>Please contact support if you need assistance.</p>
+      ${portalLink(data.portalPath, "View order in LauncherDesk")}
     `),
     }),
     certificateAvailable: (data) => ({
         subject: `E-Stamp ready for order ${data.orderNumber}`,
-        html: layout(`<p>Your E-Stamp certificate for order <b>${escapeHtml(data.orderNumber)}</b> is ready to download.</p>`),
+        html: layout(`
+      <h2 style="margin-top:0;">Your E-Stamp is ready</h2>
+      <p>The E-Stamp certificate for order <b>${escapeHtml(data.orderNumber)}</b> is ready. Sign in to view and download it.</p>
+      ${portalLink(data.portalPath, "View and download in LauncherDesk")}
+    `),
     }),
     certificateDownloaded: (data) => ({
         subject: `E-Stamp downloaded: ${data.orderNumber}`,

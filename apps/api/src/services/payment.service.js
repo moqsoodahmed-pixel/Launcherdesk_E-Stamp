@@ -78,10 +78,20 @@ async function notifyPendingCredit(payment) {
         },
         eventKey: `payment:${payment._id.toString()}:purchase-success`,
     };
-    await (0, notification_service_1.notifyAllMasterAdmins)(base);
-    if (org?.assignedAssistantId) {
-        await (0, notification_service_1.notifyUser)({ ...base, recipientId: org.assignedAssistantId.toString(), recipientRole: shared_1.Role.ASSISTANT_MASTER_ADMIN });
-    }
+    // The staff who must credit this payment get it on BOTH channels - an
+    // unseen in-app badge is easy to miss for money that is waiting on them.
+    // (The buyer is already emailed separately by notifyPaymentOutcome, so the
+    // organization's own admins below stay in-app only rather than receiving
+    // a near-duplicate email.)
+    const staffParams = {
+        ...base,
+        email: {
+            method: "sendOrderStatusEmail",
+            args: [{ title: base.title, message, status: "Payment waiting to be credited", portalPath: "/payments" }],
+        },
+    };
+    await (0, notification_service_1.notifyAllMasterAdmins)(staffParams);
+    await (0, notification_service_1.notifyAssignedAssistant)(payment.organizationId, staffParams);
     // Also tell the purchasing organization's own Super Admin/Admin users -
     // eventKey's per-recipient suffix (applied inside notifyOrgAdmins) keeps
     // this exactly-once per admin even under webhook/checkout-path races.

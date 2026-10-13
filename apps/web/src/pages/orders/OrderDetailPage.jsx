@@ -33,6 +33,11 @@ export default function OrderDetailPage() {
   const [confirming, setConfirming] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState(null);
+  const [viewing, setViewing] = useState(false);
+  // { objectUrl, isImage } while the in-portal certificate viewer is open.
+  const [viewer, setViewer] = useState(null);
+  const viewerRef = useRef(null);
+  viewerRef.current = viewer;
   const [verifying, setVerifying] = useState(false);
   const [verifyNotes, setVerifyNotes] = useState("");
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -109,17 +114,27 @@ export default function OrderDetailPage() {
     }
   }
 
+  // Both View and Download go through the same authenticated endpoint, so the
+  // same role/organization checks apply to each, and the short-lived signed
+  // storage URL is only ever fetched here - never shown, linked or emailed.
+  async function fetchCertificateBlob() {
+    const { data: res } = await apiClient.get(`/files/estamp/${id}/download`);
+    const { url, filename, contentType } = res.data;
+    const blobResponse = await fetch(url);
+    if (!blobResponse.ok) throw new Error("Certificate could not be loaded");
+    const raw = await blobResponse.blob();
+    // Re-typed from what OUR server said the file is, not whatever the
+    // storage host happened to label it, so it renders inline as a PDF/image
+    // instead of falling back to a forced download.
+    const blob = contentType ? new Blob([raw], { type: contentType }) : raw;
+    return { blob, filename, contentType: contentType || blob.type };
+  }
+
   async function handleDownload() {
     setDownloadError(null);
     setDownloading(true);
     try {
-      const { data: res } = await apiClient.get(`/files/estamp/${id}/download`);
-      const { url, filename } = res.data;
-      // Fetch the short-lived signed URL as a blob and save it under our
-      // own sanitized filename - never navigate to the raw storage URL.
-      const blobResponse = await fetch(url);
-      if (!blobResponse.ok) throw new Error("Download failed");
-      const blob = await blobResponse.blob();
+      const { blob, filename } = await fetchCertificateBlob();
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
@@ -134,6 +149,30 @@ export default function OrderDetailPage() {
       setDownloading(false);
     }
   }
+
+  // Shows the certificate inside the portal itself. The blob URL is released
+  // as soon as the viewer closes (or the page unmounts).
+  async function handleView() {
+    setDownloadError(null);
+    setViewing(true);
+    try {
+      const { blob, contentType } = await fetchCertificateBlob();
+      setViewer({ objectUrl: URL.createObjectURL(blob), isImage: /^image\//i.test(contentType || "") });
+    } catch (err) {
+      setDownloadError(actionErrorMessage(err, "Certificate could not be opened. Please try again."));
+    } finally {
+      setViewing(false);
+    }
+  }
+
+  function closeViewer() {
+    setViewer((current) => {
+      if (current) URL.revokeObjectURL(current.objectUrl);
+      return null;
+    });
+  }
+
+  useEffect(() => () => viewerRef.current && URL.revokeObjectURL(viewerRef.current.objectUrl), []);
 
   async function handleVerifyDocuments() {
     setVerifying(true);
@@ -469,12 +508,18 @@ export default function OrderDetailPage() {
                 </div>
               )}
               {canDownload ? (
-                <button onClick={handleDownload} disabled={downloading} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-                  {downloading ? "Downloading…" : downloadError ? "Retry download" : "Download Certificate"}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={handleView} disabled={viewing || downloading} className="border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                    {viewing ? "Opening…" : "View Certificate"}
+                  </button>
+                  <button onClick={handleDownload} disabled={downloading || viewing} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                    {downloading ? "Downloading…" : downloadError ? "Retry download" : "Download Certificate"}
+                  </button>
+                </div>
               ) : (
-                <p className="text-xs text-slate-500">You do not have permission to download certificates.</p>
+                <p className="text-xs text-slate-500">You do not have permission to view or download certificates.</p>
               )}
+              <p className="text-xs text-slate-400">Certificates are never sent by email - view and download them here.</p>
             </>
           )}
         </div>
@@ -534,6 +579,26 @@ export default function OrderDetailPage() {
               >
                 {verifying ? "Confirming..." : "Confirm & Mark Verified"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewer && (
+        <div role="dialog" aria-modal="true" aria-label="Certificate viewer" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
+              <h2 className="font-medium text-slate-900">E-Stamp certificate</h2>
+              <button type="button" onClick={closeViewer} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
+                Close
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 bg-slate-100">
+              {viewer.isImage ? (
+                <img src={viewer.objectUrl} alt="E-Stamp certificate" className="w-full h-full object-contain" />
+              ) : (
+                <iframe src={viewer.objectUrl} title="E-Stamp certificate" className="w-full h-full border-0" />
+              )}
             </div>
           </div>
         </div>

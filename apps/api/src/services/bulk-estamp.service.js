@@ -793,21 +793,48 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
             req,
         });
     },
+    // ONE notification + email per batch (never one per row - a 500-row batch
+    // must not send 500 emails): to the person who uploaded it, and to the
+    // staff who must fulfil it (every Master Admin plus the client's assigned
+    // Assistant Master Admin).
     async _notifyBatchOutcome(claimed, actorId, actorRole) {
+        const summary = `Batch ${claimed.batchNumber}: ${claimed.createdRequests} created, ${claimed.failedRows} failed out of ${claimed.totalRows} row(s).`;
         const creator = await models_1.User.findById(claimed.createdBy).select("role email");
         if (creator) {
+            const title = "Bulk E-Stamp batch processed";
             await (0, notification_service_1.notifyUser)({
                 recipientId: claimed.createdBy.toString(),
                 recipientRole: creator.role,
                 type: shared_1.NotificationType.ESTAMP_STATUS,
-                title: "Bulk E-Stamp batch processed",
-                message: `Batch ${claimed.batchNumber}: ${claimed.createdRequests} created, ${claimed.failedRows} failed out of ${claimed.totalRows} row(s).`,
+                title,
+                message: summary,
                 organizationId: claimed.organizationId.toString(),
                 relatedActorId: actorId,
                 entityType: "BulkEStampBatch",
                 entityId: claimed._id,
                 eventKey: `bulk-batch:${claimed._id.toString()}:confirmed`,
+                email: creator.email
+                    ? { to: creator.email, method: "sendOrderStatusEmail", args: [{ title, message: summary, status: claimed.status, portalPath: `/estamps/bulk/${claimed._id.toString()}` }] }
+                    : undefined,
             });
+        }
+        if (claimed.createdRequests > 0) {
+            const org = await models_1.Organization.findById(claimed.organizationId).select("name");
+            const title = `Bulk E-Stamp order placed: ${claimed.createdRequests} e-stamp(s)`;
+            const message = `${org?.name || "A client"} placed bulk batch ${claimed.batchNumber} - ${claimed.createdRequests} e-stamp request(s) created.`;
+            const staffParams = {
+                type: shared_1.NotificationType.ESTAMP_STATUS,
+                title,
+                message,
+                organizationId: claimed.organizationId.toString(),
+                relatedActorId: actorId,
+                entityType: "BulkEStampBatch",
+                entityId: claimed._id,
+                eventKey: `bulk-batch:${claimed._id.toString()}:staff`,
+                email: { method: "sendOrderStatusEmail", args: [{ title, message, status: "Placed", portalPath: "/orders" }] },
+            };
+            await (0, notification_service_1.notifyAllMasterAdmins)(staffParams);
+            await (0, notification_service_1.notifyAssignedAssistant)(claimed.organizationId, staffParams);
         }
         if (actorRole === shared_1.Role.ASSISTANT_MASTER_ADMIN) {
             await (0, notification_service_1.notifyAllMasterAdmins)({

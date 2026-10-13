@@ -53,9 +53,12 @@ function cleanReason(reason) {
     }
     return text;
 }
-function notifyVendor(vendorId, order, { title, message, eventKey }) {
-    // Vendors only ever learn the order number - never client details.
-    return (0, notification_service_1.notify)({
+async function notifyVendor(vendorId, order, { title, message, eventKey }) {
+    // Vendors only ever learn the order number - never client details. The
+    // email carries the same title/message plus a link to the vendor's own
+    // order page (or their queue, for a multi-order event).
+    const vendor = await models_1.User.findById(vendorId).select("email");
+    return (0, notification_service_1.notifyUser)({
         recipientId: vendorId.toString(),
         recipientRole: shared_1.Role.VENDOR,
         type: shared_1.NotificationType.VENDOR_ACTIVITY,
@@ -64,6 +67,13 @@ function notifyVendor(vendorId, order, { title, message, eventKey }) {
         entityType: "EStampOrder",
         entityId: order ? order._id : undefined,
         eventKey,
+        email: vendor?.email
+            ? {
+                to: vendor.email,
+                method: "sendOrderStatusEmail",
+                args: [{ orderNumber: order?.orderNumber, title, message, portalPath: order ? `/vendor/orders/${order._id.toString()}` : "/vendor/orders" }],
+            }
+            : undefined,
     });
 }
 function assertRequestFulfillable(request) {
@@ -212,6 +222,7 @@ exports.FulfilmentService = {
         const updatedRequest = (await models_1.EStampRequest.findOneAndUpdate({ _id: request._id, status: shared_1.EStampRequestStatus.LOCKED }, { $set: { status: shared_1.EStampRequestStatus.PROCESSING } }, { new: true })) || request;
         await audit(actor, started, shared_1.AuditAction.ORDER_MODIFIED, { stage: "fulfilment_started" }, req);
         await notifyMastersIfAssistant(actor, started, "Order fulfilment started", `Assistant Master Admin started fulfilling order ${started.orderNumber}.`);
+        await (0, estamp_notifications_1.notifyOrderProcessing)(started, updatedRequest, actor.id);
         return { order: started, request: updatedRequest };
     },
     // POST /orders/:id/fulfil - ALL-OR-NOTHING. Upload, then:
@@ -354,6 +365,9 @@ exports.FulfilmentService = {
             return { orderId: id, ok: false, reason: "CHANGED_CONCURRENTLY" };
         await models_1.EStampRequest.updateOne({ _id: request._id, status: shared_1.EStampRequestStatus.LOCKED }, { $set: { status: shared_1.EStampRequestStatus.PROCESSING } });
         await audit(actor, sent, shared_1.AuditAction.ORDER_DISPATCHED, { vendorId: vendor._id.toString(), previousVendorStatus: current }, req);
+        // Re-dispatch after a vendor hand-back hits this again; the eventKey
+        // inside makes that a no-op, so the client hears "processing" once.
+        await (0, estamp_notifications_1.notifyOrderProcessing)(sent, request, actor.id);
         return { orderId: id, ok: true };
     },
     // One in-app notification per dispatch call, keyed on the exact set of
@@ -396,6 +410,12 @@ exports.FulfilmentService = {
             throw ApiError_1.ApiError.conflict("The order changed concurrently, please reload", "INVALID_STATE");
         }
         await audit(actor, accepted, shared_1.AuditAction.VENDOR_ORDER_ACCEPTED, {}, req);
+        await (0, estamp_notifications_1.notifyOrderStaff)(accepted, {
+            title: "Vendor accepted order",
+            message: `The vendor accepted order ${accepted.orderNumber} and is working on it.`,
+            eventKey: `estamp-order:${accepted._id.toString()}:vendor-accepted`,
+            status: "Accepted by vendor",
+        });
         return { order: accepted };
     },
     // POST /vendor/orders/:id/upload - stores the certificate and adds a
@@ -454,6 +474,7 @@ exports.FulfilmentService = {
             title: "Vendor certificate to review",
             message: `A vendor uploaded the certificate for order ${uploaded.orderNumber}.`,
             eventKey: `estamp-order:${uploaded._id.toString()}:vendor-upload:${entryId.toString()}`,
+            status: "Uploaded - awaiting review",
         });
         return { order: superseded || uploaded, uploadId: entryId };
     },
@@ -474,6 +495,7 @@ exports.FulfilmentService = {
             title: "Vendor cannot process order",
             message: `The vendor cannot process order ${declined.orderNumber}: ${text}`.slice(0, 1000),
             eventKey: `estamp-order:${declined._id.toString()}:vendor-declined:${declined.dispatchedAt ? declined.dispatchedAt.getTime() : 0}`,
+            status: "Handed back by vendor",
         });
         return { order: declined };
     },

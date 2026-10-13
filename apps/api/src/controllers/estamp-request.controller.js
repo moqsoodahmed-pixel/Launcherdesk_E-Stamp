@@ -47,13 +47,28 @@ exports.createRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         stateCode: request.stateCode,
         descriptionOfDocument: request.descriptionOfDocument,
     };
+    // Keyed on the request, so a retried submission (same idempotencyKey,
+    // which returns the original request) never re-sends any of these.
+    const eventKey = `estamp-request:${request._id.toString()}:created`;
     if (user?.email) {
-        await email_service_1.EmailService.sendRequestCreatedEmail(user.email, orderData);
+        await email_service_1.EmailService.sendRequestCreatedEmail(user.email, orderData, eventKey);
     }
+    // Staff who must act on the purchase: every Master Admin, plus the
+    // Assistant Master Admin assigned to this client.
+    const staffEmails = new Set();
     const masterAdmins = await models_1.User.find({ role: shared_1.Role.MASTER_ADMIN, isActive: true }).select("email");
     for (const ma of masterAdmins) {
-        if (ma.email && ma.email !== user?.email) {
-            await email_service_1.EmailService.sendOrderPlacedEmail(ma.email, orderData);
+        if (ma.email)
+            staffEmails.add(ma.email);
+    }
+    if (org?.assignedAssistantId) {
+        const assistant = await models_1.User.findOne({ _id: org.assignedAssistantId, isActive: true }).select("email");
+        if (assistant?.email)
+            staffEmails.add(assistant.email);
+    }
+    for (const to of staffEmails) {
+        if (to !== user?.email) {
+            await email_service_1.EmailService.sendOrderPlacedEmail(to, orderData, `${eventKey}:staff`);
         }
     }
     return (0, ApiResponse_1.created)(res, { request, order });

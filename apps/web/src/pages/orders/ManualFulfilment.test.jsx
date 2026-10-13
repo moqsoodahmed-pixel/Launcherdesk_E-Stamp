@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -144,6 +144,99 @@ describe("Order detail - fulfilment panel", () => {
     expect(screen.getByText("Stamp reference")).toBeInTheDocument();
     expect(screen.queryByText(/provider/i)).not.toBeInTheDocument();
     expect(screen.getByText("Queued")).toBeInTheDocument();
+  });
+});
+
+describe("Order detail - certificate View and Download", () => {
+  const issuedDetail = (overrides = {}) => ({
+    fulfilmentMode: "manual",
+    order: { _id: "o1", orderNumber: "LDE-ORD-1", status: "COMPLETED", eStampStatus: "ISSUED", amount: 500, createdAt: hoursAgo(3), updatedAt: hoursAgo(1) },
+    request: { _id: "r1", requestNumber: "REQ-1", status: "DOWNLOAD_AVAILABLE", stateCode: "KA", articleTitle: "Rental Agreement", firstParty: "Alice", secondParty: "Bob", descriptionOfDocument: "Rent", considerationPrice: 0, calculatedStampDuty: 500, stampDutyPaidBy: "Alice", numberOfEStamps: 1 },
+    certificateAvailable: true,
+    document: { filename: "LDE-ORD-1.pdf", fileSize: 2048, createdAt: hoursAgo(1) },
+    timeline: [{ label: "Submitted", at: hoursAgo(3) }, { label: "Issued", at: hoursAgo(1) }],
+    availableActions: {},
+    ...overrides,
+  });
+  const renderDetail = () =>
+    render(
+      <MemoryRouter initialEntries={["/orders/o1"]}>
+        <Routes>
+          <Route path="/orders/:id" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+  beforeEach(() => {
+    mockUser = { role: "SUPER_ADMIN", fulfilmentMode: "manual", permissions: [PERMISSIONS.ORDER_VIEW, PERMISSIONS.ESTAMP_DOWNLOAD] };
+    URL.createObjectURL = vi.fn(() => "blob:fake-object-url");
+    URL.revokeObjectURL = vi.fn();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("shows both View Certificate and Download Certificate, never a plain link to the signed storage URL", async () => {
+    apiClient.get.mockReturnValue(ok(issuedDetail()));
+    renderDetail();
+    expect(await screen.findByRole("button", { name: "View Certificate" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download Certificate" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /certificate/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/never sent by email/)).toBeInTheDocument();
+  });
+
+  it("View Certificate fetches the authenticated endpoint and opens an in-portal viewer, not a new tab", async () => {
+    apiClient.get.mockImplementation((url) =>
+      url === "/orders/o1" ? ok(issuedDetail()) : ok({ url: "https://signed.example/cert", filename: "LDE-ORD-1.pdf", contentType: "application/pdf" })
+    );
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob(["%PDF"], { type: "application/pdf" })) });
+    vi.stubGlobal("fetch", fetchMock);
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    renderDetail();
+    await userEvent.click(await screen.findByRole("button", { name: "View Certificate" }));
+
+    expect(await screen.findByRole("dialog", { name: "Certificate viewer" })).toBeInTheDocument();
+    expect(apiClient.get).toHaveBeenCalledWith("/files/estamp/o1/download");
+    expect(fetchMock).toHaveBeenCalledWith("https://signed.example/cert");
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(screen.getByTitle("E-Stamp certificate")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog", { name: "Certificate viewer" })).not.toBeInTheDocument();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:fake-object-url");
+  });
+
+  it("Download Certificate still saves a file under the server's filename, independent of View", async () => {
+    apiClient.get.mockImplementation((url) =>
+      url === "/orders/o1" ? ok(issuedDetail()) : ok({ url: "https://signed.example/cert", filename: "LDE-ORD-1.pdf", contentType: "application/pdf" })
+    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob(["%PDF"])) }));
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    renderDetail();
+    await userEvent.click(await screen.findByRole("button", { name: "Download Certificate" }));
+
+    await waitFor(() => expect(clickSpy).toHaveBeenCalled());
+    expect(clickSpy.mock.contexts[0].download).toBe("LDE-ORD-1.pdf");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    clickSpy.mockRestore();
+  });
+
+  it("without ESTAMP_DOWNLOAD, neither View nor Download is offered", async () => {
+    mockUser = { role: "SUPER_ADMIN", fulfilmentMode: "manual", permissions: [PERMISSIONS.ORDER_VIEW] };
+    apiClient.get.mockReturnValue(ok(issuedDetail()));
+    renderDetail();
+    await screen.findByText("Certificate Available");
+    expect(screen.queryByRole("button", { name: "View Certificate" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Download Certificate" })).not.toBeInTheDocument();
+    expect(screen.getByText(/do not have permission to view or download/)).toBeInTheDocument();
+  });
+
+  it("a failed View shows an inline error instead of a blank/broken viewer", async () => {
+    apiClient.get.mockImplementation((url) => (url === "/orders/o1" ? ok(issuedDetail()) : Promise.reject({ response: { status: 500, data: {} } })));
+    renderDetail();
+    await userEvent.click(await screen.findByRole("button", { name: "View Certificate" }));
+    expect(await screen.findByText("Certificate could not be opened. Please try again.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
 

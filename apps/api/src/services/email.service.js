@@ -73,9 +73,9 @@ exports.EmailService = {
     async sendPasswordResetOTP(to, code) {
         await dispatch(to, "otp", { code, purpose: "password reset" });
     },
-    async sendRequestCreatedEmail(to, payloadOrRequestNumber) {
+    async sendRequestCreatedEmail(to, payloadOrRequestNumber, eventKey) {
         const data = typeof payloadOrRequestNumber === "object" ? payloadOrRequestNumber : { requestNumber: payloadOrRequestNumber };
-        await dispatch(to, "requestCreated", data);
+        await dispatch(to, "requestCreated", data, eventKey);
     },
     async sendOrderPlacedEmail(to, orderData, eventKey) {
         await dispatch(to, "orderPlaced", orderData, eventKey);
@@ -90,14 +90,18 @@ exports.EmailService = {
     async sendRequestStatusEmail(to, requestNumber, status) {
         await dispatch(to, "requestStatus", { requestNumber, status });
     },
-    async sendOrderIssuedEmail(to, orderNumber, eventKey) {
-        await dispatch(to, "orderIssued", { orderNumber }, eventKey);
+    // `portalPath` is the in-app route the email links to (never a file).
+    async sendOrderIssuedEmail(to, orderNumber, portalPath, eventKey) {
+        await dispatch(to, "orderIssued", { orderNumber, portalPath }, eventKey);
     },
-    async sendOrderFailedEmail(to, orderNumber, reason, eventKey) {
-        await dispatch(to, "orderFailed", { orderNumber, reason }, eventKey);
+    async sendOrderFailedEmail(to, orderNumber, reason, portalPath, eventKey) {
+        await dispatch(to, "orderFailed", { orderNumber, reason, portalPath }, eventKey);
     },
-    async sendEStampReadyEmail(to, orderNumber, eventKey) {
-        await dispatch(to, "certificateAvailable", { orderNumber }, eventKey);
+    async sendEStampReadyEmail(to, orderNumber, portalPath, eventKey) {
+        await dispatch(to, "certificateAvailable", { orderNumber, portalPath }, eventKey);
+    },
+    async sendOrderStatusEmail(to, { orderNumber, title, message, status, portalPath }, eventKey) {
+        await dispatch(to, "orderStatusUpdate", { orderNumber, title, message, status, portalPath }, eventKey);
     },
     async sendEStampDownloadNotification(to, orderNumber) {
         await dispatch(to, "certificateDownloaded", { orderNumber });

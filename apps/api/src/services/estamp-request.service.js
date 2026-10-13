@@ -355,6 +355,22 @@ exports.EStampRequestService = {
             },
         });
 
+        // ...and to the Assistant Master Admin assigned to this client, who
+        // is the one that actually moves the order forward. In-app only here:
+        // this runs once per row of a bulk batch, so emails are sent per
+        // request by the single-request controller and once per batch by the
+        // bulk flow instead of once per row.
+        await (0, notification_service_1.notifyAssignedAssistant)(input.organizationId, {
+            type: shared_2.NotificationType.ESTAMP_STATUS,
+            title: `New E-Stamp Order Placed: ${orderNumber}`,
+            message: `${org?.name || "Client"} (${buyer?.fullName || buyer?.email || "Super Admin"}) placed E-Stamp request ${request.requestNumber} (Order ${orderNumber}) for ₹${amount}. Parties: ${request.firstParty} & ${request.secondParty}.`,
+            relatedActorId: input.createdBy,
+            organizationId: input.organizationId,
+            entityType: "EStampOrder",
+            entityId: order._id,
+            eventKey: `estamp-request:${request._id.toString()}:created`,
+        });
+
         // Real-time notification to Organization Admins about what was ordered
         await (0, notification_service_1.notifyOrgAdmins)(input.organizationId, {
             type: shared_2.NotificationType.ESTAMP_STATUS,
@@ -617,6 +633,30 @@ exports.EStampRequestService = {
                 organizationId,
             });
         }
+        // Everyone told about the purchase hears it was cancelled: the client's
+        // admins (their reservation is released) and the staff who would
+        // otherwise go on to fulfil it.
+        const cancelledOrder = await models_1.EStampOrder.findOne({ requestId: updated._id }).select("orderNumber");
+        const cancelTitle = "E-Stamp request cancelled";
+        const cancelMessage = `E-Stamp request ${updated.requestNumber} was cancelled within its modification window. Nothing has been charged and the reserved amount has been released.`;
+        const cancelEmail = (portalPath) => ({
+            method: "sendOrderStatusEmail",
+            args: [{ orderNumber: cancelledOrder?.orderNumber, title: cancelTitle, message: cancelMessage, status: "Cancelled", portalPath }],
+        });
+        const cancelBase = {
+            type: shared_2.NotificationType.ESTAMP_STATUS,
+            title: cancelTitle,
+            message: cancelMessage,
+            relatedActorId: actorId,
+            organizationId: updated.organizationId.toString(),
+            entityType: "EStampRequest",
+            entityId: updated._id,
+            eventKey: `estamp-request:${updated._id.toString()}:cancelled`,
+        };
+        await (0, notification_service_1.notifyOrgAdmins)(updated.organizationId, { ...cancelBase, email: cancelEmail(`/estamps/requests/${updated._id.toString()}`) });
+        const staffCancel = { ...cancelBase, eventKey: `${cancelBase.eventKey}:staff`, email: cancelEmail("/orders") };
+        await (0, notification_service_1.notifyAllMasterAdmins)(staffCancel);
+        await (0, notification_service_1.notifyAssignedAssistant)(updated.organizationId, staffCancel);
         // Nothing was ever debited for a request cancelled inside its window
         // (its reservation was released above). Legacy requests, debited at
         // submit before the ledger flow, are still not auto-refunded.
@@ -679,12 +719,22 @@ exports.EStampRequestService = {
                     entityId: charged._id.toString(),
                     metadata: { type: "DEBIT", amount: charged.reservedAmount, walletTransactionId: result.transaction?._id?.toString() },
                 });
+                // The window has closed: the request is now view-only for the
+                // client. Emailed too, since this is the moment editing and
+                // cancelling stop being possible.
+                const chargedTitle = "E-Stamp Wallet Amount Charged";
+                const chargedMessage = `20-minute window completed. ₹${charged.reservedAmount} has been deducted from your wallet for E-Stamp request ${charged.requestNumber}. The request is now locked: it can no longer be edited or cancelled, but you can still view it in the portal.`;
                 await (0, notification_service_1.notifyOrgAdmins)(charged.organizationId, {
                     type: shared_2.NotificationType.PAYMENT,
-                    title: "E-Stamp Wallet Amount Charged",
-                    message: `20-minute window completed. ₹${charged.reservedAmount} has been deducted from your wallet for E-Stamp request ${charged.requestNumber}.`,
+                    title: chargedTitle,
+                    message: chargedMessage,
                     organizationId: charged.organizationId,
                     metadata: { requestId: charged._id, amount: charged.reservedAmount },
+                    eventKey: `estamp-request:${charged._id.toString()}:charged`,
+                    email: {
+                        method: "sendOrderStatusEmail",
+                        args: [{ orderNumber: paidOrder?.orderNumber, title: chargedTitle, message: chargedMessage, status: "Locked - view only", portalPath: `/estamps/requests/${charged._id.toString()}` }],
+                    },
                 });
             }
             return "CHARGED";

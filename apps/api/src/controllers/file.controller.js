@@ -12,6 +12,7 @@ const models_2 = require("../models");
 const shared_1 = require("@launcherdesk/shared");
 const sanitizeFilename_1 = require("../utils/sanitizeFilename");
 const estamp_notifications_1 = require("../services/estamp-notifications");
+const orgAccess_1 = require("../utils/orgAccess");
 // Internal roles (Master/Assistant Master Admin) always have organizationId
 // === null on their OWN account - they act ON BEHALF OF a client org, so the
 // target org must come from the request, never from their own record.
@@ -137,7 +138,14 @@ exports.downloadEStamp = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     if (!isInternal)
         filter.organizationId = req.user.organizationId;
     const doc = await models_1.EStampDocument.findOne(filter).populate("fileAssetId");
+    // An Assistant Master Admin reaches only the organizations assigned to
+    // them - the same scoping enforced everywhere else - not every client's
+    // certificates. Answered as "not found" so an unassigned assistant cannot
+    // even confirm the certificate exists. (Master Admin: unrestricted;
+    // tenant roles: already limited to their own organization by `filter`.)
     if (!doc)
+        throw ApiError_1.ApiError.notFound("E-Stamp document not found or not yet available");
+    if (!(await (0, orgAccess_1.canAccessOrganization)(req, doc.organizationId)))
         throw ApiError_1.ApiError.notFound("E-Stamp document not found or not yet available");
     const asset = await models_1.FileAsset.findById(doc.fileAssetId);
     if (!asset)

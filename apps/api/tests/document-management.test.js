@@ -467,6 +467,8 @@ describe("Notifications", () => {
     const { org, order } = await makeIssuedOrder();
     await attach(org, order);
     const assistant = await User.create({ name: "Assistant", email: `a-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null });
+    // Assistants only reach the organizations assigned to them.
+    await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistant._id });
     const req = makeReq({
       user: { id: assistant._id.toString(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: [Permission.ESTAMP_DOWNLOAD] },
       params: { orderId: order._id.toString() },
@@ -489,6 +491,8 @@ describe("Notifications", () => {
     const { org, order } = await makeIssuedOrder();
     await attach(org, order);
     const assistantId = new mongoose.Types.ObjectId().toString();
+    // Assistants only reach the organizations assigned to them.
+    await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistantId });
     const req = () =>
       makeReq({
         user: { id: assistantId, role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: [Permission.ESTAMP_DOWNLOAD] },

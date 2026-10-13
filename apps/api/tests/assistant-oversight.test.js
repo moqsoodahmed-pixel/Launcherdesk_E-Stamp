@@ -195,6 +195,8 @@ describe("Test 14/15 & 16/17: Assistant Master Admin E-Stamp upload/download cre
     const master = await makeMasterAdmin();
     const org = await makeOrgWithWallet();
     const { user: assistant } = await makeAssistant();
+    // Assistants only reach the organizations assigned to them.
+    await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistant._id });
 
     const asset = await FileAsset.create({
       organizationId: org._id,
