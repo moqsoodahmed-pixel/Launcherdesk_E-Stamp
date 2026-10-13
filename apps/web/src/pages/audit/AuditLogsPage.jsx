@@ -195,13 +195,14 @@ export default function AuditLogsPage() {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         {isInternal && (
           <input
+            aria-label="Organization ID"
             placeholder={orgRequiredForInternal ? "Organization ID (required)" : "Organization ID (optional filter)"}
             value={organizationId}
             onChange={(e) => resetPage(setOrganizationId)(e.target.value)}
             className="input w-full sm:w-64"
           />
         )}
-        <select value={action} onChange={(e) => resetPage(setAction)(e.target.value)} className="input w-auto">
+        <select aria-label="Action" value={action} onChange={(e) => resetPage(setAction)(e.target.value)} className="input w-auto">
           <option value="">All actions</option>
           {ACTION_OPTIONS.map((a) => (
             <option key={a} value={a}>
@@ -210,12 +211,13 @@ export default function AuditLogsPage() {
           ))}
         </select>
         <input
+          aria-label="Entity type"
           placeholder="Entity type (e.g. EStampOrder)"
           value={entityType}
           onChange={(e) => resetPage(setEntityType)(e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
-        <select value={preset} onChange={(e) => resetPage(setPreset)(e.target.value)} className="input w-auto">
+        <select aria-label="Date range" value={preset} onChange={(e) => resetPage(setPreset)(e.target.value)} className="input w-auto">
           {DATE_PRESETS.map((p) => (
             <option key={p.value} value={p.value}>
               {p.label}
@@ -224,9 +226,9 @@ export default function AuditLogsPage() {
         </select>
         {preset === "custom" && (
           <>
-            <input type="date" value={customFrom} onChange={(e) => resetPage(setCustomFrom)(e.target.value)} className="input w-auto" />
+            <input type="date" aria-label="From date" value={customFrom} onChange={(e) => resetPage(setCustomFrom)(e.target.value)} className="input w-auto" />
             <span className="text-slate-400 text-sm">to</span>
-            <input type="date" value={customTo} onChange={(e) => resetPage(setCustomTo)(e.target.value)} className="input w-auto" />
+            <input type="date" aria-label="To date" value={customTo} onChange={(e) => resetPage(setCustomTo)(e.target.value)} className="input w-auto" />
           </>
         )}
         <button onClick={load} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
@@ -247,8 +249,8 @@ export default function AuditLogsPage() {
       )}
 
       {canLoad && (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="card overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-slate-50 text-xs text-slate-600">
               <tr>
                 <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">When</th>

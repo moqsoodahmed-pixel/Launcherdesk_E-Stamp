@@ -434,8 +434,9 @@ export default function RequestDetailPage() {
               Please verify that party names ({request?.firstParty} & {request?.secondParty}), consideration value, and attached document descriptions are correct.
             </p>
             <div className="mb-4">
-              <label className="mb-1.5 block text-sm font-medium text-slate-800">Verification Notes (Optional)</label>
+              <label htmlFor="verify-notes" className="mb-1.5 block text-sm font-medium text-slate-800">Verification Notes (Optional)</label>
               <textarea
+                id="verify-notes"
                 value={verifyNotes}
                 onChange={(e) => setVerifyNotes(e.target.value)}
                 rows={3}

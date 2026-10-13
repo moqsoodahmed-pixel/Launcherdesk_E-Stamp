@@ -120,3 +120,25 @@ exclamation marks.
 | `Toast` | `tone`: success, error, info |
 | `Skeleton`, `PageSkeleton` | Loading placeholders |
 | `StampCard` | Perforated edge, `tone`: light or brand |
+
+## Charts
+
+Recharts only, themed by `src/components/dashboard/chartTheme.jsx`:
+
+- Categorical palette, assigned in this fixed order and never cycled:
+  #2B3FD9, #0E9AA7, #F59607, #C13584, #12A36B, #7C52F3 (validated for
+  lightness, chroma and colour-vision-deficiency separation; slot 3 is
+  below 3:1 on white, so a chart using it keeps a legend or visible labels).
+- Status bars (issued, being prepared, failed) use the status colours.
+- Shared `gridProps`, `axisProps`, `yAxisProps`, `tooltipProps`,
+  `legendProps`, `barProps` and `lineProps`. Single-series charts need no
+  legend; the card title names the series.
+- Every chart sits in `ChartCard`, which owns loading, error and empty states.
+- Clients see status bars by their client label (internal stages merge
+  into "Being prepared").
+
+## Code splitting
+
+Pages inside the dashboard shell are `React.lazy` routes; the layout's
+`Suspense` shows `PageSkeleton`. Keep auth screens, the 404 page and the
+dashboard switch eager.

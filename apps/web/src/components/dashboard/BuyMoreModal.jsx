@@ -344,6 +344,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
                   </span>
                   <input
                     type="number"
+                    aria-label="Custom amount in rupees"
                     min="100"
                     step="100"
                     value={customAmount}

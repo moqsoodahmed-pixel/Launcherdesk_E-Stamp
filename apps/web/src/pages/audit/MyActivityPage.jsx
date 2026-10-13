@@ -47,8 +47,8 @@ export default function MyActivityPage() {
         </div>
       )}
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
           <thead className="bg-slate-50 text-xs text-slate-600">
             <tr>
               <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">When</th>

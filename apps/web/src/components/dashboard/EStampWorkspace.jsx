@@ -320,12 +320,14 @@ export default function EStampWorkspace({ user, onStateChanged }) {
           <div className="flex flex-wrap items-center gap-2">
             <input
               type="text"
+              aria-label="Search orders"
               placeholder="Search by order #..."
               value={orderSearch}
               onChange={(e) => setOrderSearch(e.target.value)}
               className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 w-44"
             />
             <select
+              aria-label="Order status"
               value={orderStatus}
               onChange={(e) => setOrderStatus(e.target.value)}
               className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"

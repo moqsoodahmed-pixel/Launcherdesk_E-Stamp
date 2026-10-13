@@ -2,6 +2,8 @@ import { useState } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { CHART_COLORS, gridProps, axisProps, yAxisProps, tooltipProps, barProps, lineProps } from "../../components/dashboard/chartTheme";
+import { isClientRole, statusMeta } from "../../components/ui/status";
 import { getErrorMessage } from "../../utils/errors";
 import { useApi } from "../../hooks/useApi";
 import LoadingState from "../../components/common/LoadingState";
@@ -140,9 +142,9 @@ export default function ReportsPage() {
           </select>
           {preset === "custom" && (
             <>
-              <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="input w-auto" />
+              <input type="date" aria-label="From date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="input w-auto" />
               <span className="text-slate-400 text-sm">to</span>
-              <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="input w-auto" />
+              <input type="date" aria-label="To date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="input w-auto" />
             </>
           )}
           <button onClick={load} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
@@ -179,11 +181,11 @@ export default function ReportsPage() {
               {requests?.dailyTrend?.length ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={requests.dailyTrend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={2} dot={false} />
+                    <CartesianGrid {...gridProps} />
+                    <XAxis dataKey="date" {...axisProps} />
+                    <YAxis allowDecimals={false} {...yAxisProps} />
+                    <Tooltip {...tooltipProps} />
+                    <Line {...lineProps} dataKey="count" name="Requests" stroke={CHART_COLORS[0]} />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
@@ -194,12 +196,12 @@ export default function ReportsPage() {
             <ChartCard title="Request status distribution" error={errors.requests}>
               {requests?.statusDistribution?.length ? (
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={requests.statusDistribution}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="status" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={60} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                  <BarChart data={statusChartData(requests.statusDistribution, isClientRole(user?.role))}>
+                    <CartesianGrid {...gridProps} />
+                    <XAxis dataKey="status" {...axisProps} interval={0} angle={-20} textAnchor="end" height={60} />
+                    <YAxis allowDecimals={false} {...yAxisProps} />
+                    <Tooltip {...tooltipProps} />
+                    <Bar dataKey="count" name="Requests" fill={CHART_COLORS[0]} {...barProps} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -212,11 +214,11 @@ export default function ReportsPage() {
             {requests?.stateDistribution?.length ? (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={requests.stateDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="stateCode" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="stateCode" {...axisProps} />
+                  <YAxis allowDecimals={false} {...yAxisProps} />
+                  <Tooltip {...tooltipProps} />
+                  <Bar dataKey="count" name="Requests" fill={CHART_COLORS[1]} {...barProps} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -411,4 +413,16 @@ function formatSeconds(timing) {
   if (s < 60) return `${s.toFixed(0)}s`;
   if (s < 3600) return `${(s / 60).toFixed(1)}m`;
   return `${(s / 3600).toFixed(1)}h`;
+}
+
+// Clients see request statuses by their plain label; internal stages merge
+// into one "Being prepared" bar. Staff see each enum.
+function statusChartData(rows, client) {
+  if (!client) return rows;
+  const byLabel = new Map();
+  for (const r of rows) {
+    const label = statusMeta(r.status, { client: true }).label;
+    byLabel.set(label, (byLabel.get(label) || 0) + r.count);
+  }
+  return [...byLabel].map(([status, count]) => ({ status, count }));
 }

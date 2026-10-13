@@ -133,7 +133,7 @@ export default function PolicyPage() {
       </div>
 
       {user && myAcks.length > 0 && (
-        <div className="card overflow-hidden mt-6">
+        <div className="card overflow-x-auto mt-6">
           <div className="px-4 py-3 border-b border-slate-100 text-sm font-medium text-slate-900">Your acceptance history</div>
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-slate-600">
