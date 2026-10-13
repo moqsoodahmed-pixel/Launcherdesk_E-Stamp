@@ -132,26 +132,27 @@ describe("UsersListPage - deactivate confirmation", () => {
   it("requires confirmation before calling the status endpoint, and skips the call when declined", async () => {
     const { default: userEvent } = await import("@testing-library/user-event");
     const u = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     apiClient.get.mockResolvedValue(page([user({ role: "ADMIN" })]));
     renderPage();
     await screen.findByText("Alice");
 
     await u.click(screen.getByRole("button", { name: "Deactivate" }));
-    expect(window.confirm).toHaveBeenCalled();
+    expect(await screen.findByRole("dialog", { name: "Deactivate Alice?" })).toBeInTheDocument();
+    await u.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(apiClient.patch).not.toHaveBeenCalled();
   });
 
   it("calls PATCH /users/:id/status with isActive:false once confirmed, then refreshes from the server", async () => {
     const { default: userEvent } = await import("@testing-library/user-event");
     const u = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     apiClient.get.mockResolvedValue(page([user({ role: "ADMIN" })]));
     apiClient.patch.mockResolvedValue({ data: { data: {} } });
     renderPage();
     await screen.findByText("Alice");
 
     await u.click(screen.getByRole("button", { name: "Deactivate" }));
+    await u.click(await screen.findByRole("button", { name: "Deactivate user" }));
     await waitFor(() => expect(apiClient.patch).toHaveBeenCalledWith("/users/u1/status", { isActive: false }));
     // Refresh pulls real server state, never a locally-flipped flag.
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));

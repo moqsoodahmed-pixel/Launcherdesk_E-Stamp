@@ -1,3 +1,5 @@
+import Modal from "../../components/ui/Modal";
+import VerifyDocumentsDialog from "../../components/estamps/VerifyDocumentsDialog";
 import { CheckCircle2 } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
@@ -551,62 +553,24 @@ export default function OrderDetailPage() {
       )}
 
       {showVerifyModal && (
-        <div className="fixed inset-0 bg-midnight-900/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-dialog max-w-md w-full p-6 shadow-overlay border border-slate-200">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Confirm Document Verification</h3>
-            <p className="text-sm text-slate-600 mb-4">
-              Please verify that party names ({request?.firstParty} & {request?.secondParty}), consideration value, and attached document descriptions are correct.
-            </p>
-            <div className="mb-4">
-              <label className="mb-1.5 block text-sm font-medium text-slate-800">Verification Notes (Optional)</label>
-              <textarea
-                value={verifyNotes}
-                onChange={(e) => setVerifyNotes(e.target.value)}
-                rows={3}
-                placeholder="e.g. Identity and agreement documents verified against registry..."
-                className="w-full text-sm rounded-lg border border-slate-300 p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowVerifyModal(false)}
-                disabled={verifying}
-                className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleVerifyDocuments}
-                disabled={verifying}
-                className="rounded-lg px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50"
-              >
-                {verifying ? "Confirming..." : "Confirm & Mark Verified"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <VerifyDocumentsDialog
+          request={request}
+          notes={verifyNotes}
+          onNotesChange={setVerifyNotes}
+          verifying={verifying}
+          onConfirm={handleVerifyDocuments}
+          onCancel={() => setShowVerifyModal(false)}
+        />
       )}
 
       {viewer && (
-        <div role="dialog" aria-modal="true" aria-label="Certificate viewer" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-dialog shadow-overlay w-full max-w-4xl h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
-              <h2 className="font-medium text-slate-900">E-Stamp certificate</h2>
-              <button type="button" onClick={closeViewer} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
-                Close
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 bg-slate-100">
-              {viewer.isImage ? (
-                <img src={viewer.objectUrl} alt="E-Stamp certificate" className="w-full h-full object-contain" />
-              ) : (
-                <iframe src={viewer.objectUrl} title="E-Stamp certificate" className="w-full h-full border-0" />
-              )}
-            </div>
-          </div>
-        </div>
+        <Modal title="E-Stamp certificate" ariaLabel="Certificate viewer" onClose={closeViewer} size="xl" bodyClassName="mt-3 h-[75dvh] min-h-0 flex-1 bg-slate-100">
+          {viewer.isImage ? (
+            <img src={viewer.objectUrl} alt="E-Stamp certificate" className="h-full w-full object-contain" />
+          ) : (
+            <iframe src={viewer.objectUrl} title="E-Stamp certificate" className="h-full w-full border-0" />
+          )}
+        </Modal>
       )}
     </div>
   );

@@ -1,3 +1,5 @@
+import Toast from "../../components/ui/Toast";
+import { useConfirm } from "../../components/ui/useConfirm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -11,10 +13,11 @@ import ErrorState from "../../components/common/ErrorState";
 // from the list page's "View" link, or from BulkUploadWizard right after a
 // confirm. Preserves, unchanged, every real gate/behavior the old
 // single-page version had: polling ONLY while PROCESSING, the exact
-// canConfirm/canCancel derivation, the window.confirm() amount prompt, and
+// canConfirm/canCancel derivation, the confirmation dialog's amount prompt, and
 // the reload-on-rejected-confirm handling (a rejected confirm still updates
 // the batch server-side, e.g. to FAILED on insufficient balance).
 export default function BulkBatchDetailPage() {
+  const [confirm, confirmDialog] = useConfirm();
   const { batchId } = useParams();
   const navigate = useNavigate();
   const [batch, setBatch] = useState(null);
@@ -75,9 +78,12 @@ export default function BulkBatchDetailPage() {
 
   async function handleConfirm() {
     if (!batch) return;
-    if (!window.confirm(`Confirm this batch? ${formatCurrency(batch.totalStampDuty || 0)} will be charged to your wallet for ${batch.validRows} valid row(s).`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Confirm this batch?",
+      message: `${formatCurrency(batch.totalStampDuty || 0)} will be charged to your wallet for ${batch.validRows} valid row(s).`,
+      confirmLabel: "Charge and confirm",
+    });
+    if (!ok) return;
     setConfirming(true);
     setError(null);
     setNotice(null);
@@ -102,7 +108,8 @@ export default function BulkBatchDetailPage() {
 
   async function handleCancel() {
     if (!batch) return;
-    if (!window.confirm("Cancel this batch? Nothing has been charged yet.")) return;
+    const ok = await confirm({ title: "Cancel this batch?", message: "Nothing has been charged yet.", confirmLabel: "Cancel batch", tone: "danger" });
+    if (!ok) return;
     setError(null);
     try {
       const { data } = await apiClient.post(`/bulk-estamps/${batch._id}/cancel`, {
@@ -146,14 +153,15 @@ export default function BulkBatchDetailPage() {
 
   return (
     <div className="max-w-5xl">
+      {confirmDialog}
       <div className="flex items-center justify-between mb-4">
         <button type="button" onClick={() => navigate("/estamps/bulk")} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           &larr; Back to Bulk Requests
         </button>
       </div>
 
-      {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
-      {notice && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
+      {error && <Toast tone="error" className="mb-4">{error}</Toast>}
+      {notice && <Toast tone="success" className="mb-4">{notice}</Toast>}
 
       <div className="card p-6 mb-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

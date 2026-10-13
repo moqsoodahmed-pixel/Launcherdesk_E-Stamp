@@ -1,3 +1,5 @@
+import Toast from "../../components/ui/Toast";
+import { useConfirm } from "../../components/ui/useConfirm";
 import SharedStepper from "../../components/ui/Stepper";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -17,6 +19,7 @@ const STEPS = ["Upload", "Validation & Preview", "Financial Review", "Confirm"];
 // straight from the batch/wallet API responses - nothing here is a
 // fabricated progress percentage.
 export default function BulkUploadWizard() {
+  const [confirm, confirmDialog] = useConfirm();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [batch, setBatch] = useState(null);
@@ -92,13 +95,12 @@ export default function BulkUploadWizard() {
 
   async function handleConfirm() {
     if (!batch) return;
-    if (
-      !window.confirm(
-        `Confirm this batch? ${formatCurrency(batch.totalStampDuty || 0)} will be charged to your wallet for ${batch.validRows} valid row(s).`
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Confirm this batch?",
+      message: `${formatCurrency(batch.totalStampDuty || 0)} will be charged to your wallet for ${batch.validRows} valid row(s).`,
+      confirmLabel: "Charge and confirm",
+    });
+    if (!ok) return;
     setConfirming(true);
     setError(null);
     try {
@@ -131,6 +133,7 @@ export default function BulkUploadWizard() {
 
   return (
     <div className="max-w-7xl pb-24">
+      {confirmDialog}
       <div className="flex items-center justify-between mb-2">
         <h1 className="font-display text-2xl font-semibold text-slate-900">Create Bulk E-Stamp Request</h1>
         <button type="button" onClick={handleTemplateDownload} className="text-sm font-medium text-brand-700 hover:underline">
@@ -140,7 +143,7 @@ export default function BulkUploadWizard() {
 
       <Stepper step={step} />
 
-      {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
+      {error && <Toast tone="error" className="mb-4">{error}</Toast>}
 
       <div className="card p-6">
         {step === 0 && (

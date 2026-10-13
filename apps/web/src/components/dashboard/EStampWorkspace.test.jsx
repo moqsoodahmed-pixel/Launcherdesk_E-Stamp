@@ -122,3 +122,18 @@ describe("EStampWorkspace Component", () => {
     expect(screen.getByText(/Priority SLA Active/i)).toBeInTheDocument();
   });
 });
+
+describe("EStampWorkspace pop-ups are accessible dialogs", () => {
+  it("Contact Support opens a labelled dialog that closes on Escape and returns focus to its button", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    renderWorkspace();
+    const supportBtn = await screen.findByRole("button", { name: /Contact Support/i });
+    await u.click(supportBtn);
+    const dialog = await screen.findByRole("dialog", { name: "LauncherDesk Support" });
+    expect(dialog).toContainElement(document.activeElement);
+    await u.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(supportBtn).toHaveFocus();
+  });
+});

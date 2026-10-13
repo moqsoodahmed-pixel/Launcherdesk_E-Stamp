@@ -5,7 +5,7 @@ import Button from "./Button";
 const FOCUSABLE = "a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
 // Dialog with a focus trap, Escape to close and focus restored on close.
-export default function Modal({ open = true, title, description, onClose, children, footer, size = "md", labelledBy }) {
+export default function Modal({ open = true, title, description, onClose, children, footer, size = "md", labelledBy, ariaLabel, bodyClassName = "overflow-y-auto px-5 py-4 sm:px-6", panelClassName = "" }) {
   const panelRef = useRef(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -48,7 +48,7 @@ export default function Modal({ open = true, title, description, onClose, childr
   }, [open]);
 
   if (!open) return null;
-  const width = size === "lg" ? "max-w-2xl" : size === "sm" ? "max-w-sm" : "max-w-lg";
+  const width = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-4xl" }[size] || "max-w-lg";
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-midnight-900/50" onClick={onClose} aria-hidden="true" />
@@ -56,13 +56,14 @@ export default function Modal({ open = true, title, description, onClose, childr
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={labelledBy || (title ? titleId : undefined)}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabel ? undefined : labelledBy || (title ? titleId : undefined)}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className={`relative flex max-h-[92dvh] w-full ${width} flex-col rounded-t-dialog bg-white shadow-overlay focus:outline-none sm:rounded-dialog`}
+        className={`relative flex max-h-[92dvh] w-full ${width} flex-col rounded-t-dialog bg-white shadow-overlay focus:outline-none sm:rounded-dialog ${panelClassName}`}
       >
         {(title || onClose) && (
-          <div className="flex items-start justify-between gap-3 px-5 pt-5 sm:px-6">
+          <div className="flex items-start justify-between gap-3 px-5 pb-1 pt-5 sm:px-6">
             <div className="min-w-0">
               {title && (
                 <h2 id={titleId} className="font-display text-lg font-semibold text-slate-900">
@@ -82,7 +83,7 @@ export default function Modal({ open = true, title, description, onClose, childr
             )}
           </div>
         )}
-        <div className="overflow-y-auto px-5 py-4 sm:px-6">{children}</div>
+        <div className={bodyClassName}>{children}</div>
         {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4 sm:px-6">{footer}</div>}
       </div>
     </div>

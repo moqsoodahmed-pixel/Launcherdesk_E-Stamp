@@ -1,4 +1,5 @@
-import { FileText, X } from "lucide-react";
+import Modal from "../../components/ui/Modal";
+import { FileText } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -208,22 +209,18 @@ export default function PaymentDetailPage() {
       </Card>
 
       {showInvoiceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-900/50 p-4">
-          <div className="bg-white rounded-dialog max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-overlay border border-slate-200">
-            <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="font-display text-lg font-semibold text-slate-900">LauncherDesk E-Stamp</h3>
-                <p className="text-xs text-slate-500">Official Payment Receipt & Tax Invoice</p>
-              </div>
-              <button
-                onClick={() => setShowInvoiceModal(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                aria-label="Close"
-              >
-                <X size={18} aria-hidden="true" />
-              </button>
-            </div>
-
+        <Modal
+          title="LauncherDesk E-Stamp"
+          description="Official Payment Receipt & Tax Invoice"
+          onClose={() => setShowInvoiceModal(false)}
+          size="lg"
+          footer={
+            <button type="button" onClick={() => window.print()} className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700 sm:min-h-[40px]">
+              Print / Save PDF
+            </button>
+          }
+        >
+          <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-xs text-slate-600">
               <div>
                 <p className="font-semibold text-slate-900">Invoice Number:</p>
@@ -265,25 +262,11 @@ export default function PaymentDetailPage() {
             <div className="text-xs text-slate-500 space-y-1">
               <p>Payment Method: Razorpay</p>
               <p className="font-mono">Transaction ID: {txId}</p>
-              <p>Status: <span className="text-green-700 font-semibold">{payment.status}</span></p>
+              <p>Status: <span className="font-semibold text-emerald-700">{payment.status}</span></p>
             </div>
 
-            <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => window.print()}
-                className="px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700"
-              >
-                Print / Save PDF
-              </button>
-              <button
-                onClick={() => setShowInvoiceModal(false)}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

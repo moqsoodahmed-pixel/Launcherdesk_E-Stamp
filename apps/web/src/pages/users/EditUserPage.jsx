@@ -1,3 +1,5 @@
+import Toast from "../../components/ui/Toast";
+import { useConfirm } from "../../components/ui/useConfirm";
 import { useEffect, useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -9,6 +11,7 @@ import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 
 export default function EditUserPage() {
+  const [confirm, confirmDialog] = useConfirm();
   const { id } = useParams();
   const { user: me } = useAuth();
   const [user, setUser] = useState(null);
@@ -58,7 +61,8 @@ export default function EditUserPage() {
   }
 
   async function handleRoleChange(newRole) {
-    if (!window.confirm(`Change ${user.name}'s role to ${newRole}?`)) return;
+    const ok = await confirm({ title: `Change ${user.name}'s role to ${newRole}?`, confirmLabel: "Change role" });
+    if (!ok) return;
     setRoleBusy(true);
     setError(null);
     setNotice(null);
@@ -83,6 +87,7 @@ export default function EditUserPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      {confirmDialog}
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-slate-900">{user.name}</h1>
         <Link to={`/users?role=${user.role}`} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
@@ -90,8 +95,8 @@ export default function EditUserPage() {
         </Link>
       </div>
 
-      {notice && <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
+      {notice && <Toast tone="success">{notice}</Toast>}
+      {error && <Toast tone="error">{error}</Toast>}
 
       {!canEdit && (
         <div className="card p-6 space-y-2 text-sm">

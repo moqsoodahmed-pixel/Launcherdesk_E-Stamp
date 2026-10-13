@@ -1,3 +1,4 @@
+import Toast from "../../components/ui/Toast";
 import { useState } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
@@ -354,7 +355,7 @@ export default function ReportsPage() {
 function KpiSection({ dashboard, error, canViewFinancial }) {
   return (
     <div>
-      {error && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
+      {error && <Toast tone="error" className="mb-3">{error}</Toast>}
       {dashboard && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label="Total requests" value={dashboard.requests.total} />

@@ -1,3 +1,4 @@
+import Toast from "../../components/ui/Toast";
 import StampCard from "../../components/ui/StampCard";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
@@ -228,8 +229,8 @@ export default function WalletPage() {
         </div>
       )}
 
-      {notice && <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
-      {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
+      {notice && <Toast tone="success">{notice}</Toast>}
+      {error && <Toast tone="error">{error}</Toast>}
 
       {scopeReady && (
         <>

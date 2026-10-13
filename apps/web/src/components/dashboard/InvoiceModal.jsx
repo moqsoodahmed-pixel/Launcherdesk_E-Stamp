@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import Modal from "../ui/Modal";
 import { useState } from "react";
 import { apiClient } from "../../api/client";
 import { formatCurrency, actionErrorMessage } from "../../utils/format";
@@ -35,22 +35,18 @@ export default function InvoiceModal({ payment, organizationName, userName, user
   const dateStr = payment.createdAt ? new Date(payment.createdAt).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-900/50 p-4">
-      <div className="bg-white rounded-dialog max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-overlay border border-slate-200">
-        <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-          <div>
-            <h3 className="font-display text-lg font-semibold text-slate-900">LauncherDesk E-Stamp</h3>
-            <p className="text-xs text-slate-500">Official Payment Receipt & Tax Invoice</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-            aria-label="Close"
-          >
-            <X size={18} aria-hidden="true" />
-          </button>
-        </div>
-
+    <Modal
+      title="LauncherDesk E-Stamp"
+      description="Official Payment Receipt & Tax Invoice"
+      onClose={onClose}
+      size="lg"
+      footer={
+        <button type="button" onClick={() => window.print()} className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50 sm:min-h-[40px]">
+          Print / Save PDF
+        </button>
+      }
+    >
+      <div className="space-y-6">
         <div className="grid grid-cols-2 gap-4 text-xs text-slate-600">
           <div>
             <p className="font-semibold text-slate-900">Invoice Number:</p>
@@ -77,13 +73,13 @@ export default function InvoiceModal({ payment, organizationName, userName, user
             <tbody>
               <tr>
                 <td className="p-2.5 text-slate-800">{planName}</td>
-                <td className="p-2.5 text-right font-medium text-slate-900">{formatCurrency(payment.amount)}</td>
+                <td className="p-2.5 text-right font-medium text-slate-900 tabular-nums">{formatCurrency(payment.amount)}</td>
               </tr>
             </tbody>
             <tfoot className="border-t border-slate-200 font-semibold bg-slate-50/50">
               <tr>
                 <td className="p-2.5 text-slate-900">Total Paid</td>
-                <td className="p-2.5 text-right text-slate-900 text-sm">{formatCurrency(payment.amount)}</td>
+                <td className="p-2.5 text-right text-sm text-slate-900 tabular-nums">{formatCurrency(payment.amount)}</td>
               </tr>
             </tfoot>
           </table>
@@ -93,11 +89,11 @@ export default function InvoiceModal({ payment, organizationName, userName, user
           <p>Payment Method: Razorpay Secure Gateway</p>
           <p className="font-mono">Transaction ID: {txId}</p>
           <p>
-            Status: <span className="text-green-700 font-semibold">{payment.status || "SUCCESS"}</span>
+            Status: <span className="font-semibold text-emerald-700">{payment.status || "SUCCESS"}</span>
           </p>
           <button
             onClick={handleViewTransaction}
-            className="text-brand-600 hover:underline font-medium mt-1"
+            className="mt-1 min-h-[36px] font-medium text-brand-700 hover:underline"
           >
             {txLoading ? "Loading transaction..." : txDetail ? "Hide transaction details" : "View Transaction →"}
           </button>
@@ -125,21 +121,7 @@ export default function InvoiceModal({ payment, organizationName, userName, user
           </div>
         )}
 
-        <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-          <button
-            onClick={() => window.print()}
-            className="px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700"
-          >
-            Print / Save PDF
-          </button>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50"
-          >
-            Close
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -184,3 +184,27 @@ describe("RequestDetailPage - editing who pays the stamp duty", () => {
     expect(screen.queryByRole("group", { name: "Who pays the stamp duty?" })).not.toBeInTheDocument();
   });
 });
+
+describe("RequestDetailPage - cancel confirmation dialog", () => {
+  const open = (seconds) => request({ status: "MODIFICATION_WINDOW", canModify: true, canCancel: true, windowRemainingSeconds: seconds });
+
+  it("asks in a dialog, does nothing on Go back, and cancels only after confirming", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    apiClient.get.mockResolvedValue({ data: { data: open(1199) } });
+    apiClient.post.mockResolvedValue({ data: { data: {} } });
+    renderAt();
+    const cancelBtn = await screen.findByRole("button", { name: "Cancel Request" });
+
+    await u.click(cancelBtn);
+    expect(await screen.findByRole("dialog", { name: "Cancel this E-Stamp request?" })).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Go back" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(cancelBtn).toHaveFocus();
+    expect(apiClient.post).not.toHaveBeenCalled();
+
+    await u.click(cancelBtn);
+    await u.click(await screen.findByRole("button", { name: "Cancel the request" }));
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/estamps/r1/cancel"));
+  });
+});

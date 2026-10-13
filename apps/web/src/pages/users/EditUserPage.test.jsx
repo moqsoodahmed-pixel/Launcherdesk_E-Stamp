@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import EditUserPage from "./EditUserPage";
 import { apiClient } from "../../api/client";
@@ -60,24 +60,26 @@ describe("EditUserPage - role management respects hierarchy", () => {
   it("requires confirmation and calls the real role endpoint with the exact target role", async () => {
     const { default: userEvent } = await import("@testing-library/user-event");
     const u = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     apiClient.patch.mockResolvedValue({ data: { data: {} } });
     renderAt(makeUser({ role: "USER" }));
     await screen.findByText("Alice");
 
     await u.click(screen.getByText("Change to Admin"));
-    expect(window.confirm).toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog", { name: "Change Alice's role to ADMIN?" });
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    await u.click(within(dialog).getByRole("button", { name: "Change role" }));
     await waitFor(() => expect(apiClient.patch).toHaveBeenCalledWith("/users/u1/role", { role: "ADMIN" }));
   });
 
   it("does not call the role endpoint when confirmation is declined", async () => {
     const { default: userEvent } = await import("@testing-library/user-event");
     const u = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     renderAt(makeUser({ role: "USER" }));
     await screen.findByText("Alice");
 
     await u.click(screen.getByText("Change to Admin"));
+    await u.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Go back" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(apiClient.patch).not.toHaveBeenCalled();
   });
 });

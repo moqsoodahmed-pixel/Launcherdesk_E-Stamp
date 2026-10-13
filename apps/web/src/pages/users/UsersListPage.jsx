@@ -1,3 +1,5 @@
+import Toast from "../../components/ui/Toast";
+import { useConfirm } from "../../components/ui/useConfirm";
 import StatusChip from "../../components/ui/StatusChip";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -15,6 +17,7 @@ const LIMIT = 10;
 const TITLES = { SUPER_ADMIN: "Super Admins", ADMIN: "Admins", USER: "Users" };
 
 export default function UsersListPage() {
+  const [confirm, confirmDialog] = useConfirm();
   const { user: me } = useAuth();
   // Temporary-password column: Master Admin only (the API enforces it too).
   const isMaster = me?.role === "MASTER_ADMIN";
@@ -56,7 +59,12 @@ export default function UsersListPage() {
 
   async function handleStatusChange(user, isActive) {
     const verb = isActive ? "activate" : "deactivate";
-    if (!window.confirm(`${isActive ? "Activate" : "Deactivate"} ${user.name}?`)) return;
+    const ok = await confirm({
+      title: `${isActive ? "Activate" : "Deactivate"} ${user.name}?`,
+      confirmLabel: isActive ? "Activate user" : "Deactivate user",
+      tone: isActive ? "primary" : "danger",
+    });
+    if (!ok) return;
     setActionError(null);
     try {
       await apiClient.patch(`/users/${user._id}/status`, { isActive });
@@ -73,6 +81,7 @@ export default function UsersListPage() {
 
   return (
     <div>
+      {confirmDialog}
       <PageHeader
         title={role ? TITLES[role] : "Users"}
         actions={
@@ -121,8 +130,8 @@ export default function UsersListPage() {
         </button>
       </div>
 
-      {notice && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
-      {actionError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{actionError}</div>}
+      {notice && <Toast tone="success" className="mb-4">{notice}</Toast>}
+      {actionError && <Toast tone="error" className="mb-4">{actionError}</Toast>}
       {error && (
         <div className="mb-4">
           <ErrorState message={error} onRetry={load} />

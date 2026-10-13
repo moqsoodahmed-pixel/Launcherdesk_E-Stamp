@@ -1,3 +1,5 @@
+import Toast from "../../components/ui/Toast";
+import { useConfirm } from "../../components/ui/useConfirm";
 import StatusChip from "../../components/ui/StatusChip";
 import { useEffect, useState } from "react";
 import { apiClient } from "../../api/client";
@@ -15,6 +17,7 @@ const RULE_TYPES = ["FIXED", "PERCENTAGE"];
 const EMPTY_VERSION_FORM = { ruleType: "FIXED", fixedAmount: "", percentage: "", minAmount: "", maxAmount: "", effectiveFrom: "" };
 
 export default function ArticlesPage() {
+  const [confirm, confirmDialog] = useConfirm();
   const { user } = useAuth();
   // Write endpoints need ARTICLE_MANAGE and only internal roles can hold it.
   const canManage = (user?.role === "MASTER_ADMIN" || user?.role === "ASSISTANT_MASTER_ADMIN") && hasPermission(user, PERMISSIONS.ARTICLE_MANAGE);
@@ -88,7 +91,13 @@ export default function ArticlesPage() {
 
   async function handleToggleStatus(article) {
     const next = !article.isActive;
-    if (!window.confirm(`${next ? "Activate" : "Deactivate"} "${article.title}"? ${!next ? "It will no longer be selectable for new E-Stamp requests." : ""}`)) return;
+    const ok = await confirm({
+      title: `${next ? "Activate" : "Deactivate"} "${article.title}"?`,
+      message: next ? undefined : "It will no longer be selectable for new E-Stamp requests.",
+      confirmLabel: next ? "Activate article" : "Deactivate article",
+      tone: next ? "primary" : "danger",
+    });
+    if (!ok) return;
     setActionError(null);
     setNotice(null);
     try {
@@ -122,6 +131,7 @@ export default function ArticlesPage() {
 
   return (
     <div>
+      {confirmDialog}
       <PageHeader
         title="Articles"
         actions={
@@ -141,8 +151,8 @@ export default function ArticlesPage() {
         </button>
       </div>
 
-      {notice && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
-      {actionError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{actionError}</div>}
+      {notice && <Toast tone="success" className="mb-4">{notice}</Toast>}
+      {actionError && <Toast tone="error" className="mb-4">{actionError}</Toast>}
       {error && (
         <div className="mb-4">
           <ErrorState message={error} onRetry={load} />

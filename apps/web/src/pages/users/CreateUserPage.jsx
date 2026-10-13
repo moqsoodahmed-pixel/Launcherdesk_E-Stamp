@@ -1,3 +1,4 @@
+import Toast from "../../components/ui/Toast";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -77,7 +78,7 @@ export default function CreateUserPage() {
         </Link>
       </div>
 
-      {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
+      {error && <Toast tone="error" className="mb-4">{error}</Toast>}
 
       <form onSubmit={handleSubmit} className="card p-6 space-y-4">
         <div>

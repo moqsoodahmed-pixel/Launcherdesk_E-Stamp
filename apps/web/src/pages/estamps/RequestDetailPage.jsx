@@ -1,3 +1,6 @@
+import Toast from "../../components/ui/Toast";
+import { useConfirm } from "../../components/ui/useConfirm";
+import VerifyDocumentsDialog from "../../components/estamps/VerifyDocumentsDialog";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -27,6 +30,7 @@ function describeError(err, fallback) {
 }
 
 export default function RequestDetailPage() {
+  const [confirm, confirmDialog] = useConfirm();
   const { id } = useParams();
   const { user } = useAuth();
   const [request, setRequest] = useState(null);
@@ -176,7 +180,8 @@ export default function RequestDetailPage() {
 
   async function handleCancel() {
     setError(null);
-    if (!window.confirm("Cancel this E-Stamp request? This cannot be undone.")) return;
+    const ok = await confirm({ title: "Cancel this E-Stamp request?", message: "This cannot be undone.", confirmLabel: "Cancel the request", tone: "danger" });
+    if (!ok) return;
     try {
       await apiClient.post(`/estamps/${id}/cancel`);
       setNotice("Request cancelled.");
@@ -225,6 +230,7 @@ export default function RequestDetailPage() {
 
   return (
     <div className="max-w-3xl space-y-6 pb-10">
+      {confirmDialog}
       <div>
         <Link to="/estamps/requests" className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           ← Requests
@@ -235,8 +241,8 @@ export default function RequestDetailPage() {
         </div>
       </div>
 
-      {notice && <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
+      {notice && <Toast tone="success">{notice}</Toast>}
+      {error && <Toast tone="error">{error}</Toast>}
 
       {/* Request Information */}
       <Section title="Request Information">
@@ -427,43 +433,14 @@ export default function RequestDetailPage() {
       )}
 
       {showVerifyModal && (
-        <div className="fixed inset-0 bg-midnight-900/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-dialog max-w-md w-full p-6 shadow-overlay border border-slate-200">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Confirm Document Verification</h3>
-            <p className="text-sm text-slate-600 mb-4">
-              Please verify that party names ({request?.firstParty} & {request?.secondParty}), consideration value, and attached document descriptions are correct.
-            </p>
-            <div className="mb-4">
-              <label htmlFor="verify-notes" className="mb-1.5 block text-sm font-medium text-slate-800">Verification Notes (Optional)</label>
-              <textarea
-                id="verify-notes"
-                value={verifyNotes}
-                onChange={(e) => setVerifyNotes(e.target.value)}
-                rows={3}
-                placeholder="e.g. Identity and agreement documents verified against registry..."
-                className="input min-h-[88px]"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowVerifyModal(false)}
-                disabled={verifying}
-                className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleVerifyDocuments}
-                disabled={verifying}
-                className="rounded-lg px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50"
-              >
-                {verifying ? "Confirming..." : "Confirm & Mark Verified"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <VerifyDocumentsDialog
+          request={request}
+          notes={verifyNotes}
+          onNotesChange={setVerifyNotes}
+          verifying={verifying}
+          onConfirm={handleVerifyDocuments}
+          onCancel={() => setShowVerifyModal(false)}
+        />
       )}
     </div>
   );

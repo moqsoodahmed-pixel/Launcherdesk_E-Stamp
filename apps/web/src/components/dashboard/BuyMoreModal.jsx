@@ -1,4 +1,5 @@
-import { Check, X } from "lucide-react";
+import Modal from "../ui/Modal";
+import { Check } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { apiClient } from "../../api/client";
 import { formatCurrency, actionErrorMessage } from "../../utils/format";
@@ -179,18 +180,20 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
 
   if (successResult) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-900/50 p-4">
-        <div className="bg-white rounded-dialog max-w-md w-full p-6 text-center space-y-5 shadow-overlay border border-slate-200">
-          <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-semibold">
+      <Modal
+        title="Purchase Successful!"
+        description="Your E-Stamp package has been processed and credited."
+        onClose={onClose}
+        footer={
+          <button type="button" onClick={onClose} className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50 sm:min-h-[40px] w-full">
+            Back to E-Stamp Workspace
+          </button>
+        }
+      >
+        <div className="space-y-5 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
             <Check size={28} aria-hidden="true" />
           </div>
-          <div>
-            <h3 className="font-display text-2xl font-semibold text-slate-900">Purchase Successful!</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Your E-Stamp package has been processed and credited.
-            </p>
-          </div>
-
           <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-xs text-left space-y-2">
             <div className="flex justify-between">
               <span className="text-slate-500">Plan Purchased:</span>
@@ -216,34 +219,29 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
             A confirmation receipt and invoice have been sent to your registered email address.
           </p>
 
-          <button
-            onClick={onClose}
-            className="w-full py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium text-sm transition"
-          >
-            Back to E-Stamp Workspace
-          </button>
         </div>
-      </div>
+      </Modal>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-900/50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-dialog max-w-xl w-full p-6 sm:p-7 space-y-6 shadow-overlay border border-slate-200 my-8">
-        <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-          <div>
-            <h3 className="font-display text-lg font-semibold text-slate-900">{copy.title}</h3>
-            <p className="text-xs text-slate-500">{copy.subtitle}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-            aria-label="Close"
-          >
-            <X size={18} aria-hidden="true" />
+    <Modal
+      title={copy.title}
+      description={copy.subtitle}
+      onClose={busy ? undefined : onClose}
+      size="lg"
+      footer={
+        <>
+          <button type="button" onClick={onClose} disabled={busy} className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 sm:min-h-[40px]">
+            Cancel
           </button>
-        </div>
-
+          <button type="button" onClick={handleCheckout} disabled={busy || loadingPackages} className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50 sm:min-h-[40px]">
+            {busy ? "Processing Secure Payment..." : `Pay ${formatCurrency(finalAmount)}`}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-6">
         {(error || loadError) && (
           <div className="rounded-lg bg-red-50 text-red-700 text-xs px-3.5 py-2.5 border border-red-200">
             {error || loadError}
@@ -251,9 +249,9 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
         )}
 
         <div className="space-y-3">
-          <label className="block text-xs font-semibold text-slate-600">
+          <p className="block text-sm font-medium text-slate-800">
             Choose Package
-          </label>
+          </p>
 
           {loadingPackages ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-pulse">
@@ -266,12 +264,14 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
               {packages.map((pkg) => {
                 const isSelected = selectedId === pkg.key;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={pkg.key}
                     onClick={() => setSelectedId(pkg.key)}
-                    className={`relative cursor-pointer rounded-xl p-4 border transition-all text-left flex flex-col justify-between ${
+                    aria-pressed={isSelected}
+                    className={`relative flex cursor-pointer flex-col justify-between rounded-xl border p-4 text-left transition-colors ${
                       isSelected
-                        ? "border-brand-600 bg-brand-50/40 ring-2 ring-brand-500 shadow-sm"
+                        ? "border-brand-600 bg-brand-50/40 ring-2 ring-brand-600"
                         : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
                     }`}
                   >
@@ -309,7 +309,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
                         </span>
                       )}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -349,7 +349,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
                     step="100"
                     value={customAmount}
                     onChange={(e) => setCustomAmount(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="input pl-8"
                     placeholder="Enter amount"
                   />
                 </div>
@@ -372,29 +372,11 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
           </div>
           <div className="flex justify-between text-slate-900 font-semibold text-sm pt-2 border-t border-slate-200">
             <span>Total Payable:</span>
-            <span className="text-brand-600 text-base">{formatCurrency(finalAmount)}</span>
+            <span className="text-base text-brand-700 tabular-nums">{formatCurrency(finalAmount)}</span>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleCheckout}
-            disabled={busy || loadingPackages}
-            className="px-5 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold transition disabled:opacity-50"
-          >
-            {busy ? "Processing Secure Payment..." : `Pay ${formatCurrency(finalAmount)}`}
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }
