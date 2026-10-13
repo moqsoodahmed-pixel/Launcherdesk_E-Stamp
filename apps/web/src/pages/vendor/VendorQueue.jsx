@@ -106,14 +106,16 @@ export default function VendorQueue({ onChanged }) {
                       <CopyButton value={o.stampDuty} label={`duty for ${o.orderNumber}`} />
                     </span>
                     <div className="flex-1" />
-                    {o.vendorStatus === "SENT" && !o.declined && (
-                      <button type="button" onClick={() => accept(o)} className="rounded-lg border border-brand-600 text-brand-700 px-3 py-1 text-xs font-medium hover:bg-brand-50">
-                        Accept
-                      </button>
-                    )}
-                    <Link to={`/vendor/orders/${o._id}`} className="text-xs text-brand-600 hover:underline" aria-label={`Details for ${o.orderNumber}`}>
-                      Details
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      {o.vendorStatus === "SENT" && !o.declined && (
+                        <button type="button" onClick={() => accept(o)} className="rounded-lg border border-brand-600 text-brand-700 px-3 py-1 text-xs font-medium hover:bg-brand-50 whitespace-nowrap">
+                          Accept
+                        </button>
+                      )}
+                      <Link to={`/vendor/orders/${o._id}`} className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap" aria-label={`Details for ${o.orderNumber}`}>
+                        Details
+                      </Link>
+                    </div>
                   </div>
                   {o.vendorStatus === "REJECTED" && !o.declined && o.uploads?.length > 0 && (
                     <p className="text-xs text-red-700">Rejected: {o.uploads[o.uploads.length - 1].reviewNotes}</p>

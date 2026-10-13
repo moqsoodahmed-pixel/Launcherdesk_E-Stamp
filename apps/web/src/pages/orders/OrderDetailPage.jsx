@@ -233,9 +233,15 @@ export default function OrderDetailPage() {
               Created {fmt(order.createdAt)} · Last updated {fmt(order.updatedAt)}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <StatusBadge status={order.status} />
-            <StatusBadge status={order.eStampStatus} />
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-slate-500 font-medium">Order:</span>
+              <StatusBadge status={order.status} />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-slate-500 font-medium">Processing:</span>
+              <StatusBadge status={order.eStampStatus} />
+            </div>
             <button onClick={() => load(true)} className="text-sm rounded-lg border border-slate-300 px-3 py-1 text-slate-600 hover:bg-slate-50">
               Refresh
             </button>
