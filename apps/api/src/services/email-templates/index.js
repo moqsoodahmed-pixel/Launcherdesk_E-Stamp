@@ -223,7 +223,7 @@ const TEMPLATES = {
                   </p>
 
                   <div style="border-top:1px solid #f1f5f9; padding-top:12px; font-size:12px; color:#64748b;">
-                    Need help? Contact support at <a href="mailto:support@launcherdesk.com" style="color:#2563eb;">support@launcherdesk.com</a>.
+                    Need help? Contact us at <a href="mailto:contact@launcherdesk.com" style="color:#2563eb;">contact@launcherdesk.com</a>.
                   </div>
                 </div>
             `),

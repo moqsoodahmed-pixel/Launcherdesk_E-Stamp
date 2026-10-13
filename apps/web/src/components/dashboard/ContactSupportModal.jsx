@@ -22,8 +22,8 @@ export default function ContactSupportModal({ onClose }) {
               <span className="text-lg">✉️</span>
               <div>
                 <p className="text-xs text-slate-500">Email Support</p>
-                <a href="mailto:support@launcherdesk.com" className="font-semibold text-brand-600 hover:underline">
-                  support@launcherdesk.com
+                <a href="mailto:contact@launcherdesk.com" className="font-semibold text-brand-600 hover:underline">
+                  contact@launcherdesk.com
                 </a>
               </div>
             </div>

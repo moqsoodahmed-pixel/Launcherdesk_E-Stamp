@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 
 // Edit these two values to change the About page.
-const SUPPORT_EMAIL = "support@launcherdesk.com";
+const SUPPORT_EMAIL = "contact@launcherdesk.com";
 const PRODUCT_DESCRIPTION =
   "LauncherDesk E-Stamping lets organisations create, track and download E-Stamp requests, " +
   "fund a wallet, and manage their team in one place.";
