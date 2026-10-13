@@ -1,3 +1,6 @@
+import { FilePlus2, FileText, Package } from "lucide-react";
+import DashboardHeader from "../../components/dashboard/DashboardHeader";
+import StatusBadge from "../../components/estamps/StatusBadge";
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
@@ -59,21 +62,22 @@ export default function UserDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900 mb-1">Welcome back, {user?.name}</h1>
-        <p className="text-sm text-slate-500">Your E-Stamping activity</p>
-      </div>
+      <DashboardHeader
+        name={user?.name}
+        subtitle="Your E-Stamping activity"
+        actions={
+          <>
+            {canCreate && <QuickActionButton to="/estamps/requests/new" label="Create E-Stamp Request" icon={FilePlus2} primary />}
+            {canViewRequests && <QuickActionButton to="/estamps/requests" label="My Requests" icon={FileText} />}
+            {canViewOrders && <QuickActionButton to="/orders" label="My Orders" icon={Package} />}
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        {canCreate && <QuickActionButton to="/estamps/requests/new" label="Create E-Stamp Request" icon="✍️" />}
-        {canViewRequests && <QuickActionButton to="/estamps/requests" label="My Requests" icon="📄" />}
-        {canViewOrders && <QuickActionButton to="/orders" label="My Orders" icon="📦" />}
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {requestsLoading && <KpiSkeleton count={canViewOrders ? 2 : 1} />}
-        {!requestsLoading && canViewRequests && requests && <KpiCard label="My requests" value={requests.total} />}
-        {!ordersLoading && canViewOrders && orders && <KpiCard label="Orders" value={orders.total} />}
+        {!requestsLoading && canViewRequests && requests && <KpiCard label="My requests" value={requests.total} icon={FileText} tone="blue" />}
+        {!ordersLoading && canViewOrders && orders && <KpiCard label="Orders" value={orders.total} icon={Package} tone="teal" />}
       </div>
 
       {canViewRequests && (
@@ -85,10 +89,10 @@ export default function UserDashboard() {
           rowLinkPrefix="/estamps/requests"
           emptyText="You haven't created any E-Stamp requests yet."
           columns={[
-            { key: "requestNumber", label: "Request #" },
-            { key: "status", label: "Status" },
-            { key: "calculatedStampDuty", label: "Value", render: (r) => formatCurrency(r.calculatedStampDuty) },
-            { key: "createdAt", label: "Created", render: (r) => new Date(r.createdAt).toLocaleDateString() },
+            { key: "requestNumber", label: "Request #", render: (r) => <span className="font-medium text-slate-900">{r.requestNumber}</span> },
+            { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} deadline={r.modificationDeadline} /> },
+            { key: "calculatedStampDuty", label: "Value", render: (r) => <span className="tabular-nums">{formatCurrency(r.calculatedStampDuty)}</span> },
+            { key: "createdAt", label: "Created", render: (r) => <span className="tabular-nums">{new Date(r.createdAt).toLocaleDateString()}</span> },
           ]}
         />
       )}
@@ -102,9 +106,9 @@ export default function UserDashboard() {
           rowLinkPrefix="/orders"
           emptyText="No orders yet."
           columns={[
-            { key: "orderNumber", label: "Order #" },
-            { key: "eStampStatus", label: "Status" },
-            { key: "amount", label: "Amount", render: (r) => formatCurrency(r.amount) },
+            { key: "orderNumber", label: "Order #", render: (r) => <span className="font-medium text-slate-900">{r.orderNumber}</span> },
+            { key: "eStampStatus", label: "Status", render: (r) => <StatusBadge status={r.eStampStatus} /> },
+            { key: "amount", label: "Amount", render: (r) => <span className="tabular-nums">{formatCurrency(r.amount)}</span> },
           ]}
         />
       )}

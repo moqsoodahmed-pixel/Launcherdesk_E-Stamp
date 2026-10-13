@@ -8,19 +8,20 @@ import { TableSkeleton } from "./LoadingSkeleton";
 // dumb/presentational - every dashboard supplies its own real, already-
 // tenant-scoped rows fetched from an existing (or the new bounded
 // recent-activity) report endpoint; this component fabricates nothing.
-export default function RecentActivityTable({ title, columns, rows, loading, error, onRetry, emptyText = "Nothing here yet.", rowLinkPrefix }) {
+export default function RecentActivityTable({ title, columns, rows, loading, error, onRetry, emptyText = "Nothing here yet.", rowLinkPrefix, action }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-100">
-        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+    <section className="card overflow-hidden">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-4 sm:px-6">
+        <h2 className="font-display text-base font-semibold text-slate-900">{title}</h2>
+        {action}
       </div>
-      <div className="p-4">
+      <div className={rows && rows.length > 0 && !loading && !error ? "" : "p-4"}>
         {loading && <TableSkeleton />}
         {!loading && error && (
-          <div role="alert" className="text-sm text-red-600 py-4 text-center">
+          <div role="alert" className="py-4 text-center text-sm text-vermilion-700">
             {error}
             {onRetry && (
-              <button type="button" onClick={onRetry} className="ml-2 underline font-medium">
+              <button type="button" onClick={onRetry} className="ml-2 min-h-[36px] font-medium underline">
                 Retry
               </button>
             )}
@@ -28,11 +29,12 @@ export default function RecentActivityTable({ title, columns, rows, loading, err
         )}
         {!loading && !error && (!rows || rows.length === 0) && <EmptyState text={emptyText} />}
         {!loading && !error && rows && rows.length > 0 && (
-          <table className="w-full text-sm">
-            <thead className="text-slate-500 text-xs uppercase">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-600">
               <tr>
                 {columns.map((c) => (
-                  <th key={c.key} className="text-left px-2 py-2">
+                  <th key={c.key} scope="col" className="px-4 py-2.5 text-left font-semibold">
                     {c.label}
                   </th>
                 ))}
@@ -44,7 +46,7 @@ export default function RecentActivityTable({ title, columns, rows, loading, err
                   return (
                     <tr key={row._id} className="border-t border-slate-100">
                       {columns.map((c) => (
-                        <td key={c.key} className="px-2 py-2.5">
+                        <td key={c.key} className="px-4 py-3 text-slate-700">
                           {c.render ? c.render(row) : (row[c.key] ?? "-")}
                         </td>
                       ))}
@@ -56,11 +58,11 @@ export default function RecentActivityTable({ title, columns, rows, loading, err
                 // `<div>` grid cells inside the link instead, with ONE real
                 // `<td colSpan>` as the only actual table cell in this row.
                 return (
-                  <tr key={row._id} className="border-t border-slate-100 hover:bg-slate-50">
+                  <tr key={row._id} className="border-t border-slate-100 transition-colors hover:bg-brand-50/40">
                     <td colSpan={columns.length} className="p-0">
-                      <Link to={`${rowLinkPrefix}/${row._id}`} className="grid w-full" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
+                      <Link to={`${rowLinkPrefix}/${row._id}`} className="grid min-h-[44px] w-full items-center" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
                         {columns.map((c) => (
-                          <div key={c.key} className="px-2 py-2.5">
+                          <div key={c.key} className="min-w-0 px-4 py-3 text-slate-700">
                             {c.render ? c.render(row) : (row[c.key] ?? "-")}
                           </div>
                         ))}
@@ -71,8 +73,9 @@ export default function RecentActivityTable({ title, columns, rows, loading, err
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }

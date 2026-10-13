@@ -1,3 +1,4 @@
+import { Building2, FileText, Package, BarChart3, Settings } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -134,10 +135,10 @@ export default function AssistantDashboard() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {hasPermission(user, PERMISSIONS.CLIENT_VIEW) && <QuickActionButton to="/organizations" label="Clients" icon="🏢" />}
-        {canEstampView && <QuickActionButton to="/estamps/requests" label="E-Stamp Requests" icon="📄" />}
-        {canOrderView && <QuickActionButton to="/orders" label="Orders" icon="📦" />}
-        {canReport && <QuickActionButton to="/reports" label="Full Reports" icon="📊" />}
+        {hasPermission(user, PERMISSIONS.CLIENT_VIEW) && <QuickActionButton to="/organizations" label="Clients" icon={Building2} />}
+        {canEstampView && <QuickActionButton to="/estamps/requests" label="E-Stamp Requests" icon={FileText} />}
+        {canOrderView && <QuickActionButton to="/orders" label="Orders" icon={Package} />}
+        {canReport && <QuickActionButton to="/reports" label="Full Reports" icon={BarChart3} />}
       </div>
 
       {isManualFulfilment(user) && hasPermission(user, PERMISSIONS.ORDER_MANAGE) && <FulfilmentSummaryCard />}

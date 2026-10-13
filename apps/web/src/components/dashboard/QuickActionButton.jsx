@@ -1,16 +1,17 @@
 import { Link } from "react-router-dom";
 
-// Phase 21 - a single visual style for every dashboard's "quick actions"
-// row. Purely a styled Link - no logic of its own, so each role dashboard
-// decides which actions that role can actually perform (never hardcoded
-// here).
-export default function QuickActionButton({ to, label, icon }) {
+// A single visual style for every dashboard's quick actions. Purely a styled
+// Link - each role dashboard decides which actions that role can perform.
+// `icon` is a lucide component. `primary` renders the filled variant.
+export default function QuickActionButton({ to, label, icon: IconCmp, primary = false }) {
   return (
     <Link
       to={to}
-      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+      className={`inline-flex min-h-[44px] items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors sm:min-h-[40px] ${
+        primary ? "bg-brand-600 text-white hover:bg-brand-700" : "border border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50"
+      }`}
     >
-      {icon && <span aria-hidden="true">{icon}</span>}
+      {IconCmp && typeof IconCmp !== "string" && <IconCmp size={16} aria-hidden="true" />}
       {label}
     </Link>
   );

@@ -1,3 +1,7 @@
+import { FilePlus2, Files, Users, BarChart3, FileText, Package, BadgeCheck, XCircle, Timer, Hourglass, Wallet, BadgeIndianRupee } from "lucide-react";
+import DashboardHeader, { inWindowCount } from "../../components/dashboard/DashboardHeader";
+import StatusBadge from "../../components/estamps/StatusBadge";
+import Tabs from "../../components/ui/Tabs";
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -14,13 +18,17 @@ import AttentionPanel from "../../components/dashboard/AttentionPanel";
 import ErrorState from "../../components/common/ErrorState";
 import QuickActionButton from "../../components/dashboard/QuickActionButton";
 import EStampWorkspace from "../../components/dashboard/EStampWorkspace";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { CHART_COLORS, STATUS_COLORS, gridProps, axisProps, yAxisProps, tooltipProps, barProps, lineProps } from "../../components/dashboard/chartTheme";
 
 // Phase 21 - Super Admin's dashboard: an organization-scoped version of the
 // same KPI/chart/attention/recent-activity composition Master Admin gets.
 // Every fetch is automatically tenant-scoped server-side (report.controller.js's
 // resolveScope forces a tenant actor to req.user.organizationId, never
 // trusting a client-supplied organizationId) - no org selector needed here.
+// Bar colours follow the status they show (issued, being prepared, failed).
+const ORDER_STATUS_FILLS = [STATUS_COLORS.issued, STATUS_COLORS.preparing, STATUS_COLORS.failed];
+
 export default function SuperAdminDashboard() {
   const { user } = useAuth();
   const canFinancial = hasPermission(user, PERMISSIONS.REPORT_FINANCIAL_VIEW);
@@ -119,44 +127,31 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 mb-1">Welcome back, {user?.name}</h1>
-          <p className="text-sm text-slate-500">Organization overview</p>
-        </div>
+      <DashboardHeader
+        name={user?.name}
+        subtitle="Organization overview"
+        actions={
+          <>
+            {hasPermission(user, PERMISSIONS.ESTAMP_CREATE) && <QuickActionButton to="/estamps/requests/new" label="New E-Stamp Request" icon={FilePlus2} primary />}
+            {hasPermission(user, PERMISSIONS.ESTAMP_BULK_CREATE) && <QuickActionButton to="/estamps/bulk" label="Bulk Request" icon={Files} />}
+            {hasPermission(user, PERMISSIONS.USER_VIEW) && <QuickActionButton to="/users?role=USER" label="Manage Users" icon={Users} />}
+            {hasPermission(user, PERMISSIONS.REPORT_VIEW) && <QuickActionButton to="/reports" label="Full Reports" icon={BarChart3} />}
+          </>
+        }
+      />
 
-        {/* Tab switch buttons */}
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab("overview");
-              setSearchParams({});
-            }}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition ${
-              activeTab === "overview"
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Dashboard Overview
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab("estamp");
-              setSearchParams({ tab: "estamp" });
-            }}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 ${
-              activeTab === "estamp"
-                ? "bg-white text-brand-600 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <span>📜</span> E-Stamp Workspace
-          </button>
-        </div>
-      </div>
+      <Tabs
+        label="Dashboard view"
+        value={activeTab}
+        onChange={(id) => {
+          setActiveTab(id);
+          setSearchParams(id === "estamp" ? { tab: "estamp" } : {});
+        }}
+        tabs={[
+          { id: "overview", label: "Dashboard Overview" },
+          { id: "estamp", label: "E-Stamp Workspace" },
+        ]}
+      />
 
       {activeTab === "estamp" ? (
         <EStampWorkspace
@@ -169,31 +164,28 @@ export default function SuperAdminDashboard() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {hasPermission(user, PERMISSIONS.ESTAMP_CREATE) && <QuickActionButton to="/estamps/requests/new" label="New E-Stamp Request" icon="✍️" />}
-            {hasPermission(user, PERMISSIONS.ESTAMP_BULK_CREATE) && <QuickActionButton to="/estamps/bulk" label="Bulk Request" icon="📚" />}
-            {hasPermission(user, PERMISSIONS.USER_VIEW) && <QuickActionButton to="/users?role=USER" label="Manage Users" icon="👥" />}
-            {hasPermission(user, PERMISSIONS.REPORT_VIEW) && <QuickActionButton to="/reports" label="Full Reports" icon="📊" />}
-          </div>
+          {hasPermission(user, PERMISSIONS.WALLET_VIEW) && <ClientBalanceCard canAddMoney={hasPermission(user, PERMISSIONS.PAYMENT_MANAGE)} />}
 
           {summaryErr && <ErrorState message={summaryErr} onRetry={loadSummary} />}
           {summaryLoading && <KpiSkeleton count={5} />}
           {!summaryLoading && summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <KpiCard label="Total requests" value={summary.requests.total} />
-              <KpiCard label="Total orders" value={summary.orders.total} />
-              <KpiCard label="Issued orders" value={summary.orders.issued} />
-              <KpiCard label="Failed orders" value={summary.orders.failed} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <KpiCard label="In the 20-minute window" value={inWindowCount(summary)} icon={Timer} tone="blue" />
+              <KpiCard label="Being prepared" value={summary.orders.processing} icon={Hourglass} tone="violet" />
+              <KpiCard label="Issued orders" value={summary.orders.issued} icon={BadgeCheck} tone="emerald" />
+              <KpiCard label="Failed orders" value={summary.orders.failed} icon={XCircle} tone="vermilion" />
+              <KpiCard label="Total requests" value={summary.requests.total} icon={FileText} tone="grey" />
+              <KpiCard label="Total orders" value={summary.orders.total} icon={Package} tone="grey" />
               {canFinancial && summary.financial && (
                 <KpiCard
+                  icon={Wallet}
+                  tone="teal"
                   label="Ledger balance"
                   value={summary.financial.currentWalletBalance === null ? "N/A" : formatCurrency(summary.financial.currentWalletBalance)}
                 />
               )}
             </div>
           )}
-
-          {hasPermission(user, PERMISSIONS.WALLET_VIEW) && <ClientBalanceCard />}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ChartCard
@@ -206,11 +198,11 @@ export default function SuperAdminDashboard() {
             >
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={requests?.dailyTrend || []}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={2} dot={false} />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="date" {...axisProps} />
+                  <YAxis allowDecimals={false} {...yAxisProps} />
+                  <Tooltip {...tooltipProps} />
+                  <Line {...lineProps} dataKey="count" name="Requests" stroke={CHART_COLORS[0]} />
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -222,17 +214,21 @@ export default function SuperAdminDashboard() {
                     summary
                       ? [
                           { status: "Issued", count: summary.orders.issued },
-                          { status: "Processing", count: summary.orders.processing },
+                          { status: "Being prepared", count: summary.orders.processing },
                           { status: "Failed", count: summary.orders.failed },
                         ]
                       : []
                   }
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="status" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="status" {...axisProps} />
+                  <YAxis allowDecimals={false} {...yAxisProps} />
+                  <Tooltip {...tooltipProps} />
+                  <Bar dataKey="count" name="Orders" {...barProps}>
+                    {ORDER_STATUS_FILLS.map((fill) => (
+                      <Cell key={fill} fill={fill} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -257,11 +253,14 @@ export default function SuperAdminDashboard() {
                       : []
                   }
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v) => formatCurrency(v)} />
-                  <Bar dataKey="amount" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="label" {...axisProps} />
+                  <YAxis {...yAxisProps} width={72} tickFormatter={(v) => formatCurrency(v)} />
+                  <Tooltip {...tooltipProps} formatter={(v) => formatCurrency(v)} />
+                  <Bar dataKey="amount" name="Amount" {...barProps}>
+                    <Cell fill={STATUS_COLORS.issued} />
+                    <Cell fill={STATUS_COLORS.failed} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -277,9 +276,9 @@ export default function SuperAdminDashboard() {
               rows={activity?.requests}
               rowLinkPrefix="/estamps/requests"
               columns={[
-                { key: "requestNumber", label: "Request #" },
-                { key: "status", label: "Status" },
-                { key: "calculatedStampDuty", label: "Value", render: (r) => formatCurrency(r.calculatedStampDuty) },
+                { key: "requestNumber", label: "Request #", render: (r) => <span className="font-medium text-slate-900">{r.requestNumber}</span> },
+                { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} deadline={r.modificationDeadline} /> },
+                { key: "calculatedStampDuty", label: "Value", render: (r) => <span className="tabular-nums">{formatCurrency(r.calculatedStampDuty)}</span> },
               ]}
             />
             <RecentActivityTable
@@ -289,9 +288,9 @@ export default function SuperAdminDashboard() {
               rows={activity?.orders}
               rowLinkPrefix="/orders"
               columns={[
-                { key: "orderNumber", label: "Order #" },
-                { key: "eStampStatus", label: "Status" },
-                { key: "amount", label: "Amount", render: (r) => formatCurrency(r.amount) },
+                { key: "orderNumber", label: "Order #", render: (r) => <span className="font-medium text-slate-900">{r.orderNumber}</span> },
+                { key: "eStampStatus", label: "Status", render: (r) => <StatusBadge status={r.eStampStatus} /> },
+                { key: "amount", label: "Amount", render: (r) => <span className="tabular-nums">{formatCurrency(r.amount)}</span> },
               ]}
             />
           </div>

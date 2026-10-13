@@ -17,8 +17,9 @@ export default function DateRangeFilter({ value, onChange, options = TREND_PRESE
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
-          className={`text-xs px-2.5 py-1 rounded-full border ${
-            value === opt.value ? "bg-brand-600 text-white border-brand-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+          aria-pressed={value === opt.value}
+          className={`min-h-[32px] rounded-full border px-3 text-xs font-medium transition-colors ${
+            value === opt.value ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"
           }`}
         >
           {opt.label}

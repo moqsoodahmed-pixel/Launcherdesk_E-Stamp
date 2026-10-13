@@ -1,3 +1,4 @@
+import { Building2, FileText, Package, BarChart3, Settings } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
@@ -142,10 +143,10 @@ export default function MasterAdminDashboard() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <QuickActionButton to="/organizations/new" label="New Organization" icon="🏢" />
-        <QuickActionButton to="/estamps/requests" label="View Requests" icon="📄" />
-        <QuickActionButton to="/reports" label="Full Reports" icon="📊" />
-        <QuickActionButton to="/settings" label="Settings" icon="⚙️" />
+        <QuickActionButton to="/organizations/new" label="New Organization" icon={Building2} />
+        <QuickActionButton to="/estamps/requests" label="View Requests" icon={FileText} />
+        <QuickActionButton to="/reports" label="Full Reports" icon={BarChart3} />
+        <QuickActionButton to="/settings" label="Settings" icon={Settings} />
       </div>
 
       {summaryErr && <ErrorState message={summaryErr} onRetry={loadSummary} />}

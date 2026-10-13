@@ -1,3 +1,6 @@
+import { FilePlus2, Files, Users, BarChart3, FileText, Package, BadgeCheck, XCircle, Timer, Hourglass, Wallet, BadgeIndianRupee } from "lucide-react";
+import DashboardHeader, { inWindowCount } from "../../components/dashboard/DashboardHeader";
+import StatusBadge from "../../components/estamps/StatusBadge";
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
@@ -11,7 +14,8 @@ import RecentActivityTable from "../../components/dashboard/RecentActivityTable"
 import AttentionPanel from "../../components/dashboard/AttentionPanel";
 import ErrorState from "../../components/common/ErrorState";
 import QuickActionButton from "../../components/dashboard/QuickActionButton";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { CHART_COLORS, STATUS_COLORS, gridProps, axisProps, yAxisProps, tooltipProps, barProps, lineProps } from "../../components/dashboard/chartTheme";
 
 // Phase 21 - Admin's dashboard: an organization-scoped composition, same
 // shape as Super Admin's, MINUS the financial section - ADMIN does not hold
@@ -20,6 +24,9 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 // granting REPORT_FINANCIAL_VIEW here would be a real scope increase, not a
 // natural extension). `canFinancial` is still checked (not hardcoded false)
 // so a future/edited permission grant is respected automatically.
+// Bar colours follow the status they show (issued, being prepared, failed).
+const ORDER_STATUS_FILLS = [STATUS_COLORS.issued, STATUS_COLORS.preparing, STATUS_COLORS.failed];
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const canFinancial = hasPermission(user, PERMISSIONS.REPORT_FINANCIAL_VIEW);
@@ -80,27 +87,30 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900 mb-1">Welcome back, {user?.name}</h1>
-        <p className="text-sm text-slate-500">Organization overview</p>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {hasPermission(user, PERMISSIONS.ESTAMP_CREATE) && <QuickActionButton to="/estamps/requests/new" label="New E-Stamp Request" icon="✍️" />}
-        {hasPermission(user, PERMISSIONS.ESTAMP_BULK_CREATE) && <QuickActionButton to="/estamps/bulk" label="Bulk Request" icon="📚" />}
-        {hasPermission(user, PERMISSIONS.USER_VIEW) && <QuickActionButton to="/users" label="Users" icon="👥" />}
-        {hasPermission(user, PERMISSIONS.REPORT_VIEW) && <QuickActionButton to="/reports" label="Full Reports" icon="📊" />}
-      </div>
+      <DashboardHeader
+        name={user?.name}
+        subtitle="Organization overview"
+        actions={
+          <>
+            {hasPermission(user, PERMISSIONS.ESTAMP_CREATE) && <QuickActionButton to="/estamps/requests/new" label="New E-Stamp Request" icon={FilePlus2} primary />}
+            {hasPermission(user, PERMISSIONS.ESTAMP_BULK_CREATE) && <QuickActionButton to="/estamps/bulk" label="Bulk Request" icon={Files} />}
+            {hasPermission(user, PERMISSIONS.USER_VIEW) && <QuickActionButton to="/users" label="Users" icon={Users} />}
+            {hasPermission(user, PERMISSIONS.REPORT_VIEW) && <QuickActionButton to="/reports" label="Full Reports" icon={BarChart3} />}
+          </>
+        }
+      />
 
       {summaryErr && <ErrorState message={summaryErr} onRetry={loadSummary} />}
       {summaryLoading && <KpiSkeleton count={4} />}
       {!summaryLoading && summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <KpiCard label="Total requests" value={summary.requests.total} />
-          <KpiCard label="Total orders" value={summary.orders.total} />
-          <KpiCard label="Issued orders" value={summary.orders.issued} />
-          <KpiCard label="Failed orders" value={summary.orders.failed} />
-          {canFinancial && summary.financial && <KpiCard label="Successful payments" value={formatCurrency(summary.financial.successfulPaymentsAmount)} />}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <KpiCard label="In the 20-minute window" value={inWindowCount(summary)} icon={Timer} tone="blue" />
+          <KpiCard label="Being prepared" value={summary.orders.processing} icon={Hourglass} tone="violet" />
+          <KpiCard label="Issued orders" value={summary.orders.issued} icon={BadgeCheck} tone="emerald" />
+          <KpiCard label="Failed orders" value={summary.orders.failed} icon={XCircle} tone="vermilion" />
+          <KpiCard label="Total requests" value={summary.requests.total} icon={FileText} tone="grey" />
+          <KpiCard label="Total orders" value={summary.orders.total} icon={Package} tone="grey" />
+          {canFinancial && summary.financial && <KpiCard label="Successful payments" value={formatCurrency(summary.financial.successfulPaymentsAmount)} icon={BadgeIndianRupee} tone="emerald" />}
         </div>
       )}
 
@@ -115,11 +125,11 @@ export default function AdminDashboard() {
         >
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={requests?.dailyTrend || []}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Line type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={2} dot={false} />
+              <CartesianGrid {...gridProps} />
+              <XAxis dataKey="date" {...axisProps} />
+              <YAxis allowDecimals={false} {...yAxisProps} />
+              <Tooltip {...tooltipProps} />
+              <Line {...lineProps} dataKey="count" name="Requests" stroke={CHART_COLORS[0]} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -131,17 +141,21 @@ export default function AdminDashboard() {
                 summary
                   ? [
                       { status: "Issued", count: summary.orders.issued },
-                      { status: "Processing", count: summary.orders.processing },
+                      { status: "Being prepared", count: summary.orders.processing },
                       { status: "Failed", count: summary.orders.failed },
                     ]
                   : []
               }
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="status" tick={{ fontSize: 11 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+              <CartesianGrid {...gridProps} />
+              <XAxis dataKey="status" {...axisProps} />
+              <YAxis allowDecimals={false} {...yAxisProps} />
+              <Tooltip {...tooltipProps} />
+              <Bar dataKey="count" name="Orders" {...barProps}>
+                {ORDER_STATUS_FILLS.map((fill) => (
+                  <Cell key={fill} fill={fill} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -157,9 +171,9 @@ export default function AdminDashboard() {
           rows={activity?.requests}
           rowLinkPrefix="/estamps/requests"
           columns={[
-            { key: "requestNumber", label: "Request #" },
-            { key: "status", label: "Status" },
-            { key: "calculatedStampDuty", label: "Value", render: (r) => formatCurrency(r.calculatedStampDuty) },
+            { key: "requestNumber", label: "Request #", render: (r) => <span className="font-medium text-slate-900">{r.requestNumber}</span> },
+            { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} deadline={r.modificationDeadline} /> },
+            { key: "calculatedStampDuty", label: "Value", render: (r) => <span className="tabular-nums">{formatCurrency(r.calculatedStampDuty)}</span> },
           ]}
         />
         <RecentActivityTable
@@ -169,9 +183,9 @@ export default function AdminDashboard() {
           rows={activity?.orders}
           rowLinkPrefix="/orders"
           columns={[
-            { key: "orderNumber", label: "Order #" },
-            { key: "eStampStatus", label: "Status" },
-            { key: "amount", label: "Amount", render: (r) => formatCurrency(r.amount) },
+            { key: "orderNumber", label: "Order #", render: (r) => <span className="font-medium text-slate-900">{r.orderNumber}</span> },
+            { key: "eStampStatus", label: "Status", render: (r) => <StatusBadge status={r.eStampStatus} /> },
+            { key: "amount", label: "Amount", render: (r) => <span className="tabular-nums">{formatCurrency(r.amount)}</span> },
           ]}
         />
       </div>

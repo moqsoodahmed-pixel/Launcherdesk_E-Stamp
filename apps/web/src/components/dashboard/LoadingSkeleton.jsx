@@ -4,7 +4,7 @@ export function KpiSkeleton({ count = 4 }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="bg-white rounded-2xl border border-slate-200 p-4 animate-pulse">
+        <div key={i} className="card animate-pulse p-4">
           <div className="h-3 w-16 bg-slate-100 rounded mb-3" />
           <div className="h-5 w-10 bg-slate-200 rounded" />
         </div>

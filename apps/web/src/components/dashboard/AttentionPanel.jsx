@@ -1,26 +1,33 @@
-// Phase 21 - "Attention Required" panel. Every alert passed in must be
-// derived from a REAL, already-queried operational signal (failed orders,
-// low provider balance, failed payments, inactive organizations, etc.) -
-// this component never invents one. When `alerts` is genuinely empty, it
-// shows an honest all-clear message rather than fabricating a warning to
-// look busy.
+import { AlertTriangle, CheckCircle2, OctagonAlert } from "lucide-react";
+
+// "Attention Required" panel. Every alert passed in must be derived from a
+// REAL, already-queried operational signal - this component never invents
+// one. When `alerts` is genuinely empty, it shows an honest all-clear.
 export default function AttentionPanel({ alerts, loading }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
-      <h2 className="text-sm font-semibold text-slate-900 mb-3">Attention Required</h2>
-      {loading && <p className="text-sm text-slate-400">Checking...</p>}
+    <section className="card p-5 sm:p-6">
+      <h2 className="mb-3 font-display text-base font-semibold text-slate-900">Attention Required</h2>
+      {loading && <p className="text-sm text-slate-500">Checking...</p>}
       {!loading && (!alerts || alerts.length === 0) && (
-        <p className="text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">Everything is operating normally.</p>
+        <p className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
+          <CheckCircle2 size={18} aria-hidden="true" />
+          Everything is operating normally.
+        </p>
       )}
       {!loading && alerts && alerts.length > 0 && (
         <ul className="space-y-2">
-          {alerts.map((a, i) => (
-            <li key={i} className={`text-sm rounded-lg px-3 py-2 ${a.level === "critical" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
-              {a.text}
-            </li>
-          ))}
+          {alerts.map((a, i) => {
+            const critical = a.level === "critical";
+            const IconCmp = critical ? OctagonAlert : AlertTriangle;
+            return (
+              <li key={i} className={`flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm ${critical ? "bg-vermilion-50 text-vermilion-800" : "bg-marigold-50 text-marigold-800"}`}>
+                <IconCmp size={18} className="mt-px shrink-0" aria-hidden="true" />
+                {a.text}
+              </li>
+            );
+          })}
         </ul>
       )}
-    </div>
+    </section>
   );
 }
