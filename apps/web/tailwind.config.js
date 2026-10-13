@@ -138,6 +138,7 @@ export default {
         blue: ultramarine,
         sky: ultramarine,
         indigo: violet,
+        purple: violet,
         gray: slate,
         paper: "#F6F7FF",
         // Semantic aliases.

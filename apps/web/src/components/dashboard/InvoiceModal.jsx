@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { useState } from "react";
 import { apiClient } from "../../api/client";
 import { formatCurrency, actionErrorMessage } from "../../utils/format";
@@ -34,19 +35,19 @@ export default function InvoiceModal({ payment, organizationName, userName, user
   const dateStr = payment.createdAt ? new Date(payment.createdAt).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-900/50 p-4">
+      <div className="bg-white rounded-dialog max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-overlay border border-slate-200">
         <div className="flex justify-between items-start border-b border-slate-100 pb-4">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">LauncherDesk E-Stamp</h3>
+            <h3 className="font-display text-lg font-semibold text-slate-900">LauncherDesk E-Stamp</h3>
             <p className="text-xs text-slate-500">Official Payment Receipt & Tax Invoice</p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 text-lg leading-none p-1"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             aria-label="Close"
           >
-            ✕
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
@@ -107,7 +108,7 @@ export default function InvoiceModal({ payment, organizationName, userName, user
         )}
 
         {txDetail && (
-          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-[11px] text-slate-600 space-y-1.5 font-mono">
+          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 space-y-1.5 font-mono">
             <div className="flex justify-between"><span>Razorpay Order ID</span><span>{txDetail.razorpayOrderId || "-"}</span></div>
             <div className="flex justify-between"><span>Razorpay Payment ID</span><span>{txDetail.razorpayPaymentId || "-"}</span></div>
             <div className="flex justify-between"><span>Verified At</span><span>{txDetail.verifiedAt ? new Date(txDetail.verifiedAt).toLocaleString("en-IN") : "-"}</span></div>
@@ -127,7 +128,7 @@ export default function InvoiceModal({ payment, organizationName, userName, user
         <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
           <button
             onClick={() => window.print()}
-            className="px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 shadow-sm"
+            className="px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700"
           >
             Print / Save PDF
           </button>

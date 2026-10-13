@@ -147,22 +147,22 @@ export default function BulkBatchDetailPage() {
   return (
     <div className="max-w-5xl">
       <div className="flex items-center justify-between mb-4">
-        <button type="button" onClick={() => navigate("/estamps/bulk")} className="text-sm text-slate-500 hover:underline">
+        <button type="button" onClick={() => navigate("/estamps/bulk")} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           &larr; Back to Bulk Requests
         </button>
       </div>
 
-      {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
-      {notice && <div className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{notice}</div>}
+      {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
+      {notice && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+      <div className="card p-6 mb-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <p className="text-sm text-slate-500">Batch</p>
             <p className="text-lg font-semibold text-slate-900">{batch.batchNumber}</p>
             {batch.fileName && <p className="text-xs text-slate-400">{batch.fileName}</p>}
           </div>
-          <StatusBadge status={batch.status} />
+          <StatusBadge status={batch.status} kind="batch" />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4 text-sm">
@@ -191,7 +191,7 @@ export default function BulkBatchDetailPage() {
               type="button"
               onClick={handleConfirm}
               disabled={confirming}
-              className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
             >
               {confirming ? "Confirming..." : `Confirm & charge ${formatCurrency(batch.totalPayableAmount || batch.totalStampDuty || 0)}`}
             </button>
@@ -205,7 +205,7 @@ export default function BulkBatchDetailPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 text-sm font-medium text-slate-700">Rows</div>
         {items.length === 0 ? (
           <EmptyState text="No rows to show." />
@@ -213,7 +213,7 @@ export default function BulkBatchDetailPage() {
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 whitespace-nowrap">
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 whitespace-nowrap">
                   <tr>
                     <th className="px-3 py-3">Row</th>
                     <th className="px-3 py-3">Status</th>
@@ -243,7 +243,7 @@ export default function BulkBatchDetailPage() {
                         <td className="px-3 py-2.5 font-medium text-slate-900">{item.rowNumber}</td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           <StatusBadge status={item.status} />
-                          {item.isDuplicateSuspect && <span className="ml-1 text-amber-600 text-[10px] font-semibold block">duplicate?</span>}
+                          {item.isDuplicateSuspect && <span className="ml-1 text-amber-600 text-xs font-semibold block">duplicate?</span>}
                         </td>
                         <td className="px-3 py-2.5 font-medium text-slate-800 whitespace-nowrap">{item.inputData?.stateCode || "-"}</td>
                         <td className="px-3 py-2.5 max-w-[180px] truncate" title={articleText}>
@@ -256,7 +256,7 @@ export default function BulkBatchDetailPage() {
                             {item.inputData?.descriptionOfDocument || "-"}
                           </div>
                           {item.inputData?.propertyDescription && (
-                            <div className="truncate text-[11px] text-slate-400" title={item.inputData?.propertyDescription}>
+                            <div className="truncate text-xs text-slate-400" title={item.inputData?.propertyDescription}>
                               {item.inputData?.propertyDescription}
                             </div>
                           )}
@@ -272,7 +272,7 @@ export default function BulkBatchDetailPage() {
                         <td className="px-3 py-2.5 text-right text-slate-600 whitespace-nowrap" title={`Conv: ₹${item.convenienceFee || 0}, Proc: ₹${item.procurementFee || 99}, GST: ₹${item.gst || 0}`}>
                           {formatCurrency(feesAndGst)}
                         </td>
-                        <td className="px-3 py-2.5 text-right font-bold text-slate-900 whitespace-nowrap">
+                        <td className="px-3 py-2.5 text-right font-semibold text-slate-900 whitespace-nowrap">
                           {item.totalAmount != null ? formatCurrency(item.totalAmount) : (item.calculatedAmount != null ? formatCurrency(item.calculatedAmount) : "-")}
                         </td>
                         <td className="px-3 py-2.5 text-slate-500 text-xs">
@@ -281,7 +281,7 @@ export default function BulkBatchDetailPage() {
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           {item.status === "CREATED" && item.requestId && (
-                            <Link to={`/estamps/requests/${item.requestId}`} className="text-brand-600 hover:underline">
+                            <Link to={`/estamps/requests/${item.requestId}`} className="font-medium text-brand-700 hover:underline">
                               View Request
                             </Link>
                           )}
@@ -298,10 +298,10 @@ export default function BulkBatchDetailPage() {
                   Page {page} of {totalPages} ({itemsTotal} row(s))
                 </span>
                 <div className="space-x-2">
-                  <button type="button" disabled={page <= 1} onClick={() => changePage(page - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+                  <button type="button" disabled={page <= 1} onClick={() => changePage(page - 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
                     Previous
                   </button>
-                  <button type="button" disabled={page >= totalPages} onClick={() => changePage(page + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+                  <button type="button" disabled={page >= totalPages} onClick={() => changePage(page + 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
                     Next
                   </button>
                 </div>

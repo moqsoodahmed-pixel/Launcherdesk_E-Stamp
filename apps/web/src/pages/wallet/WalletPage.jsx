@@ -192,7 +192,7 @@ export default function WalletPage() {
   if (!canViewWallet && !canViewPayments) {
     return (
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Wallet</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-900">Wallet</h1>
         <p className="mt-4 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 text-sm px-4 py-3">You do not currently have financial access.</p>
       </div>
     );
@@ -202,16 +202,16 @@ export default function WalletPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Wallet</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Wallet</h1>
           <p className="text-sm text-slate-500">Manage balance, funding and financial activity</p>
         </div>
-        <button onClick={load} disabled={loading || !scopeReady} className="text-sm rounded-lg border border-slate-300 px-3 py-2 text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+        <button onClick={load} disabled={loading || !scopeReady} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50">
           {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
 
       {isInternal && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4">
+        <div className="card p-4">
           <label className="text-xs text-slate-500 block mb-1" htmlFor="wallet-org">
             Organization
           </label>
@@ -227,14 +227,14 @@ export default function WalletPage() {
         </div>
       )}
 
-      {notice && <div role="status" className="rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{notice}</div>}
-      {error && <div role="alert" className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {notice && <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
+      {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
 
       {scopeReady && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {canViewWallet && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <div className="card p-6">
                 <p className="text-sm text-slate-500 mb-1">Available balance</p>
                 {sectionErrors.balance ? (
                   <p className="text-sm text-red-600">{sectionErrors.balance}</p>
@@ -263,8 +263,8 @@ export default function WalletPage() {
             )}
 
             {canFund && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <h2 className="font-medium text-slate-900 mb-3">Add money</h2>
+              <div className="card p-6">
+                <h2 className="font-display text-base font-semibold text-slate-900 mb-3">Add money</h2>
                 <form onSubmit={handleAddFunds} className="flex flex-col sm:flex-row gap-2">
                   <input
                     aria-label="Amount in rupees"
@@ -278,7 +278,7 @@ export default function WalletPage() {
                     disabled={!!fundStep}
                     className="flex-1 min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
-                  <button disabled={!!fundStep} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                  <button disabled={!!fundStep} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
                     {stepLabel || "Add Money"}
                   </button>
                 </form>
@@ -288,7 +288,7 @@ export default function WalletPage() {
           </div>
 
           {canViewSummary && (
-            <section className="bg-white rounded-2xl border border-slate-200 p-6">
+            <section className="card p-6">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <h2 className="font-medium text-slate-900">Financial summary</h2>
                 <DateRangeFilter value={preset} onChange={setPreset} options={TREND_PRESETS} />
@@ -310,10 +310,10 @@ export default function WalletPage() {
           )}
 
           {canViewPayments && (
-            <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <section className="card overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-medium text-slate-900 text-sm">Recent payments</h2>
-                <Link to="/payments" className="text-sm text-brand-600 hover:underline">
+                <Link to="/payments" className="text-sm font-medium text-brand-700 hover:underline">
                   View all
                 </Link>
               </div>
@@ -335,7 +335,7 @@ export default function WalletPage() {
           )}
 
           {canViewWallet && (
-            <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <section className="card overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 font-medium text-slate-900 text-sm">Balance ledger</div>
               {sectionErrors.transactions && <p className="px-4 py-3 text-sm text-red-600">{sectionErrors.transactions}</p>}
               {!sectionErrors.transactions && transactions.length === 0 && !loading && <EmptyState text="No transactions yet" />}

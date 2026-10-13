@@ -121,3 +121,18 @@ export function statusMeta(status, { kind = "request", client = false } = {}) {
   }
   return { tone: entry?.tone || "grey", label: entry?.staff || raw };
 }
+
+// Filter-dropdown options for a list of status values. Clients get their
+// plain labels, and statuses sharing a label (every internal stage reads
+// "Being prepared") collapse to the first value. Staff get the enum.
+export function statusOptions(values, { kind = "request", client = false } = {}) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    const label = client ? statusMeta(value, { kind, client: true }).label : String(value).replace(/_/g, " ");
+    if (client && seen.has(label)) continue;
+    seen.add(label);
+    out.push({ value, label });
+  }
+  return out;
+}

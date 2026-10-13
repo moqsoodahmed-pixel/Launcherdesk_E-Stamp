@@ -125,7 +125,7 @@ export default function ArticlesPage() {
         title="Articles"
         actions={
           canManage && (
-            <button onClick={() => setShowCreate((v) => !v)} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
+            <button onClick={() => setShowCreate((v) => !v)} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700">
               {showCreate ? "Cancel" : "+ New Article"}
             </button>
           )
@@ -134,14 +134,14 @@ export default function ArticlesPage() {
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input aria-label="State code" placeholder="State code (e.g. KA)" value={stateCode} onChange={(e) => setStateCode(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-brand-500" />
-        <input aria-label="Search articles" placeholder="Search by title..." value={search} onChange={(e) => setSearch(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-brand-500" />
-        <button onClick={load} className="text-sm text-slate-500 hover:underline">
+        <input aria-label="Search articles" placeholder="Search by title..." value={search} onChange={(e) => setSearch(e.target.value)} className="input w-full sm:w-64" />
+        <button onClick={load} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           Refresh
         </button>
       </div>
 
-      {notice && <div className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{notice}</div>}
-      {actionError && <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{actionError}</div>}
+      {notice && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
+      {actionError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{actionError}</div>}
       {error && (
         <div className="mb-4">
           <ErrorState message={error} onRetry={load} />
@@ -149,7 +149,7 @@ export default function ArticlesPage() {
       )}
 
       {canManage && showCreate && (
-        <form onSubmit={handleCreate} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 mb-6">
+        <form onSubmit={handleCreate} className="card p-6 space-y-4 mb-6">
           <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
             Demo/test data only. Enter your organization's verified, authoritative stamp-duty rates - this platform does not supply legal rate data.
           </p>
@@ -160,36 +160,36 @@ export default function ArticlesPage() {
           <TextField label="Title" value={createForm.title} onChange={(v) => setCreateForm((f) => ({ ...f, title: v }))} />
           <TextField label="Description (optional)" value={createForm.description} onChange={(v) => setCreateForm((f) => ({ ...f, description: v }))} />
           <RuleFields form={createForm} setForm={setCreateForm} />
-          <button disabled={creating} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+          <button disabled={creating} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
             {creating ? "Creating..." : "Create article"}
           </button>
         </form>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+          <thead className="bg-slate-50 text-xs text-slate-600">
             <tr>
-              <th className="text-left px-4 py-3">State</th>
-              <th className="text-left px-4 py-3">Code</th>
-              <th className="text-left px-4 py-3">Title</th>
-              <th className="text-left px-4 py-3">Version</th>
-              <th className="text-left px-4 py-3">Status</th>
-              {canManage && <th className="text-left px-4 py-3"></th>}
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">State</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Code</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Title</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Version</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Status</th>
+              {canManage && <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold"></th>}
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={canManage ? 6 : 5} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={canManage ? 6 : 5} className="px-4 py-10 text-center text-slate-500">
                   Loading...
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && !error && (
               <tr>
-                <td colSpan={canManage ? 6 : 5} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={canManage ? 6 : 5} className="px-4 py-10 text-center text-slate-500">
                   No articles found.
                 </td>
               </tr>
@@ -210,7 +210,7 @@ export default function ArticlesPage() {
                         setVersionForm(EMPTY_VERSION_FORM);
                         setVersionArticleId(a._id);
                       }}
-                      className="text-brand-600 hover:underline">
+                      className="font-medium text-brand-700 hover:underline">
                       New version
                     </button>
                     <button onClick={() => handleToggleStatus(a)} className={a.isActive ? "text-red-600 hover:underline" : "text-green-600 hover:underline"}>
@@ -231,15 +231,15 @@ export default function ArticlesPage() {
             <h2 className="font-medium text-slate-900">New calculation rule version</h2>
             <RuleFields form={versionForm} setForm={setVersionForm} />
             <label className="block">
-              <span className="block text-xs font-medium text-slate-700 mb-1">Effective from (optional - leave blank for immediate)</span>
-              <input type="datetime-local" value={versionForm.effectiveFrom} onChange={(e) => setVersionForm((f) => ({ ...f, effectiveFrom: e.target.value }))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <span className="mb-1.5 block text-sm font-medium text-slate-800">Effective from (optional - leave blank for immediate)</span>
+              <input type="datetime-local" value={versionForm.effectiveFrom} onChange={(e) => setVersionForm((f) => ({ ...f, effectiveFrom: e.target.value }))} className="input" />
               <span className="block text-xs text-slate-500 mt-1">A future date won't apply until then - existing requests are never recalculated.</span>
             </label>
             <div className="flex gap-2">
-              <button disabled={savingVersion} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+              <button disabled={savingVersion} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
                 {savingVersion ? "Saving..." : "Create version"}
               </button>
-              <button type="button" onClick={() => setVersionArticleId(null)} className="text-sm text-slate-500 hover:underline">
+              <button type="button" onClick={() => setVersionArticleId(null)} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
                 Cancel
               </button>
             </div>
@@ -254,8 +254,8 @@ function RuleFields({ form, setForm }) {
   return (
     <div className="space-y-3">
       <label className="block">
-        <span className="block text-xs font-medium text-slate-700 mb-1">Calculation type</span>
-        <select value={form.ruleType} onChange={(e) => setForm((f) => ({ ...f, ruleType: e.target.value }))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+        <span className="mb-1.5 block text-sm font-medium text-slate-800">Calculation type</span>
+        <select value={form.ruleType} onChange={(e) => setForm((f) => ({ ...f, ruleType: e.target.value }))} className="input">
           {RULE_TYPES.map((t) => (
             <option key={t} value={t}>
               {t}
@@ -276,8 +276,8 @@ function RuleFields({ form, setForm }) {
 function TextField({ label, value, onChange, type = "text", ...inputProps }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-slate-700 mb-1">{label}</span>
-      <input type={type} {...inputProps} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+      <span className="mb-1.5 block text-sm font-medium text-slate-800">{label}</span>
+      <input type={type} {...inputProps} value={value} onChange={(e) => onChange(e.target.value)} className="input" />
     </label>
   );
 }

@@ -47,26 +47,26 @@ export default function MyActivityPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+          <thead className="bg-slate-50 text-xs text-slate-600">
             <tr>
-              <th className="text-left px-4 py-3">When</th>
-              <th className="text-left px-4 py-3">Action</th>
-              <th className="text-left px-4 py-3">Entity</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">When</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Action</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Entity</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={3} className="px-4 py-10 text-center text-slate-500">
                   Loading...
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && !error && (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={3} className="px-4 py-10 text-center text-slate-500">
                   No activity recorded yet.
                 </td>
               </tr>
@@ -91,10 +91,10 @@ export default function MyActivityPage() {
             Page {page} of {totalPages} ({total} total)
           </span>
           <div className="space-x-2">
-            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Previous
             </button>
-            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Next
             </button>
           </div>

@@ -76,7 +76,7 @@ export default function UsersListPage() {
         title={role ? TITLES[role] : "Users"}
         actions={
           canCreate && (
-            <Link to={`/users/new?role=${createRole}`} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
+            <Link to={`/users/new?role=${createRole}`} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700">
               + Add {ROLE_LABELS[createRole]}
             </Link>
           )
@@ -90,13 +90,13 @@ export default function UsersListPage() {
           placeholder="Search by name or email..."
           value={search}
           onChange={(e) => setFilter("search", e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          className="input w-full sm:w-64"
         />
         <select
           aria-label="Role"
           value={role}
           onChange={(e) => setFilter("role", e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          className="input w-auto"
         >
           <option value="">All roles</option>
           {roleOptions.map((r) => (
@@ -109,51 +109,51 @@ export default function UsersListPage() {
           aria-label="Status"
           value={status}
           onChange={(e) => setFilter("status", e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          className="input w-auto"
         >
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
-        <button onClick={load} className="text-sm text-slate-500 hover:underline">
+        <button onClick={load} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           Refresh
         </button>
       </div>
 
-      {notice && <div className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{notice}</div>}
-      {actionError && <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{actionError}</div>}
+      {notice && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
+      {actionError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{actionError}</div>}
       {error && (
         <div className="mb-4">
           <ErrorState message={error} onRetry={load} />
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+          <thead className="bg-slate-50 text-xs text-slate-600">
             <tr>
-              <th className="text-left px-4 py-3">Name</th>
-              <th className="text-left px-4 py-3">Email</th>
-              <th className="text-left px-4 py-3">Phone</th>
-              <th className="text-left px-4 py-3">Role</th>
-              <th className="text-left px-4 py-3">Status</th>
-              <th className="text-left px-4 py-3">Created</th>
-              {isMaster && <th className="text-left px-4 py-3">Password</th>}
-              <th className="text-left px-4 py-3"></th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Name</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Email</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Phone</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Role</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Status</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Created</th>
+              {isMaster && <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Password</th>}
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold"></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={isMaster ? 8 : 7} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={isMaster ? 8 : 7} className="px-4 py-10 text-center text-slate-500">
                   Loading...
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && !error && (
               <tr>
-                <td colSpan={isMaster ? 8 : 7} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={isMaster ? 8 : 7} className="px-4 py-10 text-center text-slate-500">
                   No users found.
                 </td>
               </tr>
@@ -178,7 +178,7 @@ export default function UsersListPage() {
                   </td>
                 )}
                 <td className="px-4 py-3 space-x-3">
-                  <Link to={`/users/${u._id}`} className="text-brand-600 hover:underline">
+                  <Link to={`/users/${u._id}`} className="font-medium text-brand-700 hover:underline">
                     Edit
                   </Link>
                   {u.role !== "SUPER_ADMIN" &&
@@ -205,10 +205,10 @@ export default function UsersListPage() {
             Page {page} of {totalPages} ({total} total)
           </span>
           <div className="space-x-2">
-            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Previous
             </button>
-            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Next
             </button>
           </div>

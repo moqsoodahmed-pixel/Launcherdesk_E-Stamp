@@ -156,7 +156,7 @@ export default function EStampsPage() {
       </div>
 
       {downloadError && (
-        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {downloadError}
         </div>
       )}
@@ -164,20 +164,20 @@ export default function EStampsPage() {
       {loading && <LoadingState text="Loading E-Stamps..." />}
       {!loading && error && <ErrorState message={error} onRetry={refetch} />}
       {!loading && !error && items.length === 0 && (
-        <div className="bg-white rounded-xl border border-slate-200">
+        <div className="card">
           <EmptyState title={hasFilters ? "No E-Stamps match these filters" : "No issued E-Stamps yet"} />
         </div>
       )}
       {!loading && !error && items.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+        <div className="card overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+            <thead className="bg-slate-50 text-xs text-slate-600">
               <tr>
-                <th className="text-left px-4 py-3">Order</th>
-                <th className="text-left px-4 py-3">State</th>
-                <th className="text-right px-4 py-3">Amount</th>
-                <th className="text-left px-4 py-3">Issued</th>
-                <th className="text-left px-4 py-3">Certificate</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Order</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">State</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-right font-semibold">Amount</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Issued</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Certificate</th>
                 <th className="px-4 py-3">
                   <span className="sr-only">Actions</span>
                 </th>
@@ -221,10 +221,10 @@ export default function EStampsPage() {
             Page {page} of {totalPages} ({total} total)
           </span>
           <div className="space-x-2">
-            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Previous
             </button>
-            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Next
             </button>
           </div>

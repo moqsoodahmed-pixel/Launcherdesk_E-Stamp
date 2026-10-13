@@ -1,3 +1,4 @@
+import { FileText, X } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -56,10 +57,10 @@ export default function PaymentDetailPage() {
   if (error || !payment) {
     return (
       <div className="space-y-3">
-        <Link to="/payments" className="text-sm text-slate-500 hover:underline">
+        <Link to="/payments" className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           ← Payments
         </Link>
-        <div role="alert" className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {error || "Payment not found."}
         </div>
       </div>
@@ -85,7 +86,7 @@ export default function PaymentDetailPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link to="/payments" className="text-sm text-slate-500 hover:underline">
+        <Link to="/payments" className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           ← Payments
         </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
@@ -96,9 +97,9 @@ export default function PaymentDetailPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowInvoiceModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 shadow-sm"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              <span>📄</span> View Invoice
+              <FileText size={14} aria-hidden="true" /> View Invoice
             </button>
             <PaymentStatusBadge status={payment.status} />
           </div>
@@ -125,7 +126,7 @@ export default function PaymentDetailPage() {
           <button
             onClick={handleReconcile}
             disabled={reconciling}
-            className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold disabled:opacity-50"
           >
             {reconciling ? "Checking Razorpay..." : "Check Razorpay for this payment"}
           </button>
@@ -207,19 +208,19 @@ export default function PaymentDetailPage() {
       </Card>
 
       {showInvoiceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-900/50 p-4">
+          <div className="bg-white rounded-dialog max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-overlay border border-slate-200">
             <div className="flex justify-between items-start border-b border-slate-100 pb-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">LauncherDesk E-Stamp</h3>
+                <h3 className="font-display text-lg font-semibold text-slate-900">LauncherDesk E-Stamp</h3>
                 <p className="text-xs text-slate-500">Official Payment Receipt & Tax Invoice</p>
               </div>
               <button
                 onClick={() => setShowInvoiceModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg leading-none p-1"
+                className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                 aria-label="Close"
               >
-                ✕
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
 
@@ -270,7 +271,7 @@ export default function PaymentDetailPage() {
             <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
               <button
                 onClick={() => window.print()}
-                className="px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 shadow-sm"
+                className="px-4 py-2 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700"
               >
                 Print / Save PDF
               </button>
@@ -290,7 +291,7 @@ export default function PaymentDetailPage() {
 
 function Card({ title, children }) {
   return (
-    <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-3">
+    <section className="card p-5 sm:p-6 space-y-3">
       <h2 className="font-medium text-slate-900">{title}</h2>
       {children}
     </section>

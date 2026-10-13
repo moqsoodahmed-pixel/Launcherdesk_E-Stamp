@@ -190,10 +190,10 @@ export default function RequestDetailPage() {
   if (!request) {
     return (
       <div className="space-y-3">
-        <Link to="/estamps/requests" className="text-sm text-slate-500 hover:underline">
+        <Link to="/estamps/requests" className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           ← Requests
         </Link>
-        <div role="alert" className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {error || "Unable to load this request."}
         </div>
         <button
@@ -204,7 +204,7 @@ export default function RequestDetailPage() {
               .catch((err) => setError(describeError(err, "Unable to load this request.")))
               .finally(() => setInitialLoading(false));
           }}
-          className="text-sm rounded-lg border border-slate-300 px-4 py-2 text-slate-600 hover:bg-slate-50"
+          className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"
         >
           Retry
         </button>
@@ -226,17 +226,17 @@ export default function RequestDetailPage() {
   return (
     <div className="max-w-3xl space-y-6 pb-10">
       <div>
-        <Link to="/estamps/requests" className="text-sm text-slate-500 hover:underline">
+        <Link to="/estamps/requests" className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           ← Requests
         </Link>
-        <div className="flex items-center justify-between mt-1">
-          <h1 className="text-xl font-semibold text-slate-900">{request.requestNumber}</h1>
-          <StatusBadge status={request.status} />
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="font-display text-2xl font-semibold text-slate-900">{request.requestNumber}</h1>
+          <StatusBadge status={request.status} remainingSeconds={request.status === "MODIFICATION_WINDOW" && typeof secondsLeft === "number" ? secondsLeft : undefined} />
         </div>
       </div>
 
-      {notice && <div className="rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{notice}</div>}
-      {error && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {notice && <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
 
       {/* Request Information */}
       <Section title="Request Information">
@@ -247,7 +247,7 @@ export default function RequestDetailPage() {
             <Row label="Description" value={request.descriptionOfDocument} />
             <Row label="Property Description" value={request.propertyDescription || "-"} />
             {canModify && (
-              <button onClick={() => setEditing(true)} className="text-sm text-brand-600 hover:underline">
+              <button onClick={() => setEditing(true)} className="text-sm font-medium text-brand-700 hover:underline">
                 Edit details
               </button>
             )}
@@ -268,7 +268,7 @@ export default function RequestDetailPage() {
             />
             {editForm.firstParty && editForm.secondParty ? (
               <div className="block">
-                <span className="block text-xs font-medium text-slate-700 mb-1">Who pays the stamp duty?</span>
+                <span className="mb-1.5 block text-sm font-medium text-slate-800">Who pays the stamp duty?</span>
                 <div role="group" aria-label="Who pays the stamp duty?" className="flex gap-2">
                   <button
                     type="button"
@@ -318,11 +318,11 @@ export default function RequestDetailPage() {
             <div className="flex gap-2">
               <button
                 disabled={saving || !editForm.stampDutyPaidBy || (!!editForm.firstParty && !!editForm.secondParty && !paidBySide)}
-                className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+                className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Save changes"}
               </button>
-              <button type="button" onClick={() => setEditing(false)} className="text-sm text-slate-500 hover:underline">
+              <button type="button" onClick={() => setEditing(false)} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
                 Cancel
               </button>
             </div>
@@ -350,7 +350,7 @@ export default function RequestDetailPage() {
             label="Verification status"
             value={
               request.documentsVerified
-                ? "✓ Documents Verified & Confirmed"
+                ? "Documents Verified & Confirmed"
                 : "Awaiting Admin Review"
             }
           />
@@ -361,7 +361,7 @@ export default function RequestDetailPage() {
               <button
                 type="button"
                 onClick={() => setShowVerifyModal(true)}
-                className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 sm:min-h-[40px]"
               >
                 Confirm Documents Correct
               </button>
@@ -386,7 +386,7 @@ export default function RequestDetailPage() {
               )}
             </p>
             {mayCancel && (
-              <button onClick={handleCancel} disabled={!canCancel} className="text-sm text-red-600 border border-red-200 rounded-lg px-4 py-2 disabled:opacity-40">
+              <button onClick={handleCancel} disabled={!canCancel} className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-vermilion-200 bg-white px-4 text-sm font-medium text-vermilion-700 transition-colors hover:bg-vermilion-50 disabled:opacity-40 sm:min-h-[40px]">
                 Cancel Request
               </button>
             )}
@@ -398,8 +398,8 @@ export default function RequestDetailPage() {
       {order && (
         <Section title="Order">
           <Row label="Order Number" value={order.order.orderNumber} />
-          <Row label="Processing Status" value={order.order.eStampStatus} />
-          <Row label="Order Status" value={order.order.status} />
+          <Row label="Processing Status" value={<StatusBadge status={order.order.eStampStatus} />} />
+          <Row label="Order Status" value={<StatusBadge status={order.order.status} />} />
           <Row label="Created" value={new Date(order.order.createdAt).toLocaleString()} />
           {order.order.issuedAt && <Row label="Issued" value={new Date(order.order.issuedAt).toLocaleString()} />}
           <Link to={`/orders/${order.order._id}`} className="inline-block mt-2 text-sm text-brand-600 hover:underline">
@@ -418,7 +418,7 @@ export default function RequestDetailPage() {
           ) : (
             <div className="text-sm text-slate-600 space-y-1">
               {order.document?.filename && <p>{order.document.filename}</p>}
-              <Link to={`/orders/${order.order._id}`} className="text-brand-600 hover:underline">
+              <Link to={`/orders/${order.order._id}`} className="font-medium text-brand-700 hover:underline">
                 View & download on the Order page →
               </Link>
             </div>
@@ -427,20 +427,20 @@ export default function RequestDetailPage() {
       )}
 
       {showVerifyModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+        <div className="fixed inset-0 bg-midnight-900/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-dialog max-w-md w-full p-6 shadow-overlay border border-slate-200">
             <h3 className="text-lg font-semibold text-slate-900 mb-2">Confirm Document Verification</h3>
             <p className="text-sm text-slate-600 mb-4">
               Please verify that party names ({request?.firstParty} & {request?.secondParty}), consideration value, and attached document descriptions are correct.
             </p>
             <div className="mb-4">
-              <label className="block text-xs font-medium text-slate-700 mb-1">Verification Notes (Optional)</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-800">Verification Notes (Optional)</label>
               <textarea
                 value={verifyNotes}
                 onChange={(e) => setVerifyNotes(e.target.value)}
                 rows={3}
                 placeholder="e.g. Identity and agreement documents verified against registry..."
-                className="w-full text-sm rounded-lg border border-slate-300 p-2.5 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                className="input min-h-[88px]"
               />
             </div>
             <div className="flex justify-end gap-2">
@@ -519,15 +519,23 @@ function RequestTimeline({ request, order, manual }) {
 
 function TimelineList({ steps }) {
   return (
-    <ol className="space-y-2 text-sm">
+    <ol className="text-sm">
       {steps.map((s, i) => (
-        <li key={i} className="flex items-start justify-between border-b border-slate-100 pb-2 last:border-0">
-          <span className={`flex items-center gap-2 ${s.tone === "red" ? "text-red-600" : s.pending ? "text-amber-600" : "text-slate-700"}`}>
-            <span className={`h-2 w-2 rounded-full ${s.tone === "red" ? "bg-red-500" : s.pending ? "bg-amber-500" : s.done ? "bg-green-500" : "bg-slate-300"}`} />
-            {s.label}
-            {s.note && <span className="text-slate-400">({s.note})</span>}
+        <li key={i} className="relative flex items-start justify-between gap-3 pb-4 pl-7 last:pb-0">
+          {i < steps.length - 1 && <span className="absolute left-[9px] top-5 h-full w-px bg-slate-200" aria-hidden="true" />}
+          <span
+            className={`absolute left-0 top-0.5 flex h-[19px] w-[19px] items-center justify-center rounded-full ring-4 ring-white ${
+              s.tone === "red" ? "bg-vermilion-500" : s.pending ? "bg-brand-600" : s.done ? "bg-emerald-500" : "bg-slate-300"
+            }`}
+            aria-hidden="true"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-white" />
           </span>
-          <span className="text-slate-400">{s.at ? new Date(s.at).toLocaleString() : s.pending ? "in progress" : "-"}</span>
+          <span className={`min-w-0 ${s.tone === "red" ? "font-medium text-vermilion-700" : s.pending ? "font-medium text-brand-700" : "text-slate-800"}`}>
+            {s.label}
+            {s.note && <span className="text-slate-500"> ({s.note})</span>}
+          </span>
+          <span className="shrink-0 text-right text-xs text-slate-500 tabular-nums">{s.at ? new Date(s.at).toLocaleString() : s.pending ? "in progress" : "-"}</span>
         </li>
       ))}
     </ol>
@@ -536,10 +544,10 @@ function TimelineList({ steps }) {
 
 function Section({ title, children }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
-      <h2 className="font-medium text-slate-900 mb-3">{title}</h2>
+    <section className="card p-5 sm:p-6">
+      <h2 className="mb-4 font-display text-base font-semibold text-slate-900">{title}</h2>
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -560,17 +568,17 @@ function chargeLabel(chargeStatus) {
 function EditField({ label, value, onChange, type = "text" }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-slate-700 mb-1">{label}</span>
-      <input type={type} min={type === "number" ? 0 : undefined} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={value} onChange={(e) => onChange(e.target.value)} />
+      <span className="mb-1.5 block text-sm font-medium text-slate-800">{label}</span>
+      <input type={type} min={type === "number" ? 0 : undefined} className="input" value={value} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }
 
 function Row({ label, value }) {
   return (
-    <div className="flex justify-between border-b border-slate-100 pb-2 last:border-0">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-900">{value}</span>
+    <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-b border-slate-100 py-2.5 text-sm first:pt-0 last:border-0 last:pb-0">
+      <span className="text-slate-600">{label}</span>
+      <span className="text-right font-medium text-slate-900">{value}</span>
     </div>
   );
 }

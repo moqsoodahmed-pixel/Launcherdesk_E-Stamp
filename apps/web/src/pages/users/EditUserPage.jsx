@@ -84,17 +84,17 @@ export default function EditUserPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">{user.name}</h1>
-        <Link to={`/users?role=${user.role}`} className="text-sm text-slate-500 hover:underline">
+        <h1 className="font-display text-2xl font-semibold text-slate-900">{user.name}</h1>
+        <Link to={`/users?role=${user.role}`} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           Back to list
         </Link>
       </div>
 
-      {notice && <div className="rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{notice}</div>}
-      {error && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {notice && <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
 
       {!canEdit && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-2 text-sm">
+        <div className="card p-6 space-y-2 text-sm">
           <h2 className="font-medium text-slate-900 mb-2">Profile</h2>
           <p>
             <span className="text-slate-500">Email:</span> {user.email}
@@ -113,35 +113,35 @@ export default function EditUserPage() {
       )}
 
       {canEdit && (
-      <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+      <form onSubmit={handleSave} className="card p-6 space-y-4">
         <h2 className="font-medium text-slate-900">Profile</h2>
         <div>
-          <label htmlFor="edit-user-name" className="block text-sm font-medium text-slate-700 mb-1">
+          <label htmlFor="edit-user-name" className="mb-1.5 block text-sm font-medium text-slate-800">
             Name
           </label>
-          <input id="edit-user-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <input id="edit-user-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="input" />
         </div>
         <div>
-          <label htmlFor="edit-user-email" className="block text-sm font-medium text-slate-700 mb-1">
+          <label htmlFor="edit-user-email" className="mb-1.5 block text-sm font-medium text-slate-800">
             Email
           </label>
-          <input id="edit-user-email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <input id="edit-user-email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="input" />
         </div>
         <div>
-          <label htmlFor="edit-user-phone" className="block text-sm font-medium text-slate-700 mb-1">
+          <label htmlFor="edit-user-phone" className="mb-1.5 block text-sm font-medium text-slate-800">
             Phone (optional)
           </label>
-          <input id="edit-user-phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <input id="edit-user-phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="input" />
         </div>
-        <button disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+        <button disabled={saving} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
           {saving ? "Saving..." : "Save changes"}
         </button>
       </form>
       )}
 
       {canEdit && (user.role === "ADMIN" || user.role === "USER") && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-medium text-slate-900 mb-3">Role</h2>
+        <div className="card p-6">
+          <h2 className="font-display text-base font-semibold text-slate-900 mb-3">Role</h2>
           <p className="text-sm text-slate-500 mb-3">
             Current role: <span className="font-medium text-slate-900">{user.role}</span>
           </p>

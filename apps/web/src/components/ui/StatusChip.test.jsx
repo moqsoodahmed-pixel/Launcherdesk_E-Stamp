@@ -32,9 +32,9 @@ describe("StatusChip window countdown", () => {
   it("counts down from the server's seconds and becomes Being prepared at zero", () => {
     vi.useFakeTimers();
     render(<StatusChip status="MODIFICATION_WINDOW" remainingSeconds={2} audience="client" />);
-    expect(screen.getByText("0:02")).toBeInTheDocument();
+    expect(screen.getByText("0:02 left to edit")).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1000));
-    expect(screen.getByText("0:01")).toBeInTheDocument();
+    expect(screen.getByText("0:01 left to edit")).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1000));
     expect(screen.getByText("Being prepared")).toBeInTheDocument();
   });

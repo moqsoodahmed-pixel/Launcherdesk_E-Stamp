@@ -1,3 +1,4 @@
+import { CreditCard, FileDown, FileText, MessageSquare, Package, Plus, RefreshCw, Stamp, TrendingUp } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -159,22 +160,22 @@ export default function EStampWorkspace({ user, onStateChanged }) {
   return (
     <div className="space-y-6">
       {/* Workspace Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-brand-900 via-brand-800 to-indigo-900 text-white rounded-2xl p-6 sm:p-8 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4 text-white rounded-2xl p-6 sm:p-8 bg-brand-800">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-white/10 text-brand-200 text-xs font-medium">
-            <span>✨</span> Dedicated E-Stamp Workspace
+          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-white/10 text-white/80 text-xs font-medium">
+            <Stamp size={14} aria-hidden="true" /> Dedicated E-Stamp Workspace
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">E-Stamp Package & Subscription Portal</h2>
-          <p className="text-brand-200 text-sm max-w-xl">
+          <h2 className="text-2xl font-semibold tracking-tight">E-Stamp Package & Subscription Portal</h2>
+          <p className="text-white/80 text-sm max-w-xl">
             Manage your organization&apos;s active subscription, E-Stamp balance, order fulfilment, and billing receipts.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => openBuyMore("buy")}
-            className="px-5 py-2.5 rounded-xl bg-white text-brand-900 font-semibold text-sm hover:bg-brand-50 shadow-md transition-all flex items-center gap-2"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-marigold-400 px-5 text-sm font-semibold text-ink transition-colors hover:bg-marigold-300"
           >
-            <span>⚡</span> Buy More E-Stamps
+            <Plus size={16} aria-hidden="true" /> Buy More E-Stamps
           </button>
         </div>
       </div>
@@ -183,85 +184,85 @@ export default function EStampWorkspace({ user, onStateChanged }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <button
           onClick={() => openBuyMore("buy")}
-          className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-500 hover:shadow-sm transition text-left group"
+          className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-brand-400"
         >
-          <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-lg group-hover:scale-105 transition-transform">
-            💳
+          <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-lg">
+            <CreditCard size={20} aria-hidden="true" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-600">Buy More E-Stamps</div>
+            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-700">Buy More E-Stamps</div>
             <div className="text-xs text-slate-500">Add packages or funds</div>
           </div>
         </button>
 
         <button
           onClick={() => openBuyMore("upgrade")}
-          className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-500 hover:shadow-sm transition text-left group"
+          className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-brand-400"
         >
-          <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg group-hover:scale-105 transition-transform">
-            🚀
+          <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg">
+            <TrendingUp size={20} aria-hidden="true" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-600">Upgrade Plan</div>
+            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-700">Upgrade Plan</div>
             <div className="text-xs text-slate-500">Move to a bigger bundle</div>
           </div>
         </button>
 
         <button
           onClick={() => openBuyMore("renew")}
-          className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-500 hover:shadow-sm transition text-left group"
+          className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-brand-400"
         >
-          <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-lg group-hover:scale-105 transition-transform">
-            🔄
+          <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+            <RefreshCw size={20} aria-hidden="true" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-600">Renew Plan</div>
+            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-700">Renew Plan</div>
             <div className="text-xs text-slate-500">Top up your current bundle</div>
           </div>
         </button>
 
         <button
           onClick={handleViewOrdersScroll}
-          className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-500 hover:shadow-sm transition text-left group"
+          className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-brand-400"
         >
-          <div className="w-10 h-10 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center text-lg group-hover:scale-105 transition-transform">
-            📑
+          <div className="w-10 h-10 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center text-lg">
+            <Package size={20} aria-hidden="true" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-600">View Orders</div>
+            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-700">View Orders</div>
             <div className="text-xs text-slate-500">Track and filter orders</div>
           </div>
         </button>
 
         <button
           onClick={handleDownloadLatestInvoice}
-          className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-500 hover:shadow-sm transition text-left group"
+          className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-brand-400"
         >
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg group-hover:scale-105 transition-transform">
-            📄
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+            <FileDown size={20} aria-hidden="true" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-600">Download Invoice</div>
+            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-700">Download Invoice</div>
             <div className="text-xs text-slate-500">Official tax receipts</div>
           </div>
         </button>
 
         <button
           onClick={() => setShowSupport(true)}
-          className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-500 hover:shadow-sm transition text-left group"
+          className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-brand-400"
         >
-          <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-lg group-hover:scale-105 transition-transform">
-            💬
+          <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-lg">
+            <MessageSquare size={20} aria-hidden="true" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-600">Contact Support</div>
+            <div className="text-sm font-semibold text-slate-900 group-hover:text-brand-700">Contact Support</div>
             <div className="text-xs text-slate-500">2-hour priority SLA</div>
           </div>
         </button>
       </div>
 
       {/* Current Subscription Section */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+      <section className="card p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div>
             <h3 className="font-semibold text-slate-900 text-base">Current Subscription & Allocation</h3>
@@ -276,32 +277,32 @@ export default function EStampWorkspace({ user, onStateChanged }) {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 pt-1">
           <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100">
             <dt className="text-xs text-slate-500 font-medium">Current Plan</dt>
-            <dd className="text-base font-bold text-slate-900 mt-1 line-clamp-1">{currentPlan}</dd>
-            <dd className="text-[11px] text-slate-400 mt-0.5">Corporate Subscription</dd>
+            <dd className="text-base font-semibold text-slate-900 mt-1 line-clamp-1">{currentPlan}</dd>
+            <dd className="text-xs text-slate-400 mt-0.5">Corporate Subscription</dd>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100">
             <dt className="text-xs text-slate-500 font-medium">E-Stamps Purchased</dt>
-            <dd className="text-2xl font-bold text-brand-600 mt-1 tabular-nums">{totalStampsPurchased}</dd>
-            <dd className="text-[11px] text-slate-400 mt-0.5">Total capacity credited</dd>
+            <dd className="text-2xl font-semibold text-brand-600 mt-1 tabular-nums">{totalStampsPurchased}</dd>
+            <dd className="text-xs text-slate-400 mt-0.5">Total capacity credited</dd>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100">
             <dt className="text-xs text-slate-500 font-medium">Available Balance</dt>
-            <dd className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{formatCurrency(availableBal)}</dd>
-            <dd className="text-[11px] text-slate-400 mt-0.5">Wallet ready for new requests</dd>
+            <dd className="text-2xl font-semibold text-slate-900 mt-1 tabular-nums">{formatCurrency(availableBal)}</dd>
+            <dd className="text-xs text-slate-400 mt-0.5">Wallet ready for new requests</dd>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100">
             <dt className="text-xs text-slate-500 font-medium">Used Balance / Issued</dt>
-            <dd className="text-2xl font-bold text-slate-700 mt-1 tabular-nums">{usedCount} Orders</dd>
-            <dd className="text-[11px] text-slate-400 mt-0.5">Successfully fulfilled</dd>
+            <dd className="text-2xl font-semibold text-slate-700 mt-1 tabular-nums">{usedCount} Orders</dd>
+            <dd className="text-xs text-slate-400 mt-0.5">Successfully fulfilled</dd>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 col-span-2 lg:col-span-1">
             <dt className="text-xs text-slate-500 font-medium">Expiry Date</dt>
             <dd className="text-base font-semibold text-slate-900 mt-1">{expiryLabel}</dd>
-            <dd className="text-[11px] text-emerald-600 mt-0.5">
+            <dd className="text-xs text-emerald-600 mt-0.5">
               {matchedPackage?.validityDays ? `${matchedPackage.validityDays}-day bundle validity` : "Lifetime bundle validity"}
             </dd>
           </div>
@@ -309,7 +310,7 @@ export default function EStampWorkspace({ user, onStateChanged }) {
       </section>
 
       {/* Orders Section */}
-      <section ref={ordersRef} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+      <section ref={ordersRef} className="card p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div>
             <h3 className="font-semibold text-slate-900 text-base">E-Stamp Orders</h3>
@@ -390,12 +391,12 @@ export default function EStampWorkspace({ user, onStateChanged }) {
                         {linkedPayment ? (
                           <button
                             onClick={() => setSelectedInvoicePayment(linkedPayment)}
-                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] transition"
+                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition"
                           >
-                            📄 View
+                            <FileText size={14} aria-hidden="true" /> View
                           </button>
                         ) : (
-                          <span className="text-slate-300 text-[11px]">-</span>
+                          <span className="text-slate-300 text-xs">-</span>
                         )}
                       </td>
                     </tr>
@@ -408,7 +409,7 @@ export default function EStampWorkspace({ user, onStateChanged }) {
       </section>
 
       {/* Purchase History Section */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+      <section className="card p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div>
             <h3 className="font-semibold text-slate-900 text-base">Purchase History & Receipts</h3>
@@ -460,7 +461,7 @@ export default function EStampWorkspace({ user, onStateChanged }) {
                   return (
                     <tr key={p._id} className="hover:bg-slate-50/70 transition">
                       <td className="p-3 font-mono font-medium text-brand-600">{invNum}</td>
-                      <td className="p-3 font-mono text-slate-600 text-[11px]">{txId}</td>
+                      <td className="p-3 font-mono text-slate-600 text-xs">{txId}</td>
                       <td className="p-3 font-medium text-slate-800">{p.plan || "Wallet Balance"}</td>
                       <td className="p-3 font-semibold text-slate-900">{formatCurrency(p.amount)}</td>
                       <td className="p-3 text-slate-600">
@@ -472,9 +473,9 @@ export default function EStampWorkspace({ user, onStateChanged }) {
                       <td className="p-3 text-right">
                         <button
                           onClick={() => setSelectedInvoicePayment(p)}
-                          className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] transition inline-flex items-center gap-1"
+                          className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition inline-flex items-center gap-1"
                         >
-                          <span>📄</span> View Invoice
+                          <FileText size={14} aria-hidden="true" /> View Invoice
                         </button>
                       </td>
                     </tr>

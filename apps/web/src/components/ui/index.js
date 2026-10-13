@@ -2,7 +2,7 @@ export { default as Button, buttonClasses } from "./Button";
 export { default as Card } from "./Card";
 export { default as StatTile, TILE_TONES } from "./StatTile";
 export { default as StatusChip, useViewerRole } from "./StatusChip";
-export { statusMeta, isClientRole, CLIENT_ROLES } from "./status";
+export { statusMeta, statusOptions, isClientRole, CLIENT_ROLES } from "./status";
 export { default as WindowCountdown, formatCountdown, useWindowCountdown } from "./WindowCountdown";
 export { Field, Input, Select, Textarea } from "./Field";
 export { Table, Th, Td, Tr } from "./Table";

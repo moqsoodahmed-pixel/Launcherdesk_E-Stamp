@@ -64,7 +64,7 @@ export default function ProfilePage() {
       {!loading && error && <ErrorState message={error} onRetry={refetch} />}
       {!loading && !error && me && (
         <div className="space-y-6">
-          <section className="bg-white rounded-xl border border-slate-200 p-6">
+          <section className="card p-6">
             <h2 className="text-base font-semibold text-slate-900 mb-4">Account</h2>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm">
               <div>
@@ -77,38 +77,38 @@ export default function ProfilePage() {
               </div>
             </dl>
             {saveMsg && (
-              <div role="status" className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">
+              <div role="status" className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">
                 {saveMsg}
               </div>
             )}
             {saveErr && (
-              <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+              <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
                 {saveErr}
               </div>
             )}
             <form onSubmit={saveProfile} className="space-y-4">
               <div>
-                <label htmlFor="profile-name" className="block text-sm font-medium text-slate-700 mb-1">
+                <label htmlFor="profile-name" className="mb-1.5 block text-sm font-medium text-slate-800">
                   Name
                 </label>
                 <input id="profile-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={150} className={inputClass} />
               </div>
               <div>
-                <label htmlFor="profile-phone" className="block text-sm font-medium text-slate-700 mb-1">
+                <label htmlFor="profile-phone" className="mb-1.5 block text-sm font-medium text-slate-800">
                   Phone (optional)
                 </label>
                 <input id="profile-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} className={inputClass} />
               </div>
-              <button disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+              <button disabled={saving} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
                 {saving ? "Saving..." : "Save changes"}
               </button>
             </form>
           </section>
 
-          <section className="bg-white rounded-xl border border-slate-200 p-6">
+          <section className="card p-6">
             <h2 className="text-base font-semibold text-slate-900 mb-4">Change password</h2>
             {pwMsg && (
-              <div role="status" className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">
+              <div role="status" className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">
                 {pwMsg}
               </div>
             )}

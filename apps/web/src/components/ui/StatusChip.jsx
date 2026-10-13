@@ -30,7 +30,7 @@ function WindowChip({ seconds, deadline, fallback, client }) {
   if (left <= 0) return client ? <Chip tone="violet">Being prepared</Chip> : <Chip tone={fallback.tone}>{fallback.label}</Chip>;
   return (
     <Chip tone="blue">
-      <span className="tabular-nums">{formatCountdown(left)}</span> left to edit
+      <span className="tabular-nums">{`${formatCountdown(left)} left to edit`}</span>
     </Chip>
   );
 }

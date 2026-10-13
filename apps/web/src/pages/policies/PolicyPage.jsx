@@ -81,10 +81,10 @@ export default function PolicyPage() {
         ))}
       </div>
 
-      {notice && <div className="mb-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">{notice}</div>}
-      {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {notice && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">{notice}</div>}
+      {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+      <div className="card p-6">
         {current === undefined && <p className="text-slate-400 text-sm">Loading...</p>}
         {current === null && !error && (
           <p className="text-slate-500 text-sm">
@@ -105,13 +105,13 @@ export default function PolicyPage() {
             <p className="text-sm text-slate-700 whitespace-pre-wrap max-h-96 overflow-y-auto border border-slate-100 rounded-lg p-4 bg-slate-50">{current.content}</p>
 
             {hasAcceptedCurrent ? (
-              <div className="mt-4 rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">
+              <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">
                 You accepted this version ({myAckForType.policyVersion}) on {new Date(myAckForType.acceptedAt).toLocaleString()}.
               </div>
             ) : (
               <div className="mt-4 space-y-3">
                 {myAckForType && (
-                  <div className="rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
                     A newer version has been published since you last accepted version {myAckForType.policyVersion}. Please review and accept the current version above.
                   </div>
                 )}
@@ -122,7 +122,7 @@ export default function PolicyPage() {
                 <button
                   onClick={handleAccept}
                   disabled={!agreed || submitting}
-                  className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+                  className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
                 >
                   {submitting ? "Recording..." : "I Agree"}
                 </button>
@@ -133,14 +133,14 @@ export default function PolicyPage() {
       </div>
 
       {user && myAcks.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden mt-6">
+        <div className="card overflow-hidden mt-6">
           <div className="px-4 py-3 border-b border-slate-100 text-sm font-medium text-slate-900">Your acceptance history</div>
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+            <thead className="bg-slate-50 text-xs text-slate-600">
               <tr>
-                <th className="text-left px-4 py-3">Policy</th>
-                <th className="text-left px-4 py-3">Version</th>
-                <th className="text-left px-4 py-3">Accepted at</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Policy</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Version</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Accepted at</th>
               </tr>
             </thead>
             <tbody>

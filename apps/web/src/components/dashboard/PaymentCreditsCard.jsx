@@ -16,10 +16,10 @@ export default function PaymentCreditsCard({ variant = "master" }) {
   });
 
   return (
-    <section className="bg-white rounded-2xl border border-slate-200 p-6">
+    <section className="card p-6">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h2 className="font-medium text-slate-900">{variant === "master" ? "Razorpay received vs credited to balances" : "Payments to credit"}</h2>
-        <Link to="/payments/credit-queue" className="text-sm text-brand-600 hover:underline">
+        <Link to="/payments/credit-queue" className="text-sm font-medium text-brand-700 hover:underline">
           Open queue
         </Link>
       </div>
@@ -51,7 +51,7 @@ export default function PaymentCreditsCard({ variant = "master" }) {
           </dl>
           {Array.isArray(data.pendingByOrganization) && data.pendingByOrganization.length > 0 && (
             <table className="w-full text-sm mt-4">
-              <thead className="text-xs text-slate-500 uppercase">
+              <thead className="text-xs text-slate-600">
                 <tr>
                   <th className="text-left py-2">Organization</th>
                   <th className="text-right py-2">Pending</th>

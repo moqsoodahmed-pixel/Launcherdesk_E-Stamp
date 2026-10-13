@@ -1,3 +1,4 @@
+import { CheckCircle2 } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
@@ -196,7 +197,7 @@ export default function OrderDetailPage() {
   if (error && !data) {
     return (
       <div className="space-y-3">
-        <Link to={backTo} className="text-sm text-slate-500 hover:underline">
+        <Link to={backTo} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           ← {backLabel}
         </Link>
         <ErrorState message={error} onRetry={() => load()} />
@@ -223,7 +224,7 @@ export default function OrderDetailPage() {
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <Link to={backTo} className="text-sm text-slate-500 hover:underline">
+        <Link to={backTo} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           ← {backLabel}
         </Link>
         <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
@@ -244,12 +245,12 @@ export default function OrderDetailPage() {
       </div>
 
       {notice && (
-        <div role="status" className="rounded-lg bg-green-50 text-green-700 text-sm px-3 py-2">
+        <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-700">
           {notice}
         </div>
       )}
       {error && (
-        <div role="alert" className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -373,7 +374,7 @@ export default function OrderDetailPage() {
         <Card
           title="Request information"
           action={
-            <Link to={`/estamps/requests/${request._id}`} className="text-sm text-brand-600 hover:underline">
+            <Link to={`/estamps/requests/${request._id}`} className="text-sm font-medium text-brand-700 hover:underline">
               View Request →
             </Link>
           }
@@ -404,7 +405,8 @@ export default function OrderDetailPage() {
         action={
           order.documentsVerified || request?.documentsVerified ? (
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-              ✓ Documents Verified
+              <CheckCircle2 size={14} className="mr-1" aria-hidden="true" />
+              Documents Verified
             </span>
           ) : (
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
@@ -435,7 +437,7 @@ export default function OrderDetailPage() {
 
           {Array.isArray(data?.supportingDocuments) && data.supportingDocuments.length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-100">
-              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Uploaded Documents ({data.supportingDocuments.length})</h4>
+              <h4 className="text-xs font-semibold text-slate-500 mb-2">Uploaded Documents ({data.supportingDocuments.length})</h4>
               <ul className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
                 {data.supportingDocuments.map((doc) => (
                   <li key={doc._id} className="p-3 flex items-center justify-between text-sm">
@@ -506,7 +508,7 @@ export default function OrderDetailPage() {
                 </div>
               )}
               {downloadError && (
-                <div role="alert" className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
                   {downloadError}
                 </div>
               )}
@@ -515,7 +517,7 @@ export default function OrderDetailPage() {
                   <button onClick={handleView} disabled={viewing || downloading} className="border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
                     {viewing ? "Opening…" : "View Certificate"}
                   </button>
-                  <button onClick={handleDownload} disabled={downloading || viewing} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                  <button onClick={handleDownload} disabled={downloading || viewing} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
                     {downloading ? "Downloading…" : downloadError ? "Retry download" : "Download Certificate"}
                   </button>
                 </div>
@@ -549,14 +551,14 @@ export default function OrderDetailPage() {
       )}
 
       {showVerifyModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+        <div className="fixed inset-0 bg-midnight-900/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-dialog max-w-md w-full p-6 shadow-overlay border border-slate-200">
             <h3 className="text-lg font-semibold text-slate-900 mb-2">Confirm Document Verification</h3>
             <p className="text-sm text-slate-600 mb-4">
               Please verify that party names ({request?.firstParty} & {request?.secondParty}), consideration value, and attached document descriptions are correct.
             </p>
             <div className="mb-4">
-              <label className="block text-xs font-medium text-slate-700 mb-1">Verification Notes (Optional)</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-800">Verification Notes (Optional)</label>
               <textarea
                 value={verifyNotes}
                 onChange={(e) => setVerifyNotes(e.target.value)}
@@ -589,7 +591,7 @@ export default function OrderDetailPage() {
 
       {viewer && (
         <div role="dialog" aria-modal="true" aria-label="Certificate viewer" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl h-[85vh] flex flex-col">
+          <div className="bg-white rounded-dialog shadow-overlay w-full max-w-4xl h-[85vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
               <h2 className="font-medium text-slate-900">E-Stamp certificate</h2>
               <button type="button" onClick={closeViewer} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
@@ -612,7 +614,7 @@ export default function OrderDetailPage() {
 
 function Card({ title, action, children }) {
   return (
-    <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
+    <section className="card p-5 sm:p-6">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-medium text-slate-900">{title}</h2>
         {action}

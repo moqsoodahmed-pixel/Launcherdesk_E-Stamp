@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
@@ -182,7 +183,7 @@ export default function AuditLogsPage() {
     return (
       <div>
         <h1 className="text-xl font-semibold text-slate-900 mb-4">Audit Logs</h1>
-        <div className="rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">You do not have permission to view audit logs.</div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">You do not have permission to view audit logs.</div>
       </div>
     );
   }
@@ -197,10 +198,10 @@ export default function AuditLogsPage() {
             placeholder={orgRequiredForInternal ? "Organization ID (required)" : "Organization ID (optional filter)"}
             value={organizationId}
             onChange={(e) => resetPage(setOrganizationId)(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="input w-full sm:w-64"
           />
         )}
-        <select value={action} onChange={(e) => resetPage(setAction)(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+        <select value={action} onChange={(e) => resetPage(setAction)(e.target.value)} className="input w-auto">
           <option value="">All actions</option>
           {ACTION_OPTIONS.map((a) => (
             <option key={a} value={a}>
@@ -214,7 +215,7 @@ export default function AuditLogsPage() {
           onChange={(e) => resetPage(setEntityType)(e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
-        <select value={preset} onChange={(e) => resetPage(setPreset)(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+        <select value={preset} onChange={(e) => resetPage(setPreset)(e.target.value)} className="input w-auto">
           {DATE_PRESETS.map((p) => (
             <option key={p.value} value={p.value}>
               {p.label}
@@ -223,18 +224,18 @@ export default function AuditLogsPage() {
         </select>
         {preset === "custom" && (
           <>
-            <input type="date" value={customFrom} onChange={(e) => resetPage(setCustomFrom)(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input type="date" value={customFrom} onChange={(e) => resetPage(setCustomFrom)(e.target.value)} className="input w-auto" />
             <span className="text-slate-400 text-sm">to</span>
-            <input type="date" value={customTo} onChange={(e) => resetPage(setCustomTo)(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input type="date" value={customTo} onChange={(e) => resetPage(setCustomTo)(e.target.value)} className="input w-auto" />
           </>
         )}
-        <button onClick={load} className="text-sm text-slate-500 hover:underline">
+        <button onClick={load} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
           Refresh
         </button>
       </div>
 
       {orgRequiredForInternal && !organizationId.trim() && (
-        <div className="rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2 mb-4">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 mb-4">
           Enter a specific organization's ID above to view its audit log - you do not hold platform-wide audit access.
         </div>
       )}
@@ -246,28 +247,28 @@ export default function AuditLogsPage() {
       )}
 
       {canLoad && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="card overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+            <thead className="bg-slate-50 text-xs text-slate-600">
               <tr>
-                <th className="text-left px-4 py-3">When</th>
-                <th className="text-left px-4 py-3">Action</th>
-                <th className="text-left px-4 py-3">Actor</th>
-                <th className="text-left px-4 py-3">Entity</th>
-                <th className="text-left px-4 py-3"></th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">When</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Action</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Actor</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Entity</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold"></th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+                  <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
                     Loading...
                   </td>
                 </tr>
               )}
               {!loading && items.length === 0 && !error && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+                  <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
                     No audit entries match these filters.
                   </td>
                 </tr>
@@ -285,7 +286,7 @@ export default function AuditLogsPage() {
                     {entry.entityId ? ` #${entry.entityId}` : ""}
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => setSelected(entry)} className="text-brand-600 hover:underline">
+                    <button onClick={() => setSelected(entry)} className="font-medium text-brand-700 hover:underline">
                       Details
                     </button>
                   </td>
@@ -302,10 +303,10 @@ export default function AuditLogsPage() {
             Page {page} of {totalPages} ({total} total)
           </span>
           <div className="space-x-2">
-            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Previous
             </button>
-            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Next
             </button>
           </div>
@@ -334,12 +335,12 @@ export function redactSecrets(value) {
 function AuditDetailModal({ entry, onClose }) {
   const metadataEntries = entry.metadata && typeof entry.metadata === "object" ? Object.entries(redactSecrets(entry.metadata)) : [];
   return (
-    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-midnight-900/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
       <div className="bg-white rounded-2xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-slate-900">Audit entry detail</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            ✕
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
         <dl className="space-y-2 text-sm">
@@ -356,7 +357,7 @@ function AuditDetailModal({ entry, onClose }) {
         </dl>
         {metadataEntries.length > 0 && (
           <div className="mt-4 pt-4 border-t border-slate-100">
-            <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Metadata</p>
+            <p className="text-xs font-semibold text-slate-500 mb-2">Metadata</p>
             <dl className="space-y-1 text-sm">
               {metadataEntries.map(([k, v]) => (
                 <Row key={k} label={k} value={typeof v === "object" ? JSON.stringify(v) : String(v)} />

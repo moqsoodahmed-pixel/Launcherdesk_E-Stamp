@@ -97,7 +97,7 @@ export default function PaymentsListPage() {
   if (!canView) {
     return (
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Payments</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-900">Payments</h1>
         <p className="mt-4 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 text-sm px-4 py-3">You do not currently have financial access.</p>
       </div>
     );
@@ -107,10 +107,10 @@ export default function PaymentsListPage() {
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Payments</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Payments</h1>
           <p className="text-sm text-slate-500">Wallet funding payments and their outcome</p>
         </div>
-        <button onClick={load} disabled={loading} className="text-sm rounded-lg border border-slate-300 px-3 py-2 text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+        <button onClick={load} disabled={loading} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50">
           {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
@@ -151,7 +151,7 @@ export default function PaymentsListPage() {
               setDateFrom("");
               setDateTo("");
             }}
-            className="text-sm text-slate-500 hover:underline"
+            className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline"
           >
             Clear filters
           </button>
@@ -159,24 +159,24 @@ export default function PaymentsListPage() {
       </div>
 
       {error && (
-        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+      <div className="hidden md:block card overflow-x-auto">
         <table className="w-full text-sm min-w-[960px]">
-          <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+          <thead className="bg-slate-50 text-xs text-slate-600">
             <tr>
-              {isInternal && <th className="text-left px-4 py-3">Organization</th>}
-              {isInternal && <th className="text-left px-4 py-3">Paid By</th>}
-              <th className="text-left px-4 py-3">Plan / Type</th>
-              <th className="text-right px-4 py-3">Amount</th>
-              <th className="text-left px-4 py-3">Status</th>
-              <th className="text-left px-4 py-3">Balance</th>
-              <th className="text-left px-4 py-3">Transaction ID</th>
-              <th className="text-left px-4 py-3">Invoice</th>
-              <th className="text-left px-4 py-3">Date & Time</th>
+              {isInternal && <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Organization</th>}
+              {isInternal && <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Paid By</th>}
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Plan / Type</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-right font-semibold">Amount</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Status</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Balance</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Transaction ID</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Invoice</th>
+              <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Date & Time</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -225,7 +225,7 @@ export default function PaymentsListPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-500 text-xs">{fmt(p.createdAt)}</td>
                   <td className="px-4 py-3">
-                    <Link to={`/payments/${p._id}`} className="text-brand-600 hover:underline">
+                    <Link to={`/payments/${p._id}`} className="font-medium text-brand-700 hover:underline">
                       View
                     </Link>
                   </td>
@@ -238,13 +238,13 @@ export default function PaymentsListPage() {
       <div className="md:hidden space-y-3">
         {loading && <TableSkeleton rows={3} />}
         {!loading && items.length === 0 && !error && (
-          <div className="bg-white rounded-2xl border border-slate-200">
+          <div className="card">
             <EmptyState text={hasFilters ? "No payments match these filters" : "No payments found"} />
           </div>
         )}
         {!loading &&
           items.map((p) => (
-            <Link key={p._id} to={`/payments/${p._id}`} className="block bg-white rounded-2xl border border-slate-200 p-4">
+            <Link key={p._id} to={`/payments/${p._id}`} className="block card p-4">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-slate-900 tabular-nums">{formatCurrency(p.amount)}</span>
                 <span className="flex flex-wrap gap-1 justify-end">
@@ -284,10 +284,10 @@ export default function PaymentsListPage() {
             Page {page} of {totalPages} ({total} total)
           </span>
           <div className="space-x-2">
-            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Previous
             </button>
-            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Next
             </button>
           </div>

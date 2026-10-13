@@ -74,14 +74,14 @@ export default function TemporaryPasswordCell({ userId, passwordState, setByLabe
       <code className="font-mono text-xs text-slate-800" aria-label={`Temporary ${label}`}>
         {visible && value ? value : "••••••••"}
       </code>
-      <button type="button" onClick={toggle} disabled={busy} className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px] text-slate-600 disabled:opacity-50" aria-label={`${visible ? "Hide" : "Show"} ${label}`}>
+      <button type="button" onClick={toggle} disabled={busy} className="rounded border border-slate-300 px-1.5 py-0.5 text-xs text-slate-600 disabled:opacity-50" aria-label={`${visible ? "Hide" : "Show"} ${label}`}>
         {visible ? "Hide" : "Show"}
       </button>
-      <button type="button" onClick={copy} disabled={busy} className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px] text-slate-600 disabled:opacity-50" aria-label={`Copy ${label}`}>
+      <button type="button" onClick={copy} disabled={busy} className="rounded border border-slate-300 px-1.5 py-0.5 text-xs text-slate-600 disabled:opacity-50" aria-label={`Copy ${label}`}>
         {copied ? "Copied" : "Copy"}
       </button>
       {error && (
-        <span role="alert" className="text-[11px] text-red-600 w-full">
+        <span role="alert" className="text-xs text-red-600 w-full">
           {error}
         </span>
       )}

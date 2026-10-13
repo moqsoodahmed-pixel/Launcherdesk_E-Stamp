@@ -49,18 +49,18 @@ export default function BulkEStampPage() {
     <div className="max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Bulk E-Stamp Requests</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Bulk E-Stamp Requests</h1>
           <p className="text-sm text-slate-500 mt-1">Upload a CSV/XLSX to create many E-Stamp requests at once.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button type="button" onClick={handleTemplateDownload} className="text-sm text-brand-600 hover:underline">
+          <button type="button" onClick={handleTemplateDownload} className="text-sm font-medium text-brand-700 hover:underline">
             Download CSV template
           </button>
           {!isInternal && (
           <button
             type="button"
             onClick={() => navigate("/estamps/bulk/new")}
-            className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+            className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700"
           >
             Create Bulk Request
           </button>
@@ -69,7 +69,7 @@ export default function BulkEStampPage() {
       </div>
 
       {templateError && (
-        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {templateError}
         </div>
       )}
@@ -77,7 +77,7 @@ export default function BulkEStampPage() {
       {error ? (
         <ErrorState message={error} onRetry={refetch} />
       ) : (
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 text-sm font-medium text-slate-700">Batches</div>
         {loading ? (
           <div className="p-4">
@@ -89,16 +89,16 @@ export default function BulkEStampPage() {
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+                <thead className="bg-slate-50 text-xs text-slate-600">
                   <tr>
-                    <th className="text-left px-4 py-2">Batch #</th>
-                    <th className="text-left px-4 py-2">Status</th>
-                    <th className="text-left px-4 py-2">Total Rows</th>
-                    <th className="text-left px-4 py-2">Valid</th>
-                    <th className="text-left px-4 py-2">Invalid</th>
-                    <th className="text-left px-4 py-2">Amount</th>
-                    <th className="text-left px-4 py-2">Created</th>
-                    <th className="text-left px-4 py-2"></th>
+                    <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Batch #</th>
+                    <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Status</th>
+                    <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Total Rows</th>
+                    <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Valid</th>
+                    <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Invalid</th>
+                    <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Amount</th>
+                    <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Created</th>
+                    <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -106,7 +106,7 @@ export default function BulkEStampPage() {
                     <tr key={b._id} className="border-t border-slate-100">
                       <td className="px-4 py-2 font-medium text-slate-900">{b.batchNumber}</td>
                       <td className="px-4 py-2">
-                        <StatusBadge status={b.status} />
+                        <StatusBadge status={b.status} kind="batch" />
                       </td>
                       <td className="px-4 py-2">{b.totalRows}</td>
                       <td className="px-4 py-2">{b.validRows}</td>
@@ -114,7 +114,7 @@ export default function BulkEStampPage() {
                       <td className="px-4 py-2">{formatCurrency(b.totalStampDuty)}</td>
                       <td className="px-4 py-2 text-slate-500">{new Date(b.createdAt).toLocaleString()}</td>
                       <td className="px-4 py-2">
-                        <Link to={`/estamps/bulk/${b._id}`} className="text-brand-600 hover:underline">
+                        <Link to={`/estamps/bulk/${b._id}`} className="font-medium text-brand-700 hover:underline">
                           View
                         </Link>
                       </td>
@@ -129,10 +129,10 @@ export default function BulkEStampPage() {
                   Page {page} of {totalPages} ({total} batch{total === 1 ? "" : "es"})
                 </span>
                 <div className="space-x-2">
-                  <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+                  <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
                     Previous
                   </button>
-                  <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+                  <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
                     Next
                   </button>
                 </div>

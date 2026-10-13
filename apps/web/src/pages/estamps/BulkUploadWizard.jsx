@@ -131,24 +131,24 @@ export default function BulkUploadWizard() {
   return (
     <div className="max-w-7xl pb-24">
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-xl font-semibold text-slate-900">Create Bulk E-Stamp Request</h1>
-        <button type="button" onClick={handleTemplateDownload} className="text-sm text-brand-600 hover:underline">
+        <h1 className="font-display text-2xl font-semibold text-slate-900">Create Bulk E-Stamp Request</h1>
+        <button type="button" onClick={handleTemplateDownload} className="text-sm font-medium text-brand-700 hover:underline">
           Download CSV template
         </button>
       </div>
 
       <Stepper step={step} />
 
-      {error && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+      <div className="card p-6">
         {step === 0 && (
           <form onSubmit={handleUpload} className="space-y-4 max-w-2xl">
             <p className="text-sm text-slate-600">
               Upload a CSV or XLSX file to create many E-Stamp requests at once. Each row is validated server-side before anything is
               charged. Large files or row counts may be rejected by the server; the exact reason will be shown here if that happens.
             </p>
-            <label htmlFor="bulk-upload-file" className="block text-xs font-medium text-slate-700 mb-1">
+            <label htmlFor="bulk-upload-file" className="mb-1.5 block text-sm font-medium text-slate-800">
               CSV or XLSX file
             </label>
             <input
@@ -161,7 +161,7 @@ export default function BulkUploadWizard() {
             <button
               type="submit"
               disabled={uploading}
-              className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
             >
               {uploading ? "Uploading..." : "Upload & Validate"}
             </button>
@@ -175,7 +175,7 @@ export default function BulkUploadWizard() {
                 <p className="text-sm text-slate-500">Batch</p>
                 <p className="text-lg font-semibold text-slate-900">{batch.batchNumber}</p>
               </div>
-              <StatusBadge status={batch.status} />
+              <StatusBadge status={batch.status} kind="batch" />
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
@@ -190,7 +190,7 @@ export default function BulkUploadWizard() {
             {items.length > 0 && (
               <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 whitespace-nowrap">
+                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 whitespace-nowrap">
                     <tr>
                       <th className="px-3 py-3">Row</th>
                       <th className="px-3 py-3">Status</th>
@@ -219,7 +219,7 @@ export default function BulkUploadWizard() {
                           <td className="px-3 py-2.5 font-medium text-slate-900">{item.rowNumber}</td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             <StatusBadge status={item.status} />
-                            {item.isDuplicateSuspect && <span className="ml-1 text-amber-600 text-[10px] font-semibold block">duplicate?</span>}
+                            {item.isDuplicateSuspect && <span className="ml-1 text-amber-600 text-xs font-semibold block">duplicate?</span>}
                           </td>
                           <td className="px-3 py-2.5 font-medium text-slate-800 whitespace-nowrap">{item.inputData?.stateCode || "-"}</td>
                           <td className="px-3 py-2.5 max-w-[200px] truncate" title={articleText}>
@@ -232,7 +232,7 @@ export default function BulkUploadWizard() {
                               {item.inputData?.descriptionOfDocument || "-"}
                             </div>
                             {item.inputData?.propertyDescription && (
-                              <div className="truncate text-[11px] text-slate-400" title={item.inputData?.propertyDescription}>
+                              <div className="truncate text-xs text-slate-400" title={item.inputData?.propertyDescription}>
                                 {item.inputData?.propertyDescription}
                               </div>
                             )}
@@ -248,7 +248,7 @@ export default function BulkUploadWizard() {
                           <td className="px-3 py-2.5 text-right text-slate-600 whitespace-nowrap" title={`Conv: ₹${item.convenienceFee || 0}, Proc: ₹${item.procurementFee || 99}, GST: ₹${item.gst || 0}`}>
                             {formatCurrency(feesAndGst)}
                           </td>
-                          <td className="px-3 py-2.5 text-right font-bold text-slate-900 whitespace-nowrap">
+                          <td className="px-3 py-2.5 text-right font-semibold text-slate-900 whitespace-nowrap">
                             {item.totalAmount != null ? formatCurrency(item.totalAmount) : (item.calculatedAmount != null ? formatCurrency(item.calculatedAmount) : "-")}
                           </td>
                           <td className="px-3 py-2.5 text-red-600 text-xs">{item.validationErrors?.join("; ")}</td>
@@ -285,7 +285,7 @@ export default function BulkUploadWizard() {
                 : "This batch is no longer awaiting confirmation."}
             </p>
             <div className="rounded-xl bg-slate-50 border border-slate-200 p-5 space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Financial Breakdown</h3>
+              <h3 className="text-sm font-semibold text-slate-700">Financial Breakdown</h3>
               <div className="space-y-2">
                 <Row label="Valid rows to be submitted" value={`${batch.validRows} row(s)`} />
                 <Row label="Government Stamp Duty (At actuals)" value={formatCurrency(batch.totalStampDuty || 0)} />
@@ -345,7 +345,7 @@ export default function BulkUploadWizard() {
               type="button"
               disabled={step === 0 || !batch}
               onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
-              className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
             >
               Next
             </button>
@@ -355,7 +355,7 @@ export default function BulkUploadWizard() {
               type="button"
               disabled={!canConfirm || confirming || insufficientBalance}
               onClick={handleConfirm}
-              className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
             >
               {confirming ? "Confirming..." : `Confirm & charge ${formatCurrency(batchTotal)}`}
             </button>

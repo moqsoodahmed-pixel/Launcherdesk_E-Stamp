@@ -234,7 +234,7 @@ export default function NewRequestPage() {
   return (
     <div className="max-w-2xl pb-24">
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-xl font-semibold text-slate-900">Create E-Stamp Request</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-900">Create E-Stamp Request</h1>
         {balance !== null && (
           <div className="text-sm text-slate-500">
             Available balance: <span className="font-semibold text-slate-900">{formatCurrency(balance)}</span>
@@ -244,7 +244,7 @@ export default function NewRequestPage() {
 
       <p className="text-sm text-slate-500 mb-4">
         Need to create many at once?{" "}
-        <Link to="/estamps/bulk" className="text-brand-600 hover:underline">
+        <Link to="/estamps/bulk" className="font-medium text-brand-700 hover:underline">
           Use Bulk E-Stamp
         </Link>
         .
@@ -252,19 +252,19 @@ export default function NewRequestPage() {
 
       <Stepper step={step} />
 
-      {serverError && <div className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{serverError}</div>}
+      {serverError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{serverError}</div>}
       {lookupError && (
-        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {lookupError}
         </div>
       )}
       {balance === 0 && !serverError && (
-        <div className="mb-4 rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
           Your organization's available balance is ₹0. This request will be rejected unless funds are added first. <AddFundsHint canOpenWallet={canOpenWallet} />
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="card p-6 space-y-4">
         {step === 0 && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -407,7 +407,7 @@ export default function NewRequestPage() {
             // now-mutated node, silently submitting the form on what the
             // user saw as a "Next" click (caught via real-browser QA, not by
             // the build or unit tests).
-            <button key="next-btn" type="button" onClick={goNext} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
+            <button key="next-btn" type="button" onClick={goNext} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700">
               Next
             </button>
           ) : (
@@ -415,7 +415,7 @@ export default function NewRequestPage() {
               key="submit-btn"
               type="submit"
               disabled={submitting || !isFresh || (typeof balance === "number" && calculation && balance < calculation.amount)}
-              className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
             >
               {submitting ? "Submitting..." : "Create Request"}
             </button>
@@ -580,7 +580,7 @@ function PriceSummary({ calculation, calculating, calcError, onRetry, balance })
 function FieldGroup({ label, error, children }) {
   return (
     <div role="group" aria-label={label}>
-      <span className="block text-sm font-medium text-slate-700 mb-1">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-slate-800">{label}</span>
       {children}
       {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}
     </div>
@@ -590,7 +590,7 @@ function FieldGroup({ label, error, children }) {
 function Field({ label, error, children }) {
   return (
     <label className="block">
-      <span className="block text-sm font-medium text-slate-700 mb-1">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-slate-800">{label}</span>
       {children}
       {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}
     </label>

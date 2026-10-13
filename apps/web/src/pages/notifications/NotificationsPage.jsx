@@ -93,7 +93,7 @@ export default function NotificationsPage() {
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Notifications</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Notifications</h1>
           <p className="text-sm text-slate-500">Stay updated on E-Stamp requests, payments, orders and account activity.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -106,7 +106,7 @@ export default function NotificationsPage() {
               Mark all as read
             </button>
           )}
-          <button onClick={load} disabled={loading} className="text-sm rounded-lg border border-slate-300 px-3 py-2 text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+          <button onClick={load} disabled={loading} className="inline-flex min-h-[44px] sm:min-h-[40px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50">
             {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
@@ -139,7 +139,7 @@ export default function NotificationsPage() {
               setDateFrom("");
               setDateTo("");
             }}
-            className="text-sm text-slate-500 hover:underline"
+            className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline"
           >
             Clear filters
           </button>
@@ -147,17 +147,17 @@ export default function NotificationsPage() {
       </div>
 
       {error && (
-        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {error}
         </div>
       )}
       {actionError && (
-        <div role="alert" className="mb-4 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">
+        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {actionError}
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="card overflow-hidden">
         {loading && (
           <div className="p-4">
             <TableSkeleton rows={5} />
@@ -183,9 +183,9 @@ export default function NotificationsPage() {
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-2">
                         <span className={`text-sm ${!n.isRead ? "font-semibold text-slate-900" : "font-medium text-slate-700"}`}>{n.title}</span>
-                        <span className="text-[11px] uppercase tracking-wide text-slate-400">{NOTIFICATION_TYPE_LABELS[n.type] || n.type}</span>
+                        <span className="text-xs text-slate-400">{NOTIFICATION_TYPE_LABELS[n.type] || n.type}</span>
                         {!n.isRead && (
-                          <span className="text-[10px] font-medium uppercase tracking-wide text-brand-700 bg-brand-100 rounded-full px-1.5 py-0.5">Unread</span>
+                          <span className="text-xs font-medium text-brand-700 bg-brand-100 rounded-full px-1.5 py-0.5">Unread</span>
                         )}
                       </span>
                       <p className="text-sm text-slate-500 mt-0.5 break-words">{n.message}</p>
@@ -208,10 +208,10 @@ export default function NotificationsPage() {
             Page {page} of {totalPages} ({total} total)
           </span>
           <div className="space-x-2">
-            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Previous
             </button>
-            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded-lg border border-slate-300 disabled:opacity-40">
+            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-slate-700 hover:bg-slate-50 disabled:opacity-40">
               Next
             </button>
           </div>

@@ -36,12 +36,12 @@ export default function CompanyProfilePage() {
       {loading && <LoadingState text="Loading company profile..." />}
       {!loading && error && <ErrorState message={error} onRetry={refetch} />}
       {!loading && !error && !org && (
-        <div className="bg-white rounded-xl border border-slate-200">
+        <div className="card">
           <EmptyState title="No company linked" description="Your account is not linked to an organization." />
         </div>
       )}
       {!loading && !error && org && (
-        <section className="bg-white rounded-xl border border-slate-200 p-6">
+        <section className="card p-6">
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <Field label="Company name">{org.name}</Field>
             <Field label="Status">{org.status}</Field>

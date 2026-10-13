@@ -1,3 +1,4 @@
+import { Check, X } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { apiClient } from "../../api/client";
 import { formatCurrency, actionErrorMessage } from "../../utils/format";
@@ -178,13 +179,13 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
 
   if (successResult) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-        <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center space-y-5 shadow-2xl border border-slate-200">
-          <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
-            ✓
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-900/50 p-4">
+        <div className="bg-white rounded-dialog max-w-md w-full p-6 text-center space-y-5 shadow-overlay border border-slate-200">
+          <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-semibold">
+            <Check size={28} aria-hidden="true" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-slate-900">Purchase Successful!</h3>
+            <h3 className="font-display text-2xl font-semibold text-slate-900">Purchase Successful!</h3>
             <p className="text-xs text-slate-500 mt-1">
               Your E-Stamp package has been processed and credited.
             </p>
@@ -227,19 +228,19 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-7 space-y-6 shadow-2xl border border-slate-200 my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-900/50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-dialog max-w-xl w-full p-6 sm:p-7 space-y-6 shadow-overlay border border-slate-200 my-8">
         <div className="flex justify-between items-start border-b border-slate-100 pb-4">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">{copy.title}</h3>
+            <h3 className="font-display text-lg font-semibold text-slate-900">{copy.title}</h3>
             <p className="text-xs text-slate-500">{copy.subtitle}</p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 text-lg leading-none p-1"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             aria-label="Close"
           >
-            ✕
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
@@ -250,7 +251,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
         )}
 
         <div className="space-y-3">
-          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">
+          <label className="block text-xs font-semibold text-slate-600">
             Choose Package
           </label>
 
@@ -275,7 +276,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
                     }`}
                   >
                     {pkg.recommended && (
-                      <span className="absolute -top-2.5 right-3 bg-brand-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      <span className="absolute -top-2.5 right-3 bg-brand-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
                         Popular
                       </span>
                     )}
@@ -284,26 +285,26 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
                       <p className="text-xs text-brand-600 font-medium mt-0.5">
                         {pkg.stampsCount} E-Stamps
                       </p>
-                      <p className="text-[11px] text-slate-500 mt-2 line-clamp-2">
+                      <p className="text-xs text-slate-500 mt-2 line-clamp-2">
                         {pkg.description}
                       </p>
                       {pkg.features?.length > 0 && (
                         <ul className="mt-2 space-y-0.5">
                           {pkg.features.slice(0, 3).map((f) => (
-                            <li key={f} className="text-[10px] text-slate-500 flex items-start gap-1">
-                              <span className="text-emerald-600">✓</span> {f}
+                            <li key={f} className="text-xs text-slate-500 flex items-start gap-1">
+                              <Check size={14} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" /> {f}
                             </li>
                           ))}
                         </ul>
                       )}
-                      <p className="text-[10px] text-slate-400 mt-1.5">{formatValidity(pkg.validityDays)}</p>
+                      <p className="text-xs text-slate-400 mt-1.5">{formatValidity(pkg.validityDays)}</p>
                     </div>
                     <div className="mt-4 pt-2 border-t border-slate-100 flex items-baseline justify-between">
-                      <span className="text-lg font-bold text-slate-900">
+                      <span className="font-display text-lg font-semibold text-slate-900">
                         {formatCurrency(pkg.price)}
                       </span>
                       {pkg.stampsCount > 0 && (
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-xs text-slate-400">
                           ~₹{(pkg.price / pkg.stampsCount).toFixed(0)}/stamp
                         </span>
                       )}
@@ -387,7 +388,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
             type="button"
             onClick={handleCheckout}
             disabled={busy || loadingPackages}
-            className="px-5 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-sm transition disabled:opacity-50"
+            className="px-5 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold transition disabled:opacity-50"
           >
             {busy ? "Processing Secure Payment..." : `Pay ${formatCurrency(finalAmount)}`}
           </button>

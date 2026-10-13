@@ -120,7 +120,7 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-slate-900">Reports & Analytics</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-900">Reports & Analytics</h1>
         <div className="flex flex-wrap items-center gap-2">
           {internal && (
             <input
@@ -128,10 +128,10 @@ export default function ReportsPage() {
               placeholder={orgRequired ? "Organization ID (required)" : "Organization ID (optional filter)"}
               value={orgFilter}
               onChange={(e) => setOrgFilter(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="input w-full sm:w-64"
             />
           )}
-          <select aria-label="Date range" value={preset} onChange={(e) => setPreset(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <select aria-label="Date range" value={preset} onChange={(e) => setPreset(e.target.value)} className="input w-auto">
             {PRESETS.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}
@@ -140,23 +140,23 @@ export default function ReportsPage() {
           </select>
           {preset === "custom" && (
             <>
-              <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="input w-auto" />
               <span className="text-slate-400 text-sm">to</span>
-              <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="input w-auto" />
             </>
           )}
-          <button onClick={load} className="text-sm text-slate-500 hover:underline">
+          <button onClick={load} className="inline-flex min-h-[36px] items-center text-sm text-slate-600 hover:text-slate-900 hover:underline">
             Refresh
           </button>
         </div>
       </div>
 
       {orgInvalid && (
-        <div className="rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">Enter the full 24-character organization ID.</div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">Enter the full 24-character organization ID.</div>
       )}
 
       {orgRequired && !orgFilter.trim() && (
-        <div className="rounded-lg bg-amber-50 text-amber-700 text-sm px-3 py-2">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
           You do not hold platform-wide report access - enter a specific organization's ID above to view its reports.
         </div>
       )}
@@ -232,9 +232,9 @@ export default function ReportsPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h2 className="text-sm font-semibold text-slate-900 mb-4">Order processing</h2>
-            {errors.orders && <div className="text-sm text-red-600 mb-3">{errors.orders}</div>}
+          <div className="card p-6">
+            <h2 className="font-display text-base font-semibold text-slate-900 mb-4">Order processing</h2>
+            {errors.orders && <div className="mb-3 text-sm text-vermilion-700">{errors.orders}</div>}
             {orders && (
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <StatCard label="Total orders" value={orders.totals.totalOrders} />
@@ -249,9 +249,9 @@ export default function ReportsPage() {
             )}
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h2 className="text-sm font-semibold text-slate-900 mb-4">Bulk E-Stamp</h2>
-            {errors.bulk && <div className="text-sm text-red-600 mb-3">{errors.bulk}</div>}
+          <div className="card p-6">
+            <h2 className="font-display text-base font-semibold text-slate-900 mb-4">Bulk E-Stamp</h2>
+            {errors.bulk && <div className="mb-3 text-sm text-vermilion-700">{errors.bulk}</div>}
             {bulk && bulk.totals.batchCount === 0 && !errors.bulk && <EmptyState text="No bulk batches in this range." />}
             {bulk && bulk.totals.batchCount > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -265,9 +265,9 @@ export default function ReportsPage() {
           </div>
 
           {canViewProvider && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-              <h2 className="text-sm font-semibold text-slate-900 mb-4">E-Stamp Provider</h2>
-              {errors.provider && <div className="text-sm text-red-600 mb-3">{errors.provider}</div>}
+            <div className="card p-6">
+              <h2 className="font-display text-base font-semibold text-slate-900 mb-4">E-Stamp Provider</h2>
+              {errors.provider && <div className="mb-3 text-sm text-vermilion-700">{errors.provider}</div>}
               {provider && (
                 <>
                   {provider.current?.status !== "AVAILABLE" ? (
@@ -288,9 +288,9 @@ export default function ReportsPage() {
           )}
 
           {canViewFinancial && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-              <h2 className="text-sm font-semibold text-slate-900 mb-4">Financial</h2>
-              {errors.financial && <div className="text-sm text-red-600 mb-3">{errors.financial}</div>}
+            <div className="card p-6">
+              <h2 className="font-display text-base font-semibold text-slate-900 mb-4">Financial</h2>
+              {errors.financial && <div className="mb-3 text-sm text-vermilion-700">{errors.financial}</div>}
               {financial && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <StatCard label="Successful payments" value={`₹${financial.payments.successfulAmount.toLocaleString("en-IN")}`} />
@@ -305,26 +305,26 @@ export default function ReportsPage() {
           )}
 
           {canViewGlobal && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="card overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100">
                 <h2 className="text-sm font-semibold text-slate-900">Organizations</h2>
               </div>
               {errors.organizations && <div className="text-sm text-red-600 px-6 py-3">{errors.organizations}</div>}
               {organizations && (
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+                  <thead className="bg-slate-50 text-xs text-slate-600">
                     <tr>
-                      <th className="text-left px-4 py-3">Name</th>
-                      <th className="text-left px-4 py-3">Status</th>
-                      <th className="text-left px-4 py-3">Requests</th>
-                      <th className="text-left px-4 py-3">Orders</th>
-                      <th className="text-left px-4 py-3">Wallet balance</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Name</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Status</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Requests</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Orders</th>
+                      <th className="whitespace-nowrap px-4 py-2.5 text-left font-semibold">Wallet balance</th>
                     </tr>
                   </thead>
                   <tbody>
                     {organizations.items.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+                        <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
                           No organizations found.
                         </td>
                       </tr>
@@ -352,7 +352,7 @@ export default function ReportsPage() {
 function KpiSection({ dashboard, error, canViewFinancial }) {
   return (
     <div>
-      {error && <div className="mb-3 rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{error}</div>}
+      {error && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">{error}</div>}
       {dashboard && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label="Total requests" value={dashboard.requests.total} />
@@ -379,9 +379,9 @@ function KpiSection({ dashboard, error, canViewFinancial }) {
 
 function ChartCard({ title, children, error }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
+    <div className="card p-6">
       <h2 className="text-sm font-semibold text-slate-900 mb-3">{title}</h2>
-      {error && <div className="text-sm text-red-600 mb-3">{error}</div>}
+      {error && <div className="mb-3 text-sm text-vermilion-700">{error}</div>}
       {children}
     </div>
   );
@@ -393,9 +393,9 @@ function EmptyState({ text }) {
 
 function StatCard({ label, value }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-4">
+    <div className="card p-4">
       <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-xl font-semibold text-slate-900">{value ?? 0}</p>
+      <p className="font-display text-2xl font-semibold text-slate-900">{value ?? 0}</p>
     </div>
   );
 }
