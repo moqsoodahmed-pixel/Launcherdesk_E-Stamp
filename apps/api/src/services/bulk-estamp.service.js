@@ -170,6 +170,17 @@ function duplicateKey(inputData) {
         return null;
     return parts.map((p) => String(p).trim().toUpperCase()).join("||");
 }
+// Same safeguard as the New Request wizard's First/Second Party buttons
+// (and the client's own "Edit details" screen): "Stamp Duty Paid By" must
+// name an actual party on the document, never arbitrary free text a
+// spreadsheet column could otherwise carry through uncaught. A row whose
+// payer doesn't match either party - a typo, a stray value from a wrong
+// column, or someone who isn't actually a party to the document - is
+// rejected with a clear, per-row reason instead of being silently accepted.
+function payerMatchesAParty(row) {
+    const payer = typeof row.stampDutyPaidBy === "string" ? row.stampDutyPaidBy.trim() : "";
+    return payer === String(row.firstParty || "").trim() || payer === String(row.secondParty || "").trim();
+}
 exports.BulkEStampService = {
     async uploadBatch(input) {
         const { organizationId, createdBy, actorRole, fileBuffer, mimeType, originalFileName, req } = input;
@@ -435,6 +446,9 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
             else if (!mongoose_1.Types.ObjectId.isValid(result.data.articleId)) {
                 validationErrors.push("articleId: must be a valid article identifier");
             }
+            else if (!payerMatchesAParty(result.data)) {
+                validationErrors.push("stampDutyPaidBy: must exactly match the First Party or Second Party name for this row");
+            }
             else {
                 try {
                     const calc = await calculation_service_1.CalculationService.calculate({
@@ -667,6 +681,9 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
                 const parsed = validation_1.bulkEStampRowSchema.parse(item.inputData);
                 if (!mongoose_1.Types.ObjectId.isValid(parsed.articleId)) {
                     throw ApiError_1.ApiError.badRequest("articleId is not a valid identifier", "ARTICLE_NOT_FOUND");
+                }
+                if (!payerMatchesAParty(parsed)) {
+                    throw ApiError_1.ApiError.badRequest("stampDutyPaidBy must exactly match the First Party or Second Party name for this row", "VALIDATION_ERROR");
                 }
                 const { amount, articleVersionUsed } = await calculation_service_1.CalculationService.calculate({
                     stateCode: parsed.stateCode,

@@ -55,7 +55,7 @@ function buildXlsx(rows, headers = HEADERS) {
 }
 
 function rowFor(article, overrides = {}) {
-  return {
+  const merged = {
     stateCode: "KA",
     articleId: article._id.toString(),
     firstParty: "Alice",
@@ -63,10 +63,16 @@ function rowFor(article, overrides = {}) {
     descriptionOfDocument: "Bulk agreement",
     propertyDescription: "Plot 1",
     considerationPrice: 0,
-    stampDutyPaidBy: "Alice",
     numberOfEStamps: 1,
     ...overrides,
   };
+  // Defaults the payer to whichever first party this row ends up with (so an
+  // override like { firstParty: "Carl" } - used throughout this file to make
+  // rows distinct, not to test the payer itself - still names a real party),
+  // unless a test explicitly overrides stampDutyPaidBy to test that directly.
+  if (merged.stampDutyPaidBy === undefined)
+    merged.stampDutyPaidBy = merged.firstParty;
+  return merged;
 }
 
 async function makeOrgWithArticle({ balance = 100000, fixedAmount = 500, orgName = "Bulk Test Co" } = {}) {
@@ -250,6 +256,37 @@ describe("Upload - per-row validation", () => {
     const item = await BulkEStampBatchItem.findOne({ batchId: batch._id, rowNumber: 1 });
     expect(item.status).toBe("INVALID");
     expect(item.validationErrors.some((e) => e.includes("firstParty"))).toBe(true);
+  });
+
+  it("stampDutyPaidBy that names neither party marks the row INVALID with a clear reason", async () => {
+    const { org, user, article } = await makeOrgWithArticle();
+    const buffer = buildCsv([rowFor(article, { stampDutyPaidBy: "Someone Else" })]);
+    const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "bad-payer.csv" });
+    expect(batch.validRows).toBe(0);
+    expect(batch.invalidRows).toBe(1);
+    const item = await BulkEStampBatchItem.findOne({ batchId: batch._id, rowNumber: 1 });
+    expect(item.status).toBe("INVALID");
+    expect(item.validationErrors.some((e) => e.includes("stampDutyPaidBy"))).toBe(true);
+  });
+
+  it("stampDutyPaidBy matching either party exactly is accepted", async () => {
+    const { org, user, article } = await makeOrgWithArticle();
+    const buffer = buildCsv([rowFor(article, { stampDutyPaidBy: "Bob" })]);
+    const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "second-party-payer.csv" });
+    expect(batch.validRows).toBe(1);
+  });
+
+  it("a row that passes preview but is retargeted to a mismatched payer before confirm is still rejected at confirm time", async () => {
+    const { org, user, article } = await makeOrgWithArticle({ balance: 100000, fixedAmount: 500 });
+    const buffer = buildCsv([rowFor(article)]);
+    const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "retarget.csv" });
+    await BulkEStampBatchItem.updateOne({ batchId: batch._id, rowNumber: 1 }, { $set: { "inputData.stampDutyPaidBy": "Mallory" } });
+    const result = await BulkEStampService.confirmBatch(batch._id.toString(), org._id.toString(), user._id.toString(), Role.SUPER_ADMIN);
+    expect(result.batch.status).toBe("FAILED");
+    expect(result.batch.createdRequests).toBe(0);
+    const item = await BulkEStampBatchItem.findOne({ batchId: batch._id, rowNumber: 1 });
+    expect(item.status).toBe("FAILED");
+    expect(item.failureReason).toMatch(/stampDutyPaidBy/);
   });
 
   it("duplicate rows (same stateCode/articleId/firstParty/secondParty/considerationPrice) are flagged, not rejected", async () => {
