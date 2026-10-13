@@ -4,14 +4,99 @@
 
 :root {
   color-scheme: light;
+  --paper: #f6f7ff;
+  --ink: #14182b;
+  --focus-ring: #2b3fd9;
+  --accent: #ffb020;
+
+  /* Role-coloured shell. Client roles (SUPER_ADMIN, ADMIN, USER) default. */
+  --role-sidebar: #1b2a9b;
+  --role-sidebar-hover: rgb(255 255 255 / 0.08);
+  --role-sidebar-active: rgb(255 255 255 / 0.16);
+  --role-sidebar-muted: rgb(255 255 255 / 0.72);
 }
 
-body {
-  @apply bg-slate-50 text-slate-900;
+[data-role="MASTER_ADMIN"] {
+  --role-sidebar: #14193f;
+}
+[data-role="ASSISTANT_MASTER_ADMIN"] {
+  --role-sidebar: #0c3c44;
+}
+[data-role="VENDOR"] {
+  --role-sidebar: #3a1740;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-paper text-slate-900 font-sans antialiased;
+    font-feature-settings: "cv11";
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-tight;
+  }
+  ::selection {
+    background: #c3cafe;
+    color: #14182b;
+  }
+  /* One visible keyboard focus treatment for every interactive element. */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline-offset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @layer components {
   .input {
-    @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500;
+    @apply block w-full min-h-[44px] rounded-input border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-colors hover:border-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/25 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 sm:min-h-[40px];
+  }
+  .input[aria-invalid="true"] {
+    @apply border-vermilion-500 focus:ring-vermilion-500/25;
+  }
+
+  /* Hairline card. */
+  .card {
+    @apply rounded-card border border-slate-200 bg-white;
+  }
+
+  /* The one decorative motif: a perforated stamp edge. Round dots in the
+     page colour punched through the card's edge (a dotted border, no
+     gradients). */
+  .perforated {
+    border: 6px dotted var(--perf-hole, var(--paper));
+    background-clip: border-box;
+  }
+  .perforated-inner {
+    @apply rounded-[6px] border border-slate-200;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+  .money {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 }
