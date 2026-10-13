@@ -1,4 +1,5 @@
-import { FilePlus2, Files, Users, BarChart3, FileText, Package, BadgeCheck, XCircle, Timer, Hourglass, Wallet, BadgeIndianRupee } from "lucide-react";
+import ClientBalanceCard from "../../components/dashboard/ClientBalanceCard";
+import { FilePlus2, Files, Users, BarChart3, FileText, Package, BadgeCheck, XCircle, Timer, Hourglass, Wallet, BadgeIndianRupee, Clock } from "lucide-react";
 import DashboardHeader, { inWindowCount } from "../../components/dashboard/DashboardHeader";
 import StatusBadge from "../../components/estamps/StatusBadge";
 import { useEffect, useState, useCallback } from "react";
@@ -100,13 +101,21 @@ export default function AdminDashboard() {
         }
       />
 
+      {/* GET /wallet/balance is open to request-creating roles; the wallet
+          page itself needs WALLET_VIEW, which ADMIN does not hold by default. */}
+      {hasPermission(user, PERMISSIONS.ESTAMP_CREATE) && (
+        <ClientBalanceCard canAddMoney={hasPermission(user, PERMISSIONS.PAYMENT_MANAGE)} showLedgerLink={hasPermission(user, PERMISSIONS.WALLET_VIEW)} />
+      )}
+
       {summaryErr && <ErrorState message={summaryErr} onRetry={loadSummary} />}
       {summaryLoading && <KpiSkeleton count={4} />}
       {!summaryLoading && summary && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard label="In the 20-minute window" value={inWindowCount(summary)} icon={Timer} tone="blue" />
           <KpiCard label="Being prepared" value={summary.orders.processing} icon={Hourglass} tone="violet" />
-          <KpiCard label="Issued orders" value={summary.orders.issued} icon={BadgeCheck} tone="emerald" />
+          {summary.orders.issuedThisMonth !== undefined && <KpiCard label="Issued this month" value={summary.orders.issuedThisMonth} icon={BadgeCheck} tone="emerald" />}
+              {summary.payments && <KpiCard label="Awaiting balance update" value={summary.payments.awaitingBalanceUpdate} icon={Clock} tone="marigold" />}
+              <KpiCard label="Issued orders" value={summary.orders.issued} icon={BadgeCheck} tone="emerald" />
           <KpiCard label="Failed orders" value={summary.orders.failed} icon={XCircle} tone="vermilion" />
           <KpiCard label="Total requests" value={summary.requests.total} icon={FileText} tone="grey" />
           <KpiCard label="Total orders" value={summary.orders.total} icon={Package} tone="grey" />
@@ -172,7 +181,7 @@ export default function AdminDashboard() {
           rowLinkPrefix="/estamps/requests"
           columns={[
             { key: "requestNumber", label: "Request #", render: (r) => <span className="font-medium text-slate-900">{r.requestNumber}</span> },
-            { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} deadline={r.modificationDeadline} /> },
+            { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} remainingSeconds={typeof r.windowRemainingSeconds === "number" ? r.windowRemainingSeconds : undefined} deadline={r.windowExpiresAt || r.modificationDeadline} /> },
             { key: "calculatedStampDuty", label: "Value", render: (r) => <span className="tabular-nums">{formatCurrency(r.calculatedStampDuty)}</span> },
           ]}
         />

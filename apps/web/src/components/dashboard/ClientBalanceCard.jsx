@@ -11,8 +11,9 @@ import Skeleton from "../ui/Skeleton";
 // main figure, plus the amount held for requests still in their 20-minute
 // window. Figures come straight from GET /wallet/balance. `canAddMoney`
 // (the caller checks the user's permission) shows the Add money action,
-// which opens the wallet page where funds are added.
-export default function ClientBalanceCard({ canAddMoney = false }) {
+// which opens the wallet page where funds are added. `showLedgerLink` is
+// false for roles that may read the balance but not open the wallet page.
+export default function ClientBalanceCard({ canAddMoney = false, showLedgerLink = true }) {
   const { data, loading, error, refetch } = useApi((signal) => apiClient.get("/wallet/balance", { signal }).then((r) => r.data.data), [], {
     errorMessage: "Failed to load balance.",
   });
@@ -22,10 +23,12 @@ export default function ClientBalanceCard({ canAddMoney = false }) {
         <h2 id="client-balance-title" className="font-display text-base font-semibold text-white">
           Balance
         </h2>
-        <Link to="/wallet" className="inline-flex min-h-[36px] items-center gap-1 text-sm font-medium text-white/90 hover:text-white hover:underline">
-          Wallet and ledger
-          <ArrowRight size={14} aria-hidden="true" />
-        </Link>
+        {showLedgerLink && (
+          <Link to="/wallet" className="inline-flex min-h-[36px] items-center gap-1 text-sm font-medium text-white/90 hover:text-white hover:underline">
+            Wallet and ledger
+            <ArrowRight size={14} aria-hidden="true" />
+          </Link>
+        )}
       </div>
       {loading && (
         <div className="space-y-2" role="status" aria-live="polite">

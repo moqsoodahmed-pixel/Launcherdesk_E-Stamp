@@ -134,7 +134,10 @@ exports.ReportService = {
     // lives in exactly one place (the controller), not duplicated here.
     async getDashboardSummary({ organizationId, isGlobal }) {
         const filter = organizationId ? { organizationId: orgMatch(organizationId) } : {};
-        const [requestStatusRows, orderStatusRows, successfulPayments, failedPayments, requestValueAgg, wallet, orgCounts] = await Promise.all([
+        // Calendar month in UTC, the same boundary as the "currentMonth" preset.
+        const now = new Date();
+        const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+        const [requestStatusRows, orderStatusRows, successfulPayments, failedPayments, requestValueAgg, wallet, orgCounts, issuedThisMonth, awaitingBalanceUpdate] = await Promise.all([
             models_1.EStampRequest.aggregate([{ $match: filter }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
             models_1.EStampOrder.aggregate([{ $match: filter }, { $group: { _id: "$eStampStatus", count: { $sum: 1 } } }]),
             models_1.Payment.aggregate([{ $match: { ...filter, status: shared_1.PaymentStatus.SUCCESS } }, { $group: { _id: null, amount: { $sum: "$amount" }, count: { $sum: 1 } } }]),
@@ -150,6 +153,9 @@ exports.ReportService = {
                     models_1.Organization.countDocuments({ ...(Array.isArray(organizationId) ? { _id: orgMatch(organizationId) } : {}), status: shared_1.OrganizationStatus.ACTIVE }),
                 ])
                 : Promise.resolve(null),
+            models_1.EStampOrder.countDocuments({ ...filter, eStampStatus: shared_1.EStampOrderProcessingStatus.ISSUED, issuedAt: { $gte: monthStart, $lte: now } }),
+            // Verified payments still waiting for LauncherDesk to credit them.
+            models_1.Payment.countDocuments({ ...filter, status: shared_1.PaymentStatus.SUCCESS, balanceStatus: "PENDING_CREDIT" }),
         ]);
         const requestsTotal = requestStatusRows.reduce((sum, r) => sum + r.count, 0);
         const ordersTotal = orderStatusRows.reduce((sum, r) => sum + r.count, 0);
@@ -166,7 +172,10 @@ exports.ReportService = {
                     .filter((r) => [shared_1.EStampOrderProcessingStatus.SUBMITTING, shared_1.EStampOrderProcessingStatus.SUBMITTED, shared_1.EStampOrderProcessingStatus.PROCESSING].includes(r._id))
                     .reduce((sum, r) => sum + r.count, 0),
                 failed: findCount(orderStatusRows, shared_1.EStampOrderProcessingStatus.FAILED),
+                issuedThisMonth,
             },
+            // A count, not an amount - shown to every dashboard caller.
+            payments: { awaitingBalanceUpdate },
             financial: {
                 successfulPaymentsAmount: successfulPayments[0]?.amount || 0,
                 successfulPaymentsCount: successfulPayments[0]?.count || 0,
@@ -473,6 +482,7 @@ exports.ReportService = {
                 createdAt: 1,
                 organizationId: 1,
                 organizationName: isGlobal ? "$organization.name" : { $literal: null },
+                windowExpiresAt: { $cond: [{ $eq: ["$status", shared_1.EStampRequestStatus.MODIFICATION_WINDOW] }, "$modificationDeadline", null] },
             },
         });
         const orderPipeline = withOrgName([
@@ -526,6 +536,12 @@ exports.ReportService = {
             models_1.EStampOrder.aggregate(orderPipeline),
             models_1.Payment.aggregate(paymentPipeline),
         ]);
+        // Server-side remaining seconds for rows still in their edit window,
+        // so the dashboard countdown does not depend on the browser clock.
+        const nowMs = Date.now();
+        for (const r of requests) {
+            r.windowRemainingSeconds = r.windowExpiresAt ? Math.max(0, Math.floor((new Date(r.windowExpiresAt).getTime() - nowMs) / 1000)) : null;
+        }
         return { requests, orders, payments };
     },
     // Wraps EStampProviderService.getLatestBalance() (never calls the

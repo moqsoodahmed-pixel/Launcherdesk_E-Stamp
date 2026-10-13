@@ -734,3 +734,45 @@ describe("Recent activity", () => {
     expect(res.body.data.orders).toEqual([]);
   });
 });
+
+describe("Client dashboard additions", () => {
+  it("counts orders issued this calendar month (UTC) and verified payments awaiting a balance update, scoped to the caller's organization", async () => {
+    const orgA = await createOrg();
+    const orgB = await createOrg();
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    await createOrder(orgA, null, { eStampStatus: EStampOrderProcessingStatus.ISSUED, issuedAt: now });
+    await createOrder(orgA, null, { eStampStatus: EStampOrderProcessingStatus.ISSUED, issuedAt: now });
+    await createOrder(orgA, null, { eStampStatus: EStampOrderProcessingStatus.ISSUED, issuedAt: new Date(monthStart.getTime() - 60 * 1000) });
+    await createOrder(orgA, null, { eStampStatus: EStampOrderProcessingStatus.PROCESSING });
+    await createOrder(orgB, null, { eStampStatus: EStampOrderProcessingStatus.ISSUED, issuedAt: now });
+    const pending = (org) => Payment.create({ organizationId: org._id, amount: 100, razorpayOrderId: `rzp_${uid()}`, status: PaymentStatus.SUCCESS, balanceStatus: "PENDING_CREDIT", createdBy: new mongoose.Types.ObjectId() });
+    await pending(orgA);
+    await pending(orgB);
+    await Payment.create({ organizationId: orgA._id, amount: 100, razorpayOrderId: `rzp_${uid()}`, status: PaymentStatus.SUCCESS, balanceStatus: "CREDITED", createdBy: new mongoose.Types.ObjectId() });
+
+    const { res, error } = await runController(reportController.getDashboard, clientReq(orgA, [Permission.REPORT_VIEW]), makeRes());
+    expect(error).toBeNull();
+    expect(res.body.data.orders.issued).toBe(3);
+    expect(res.body.data.orders.issuedThisMonth).toBe(2);
+    expect(res.body.data.payments).toEqual({ awaitingBalanceUpdate: 1 });
+    // The count is not financial data: present without REPORT_FINANCIAL_VIEW.
+    expect(res.body.data.financial).toBeNull();
+  });
+
+  it("recent requests carry the edit-window deadline and server-side remaining seconds only while the window is open", async () => {
+    const org = await createOrg();
+    const open = await createRequest(org, { status: EStampRequestStatus.MODIFICATION_WINDOW });
+    await createRequest(org, { status: EStampRequestStatus.LOCKED });
+    const { res, error } = await runController(reportController.getRecentActivity, clientReq(org, [Permission.REPORT_VIEW]), makeRes());
+    expect(error).toBeNull();
+    const rows = res.body.data.requests;
+    const openRow = rows.find((r) => String(r._id) === String(open._id));
+    expect(new Date(openRow.windowExpiresAt).getTime()).toBe(open.modificationDeadline.getTime());
+    expect(openRow.windowRemainingSeconds).toBeGreaterThan(1100);
+    expect(openRow.windowRemainingSeconds).toBeLessThanOrEqual(1200);
+    const lockedRow = rows.find((r) => r.status === EStampRequestStatus.LOCKED);
+    expect(lockedRow.windowExpiresAt).toBeNull();
+    expect(lockedRow.windowRemainingSeconds).toBeNull();
+  });
+});
