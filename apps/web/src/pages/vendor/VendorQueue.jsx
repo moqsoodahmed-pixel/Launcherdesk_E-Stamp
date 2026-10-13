@@ -83,48 +83,90 @@ export default function VendorQueue({ onChanged }) {
             <h3 className="px-4 pt-4 pb-2 text-xs font-semibold uppercase text-slate-500">
               {group.title} <span className="font-normal">({group.items.length})</span>
             </h3>
-            <ul className="divide-y divide-slate-100">
-              {group.items.map((o) => (
-                <li key={o._id} className="px-4 py-3 space-y-2" data-testid={`vendor-row-${o._id}`}>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                    <span className="font-medium text-slate-900">
-                      {o.orderNumber}
-                      <CopyButton value={o.orderNumber} label={`order number ${o.orderNumber}`} />
-                    </span>
-                    <VendorStatusBadge status={o.vendorStatus} label={o.declined ? "Handed back" : undefined} />
-                    <span className="text-slate-600">{o.organizationName}</span>
-                    <span className="text-slate-600">
-                      {o.stateCode} · {o.articleTitle || "-"}
-                    </span>
-                    <span className="text-slate-600">
-                      {o.firstParty}
-                      <CopyButton value={o.firstParty} label={`first party for ${o.orderNumber}`} /> / {o.secondParty}
-                      <CopyButton value={o.secondParty} label={`second party for ${o.orderNumber}`} />
-                    </span>
-                    <span className="text-slate-700 tabular-nums">
-                      Duty {formatCurrency(o.stampDuty)}
-                      <CopyButton value={o.stampDuty} label={`duty for ${o.orderNumber}`} />
-                    </span>
-                    <div className="flex-1" />
-                    <div className="flex items-center gap-2">
-                      {o.vendorStatus === "SENT" && !o.declined && (
-                        <button type="button" onClick={() => accept(o)} className="rounded-lg border border-brand-600 text-brand-700 px-3 py-1 text-xs font-medium hover:bg-brand-50 whitespace-nowrap">
-                          Accept
-                        </button>
-                      )}
-                      <Link to={`/vendor/orders/${o._id}`} className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap" aria-label={`Details for ${o.orderNumber}`}>
-                        Details
-                      </Link>
-                    </div>
-                  </div>
-                  {o.vendorStatus === "REJECTED" && !o.declined && o.uploads?.length > 0 && (
-                    <p className="text-xs text-red-700">Rejected: {o.uploads[o.uploads.length - 1].reviewNotes}</p>
-                  )}
-                  {rowError[o._id] && <p role="alert" className="text-xs text-red-600">{rowError[o._id]}</p>}
-                  {UPLOADABLE.includes(o.vendorStatus) && !o.declined && !o.closed && <UploadCertificateForm order={o} compact onUploaded={changed} />}
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500 text-xs uppercase border-y border-slate-200">
+                  <tr>
+                    <th className="px-4 py-2.5 font-semibold">Order ID</th>
+                    <th className="px-4 py-2.5 font-semibold">Status</th>
+                    <th className="px-4 py-2.5 font-semibold">Organization</th>
+                    <th className="px-4 py-2.5 font-semibold">State & Article</th>
+                    <th className="px-4 py-2.5 font-semibold">First / Second Party</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Stamp Duty</th>
+                    <th className="px-4 py-2.5 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {group.items.map((o) => (
+                    <tr key={o._id} className="hover:bg-slate-50/50 align-top" data-testid={`vendor-row-${o._id}`}>
+                      <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">
+                        <div className="flex items-center gap-1">
+                          <span>{o.orderNumber}</span>
+                          <CopyButton value={o.orderNumber} label={`order number ${o.orderNumber}`} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <VendorStatusBadge status={o.vendorStatus} label={o.declined ? "Handed back" : undefined} />
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 max-w-[160px] truncate" title={o.organizationName}>
+                        {o.organizationName || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 max-w-[200px]">
+                        <div className="font-medium text-slate-800">{o.stateCode}</div>
+                        <div className="text-xs text-slate-500 truncate" title={o.articleTitle || "-"}>
+                          {o.articleTitle || "-"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 max-w-[220px]">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium text-slate-800 truncate" title={o.firstParty}>{o.firstParty}</span>
+                          <CopyButton value={o.firstParty} label={`first party for ${o.orderNumber}`} />
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+                          <span className="truncate" title={o.secondParty}>/ {o.secondParty}</span>
+                          <CopyButton value={o.secondParty} label={`second party for ${o.orderNumber}`} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{formatCurrency(o.stampDuty)}</span>
+                          <CopyButton value={o.stampDuty} label={`duty for ${o.orderNumber}`} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2">
+                          {o.vendorStatus === "SENT" && !o.declined && (
+                            <button
+                              type="button"
+                              onClick={() => accept(o)}
+                              className="rounded-lg border border-brand-600 text-brand-700 px-3 py-1 text-xs font-medium hover:bg-brand-50"
+                            >
+                              Accept
+                            </button>
+                          )}
+                          <Link
+                            to={`/vendor/orders/${o._id}`}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            aria-label={`Details for ${o.orderNumber}`}
+                          >
+                            Details
+                          </Link>
+                        </div>
+                        {o.vendorStatus === "REJECTED" && !o.declined && o.uploads?.length > 0 && (
+                          <p className="text-xs text-red-700 mt-1.5 text-left">Rejected: {o.uploads[o.uploads.length - 1].reviewNotes}</p>
+                        )}
+                        {rowError[o._id] && <p role="alert" className="text-xs text-red-600 mt-1.5 text-left">{rowError[o._id]}</p>}
+                        {UPLOADABLE.includes(o.vendorStatus) && !o.declined && !o.closed && (
+                          <div className="mt-2 text-left">
+                            <UploadCertificateForm order={o} compact onUploaded={changed} />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ))}
     </section>
