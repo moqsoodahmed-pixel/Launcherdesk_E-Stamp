@@ -38,6 +38,14 @@ export default function RequestDetailPage() {
   const [notice, setNotice] = useState(location.state?.notice || null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
+  // WHICH party pays, tracked separately from the name string that actually
+  // gets submitted - mirrors the fix on the New Request wizard. Two parties
+  // can share a name, and a plain text box here (the old "Edit details" form)
+  // let the payer be edited into any arbitrary text with no link back to
+  // either actual party at all. null means "doesn't match either party
+  // exactly" (e.g. it was typed free-form before this fix) - the field falls
+  // back to a plain text box rather than guessing.
+  const [paidBySide, setPaidBySide] = useState(null);
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -69,15 +77,22 @@ export default function RequestDetailPage() {
     return apiClient.get(`/estamps/${id}`).then((res) => {
       setRequest(res.data.data);
       setSecondsLeft(typeof res.data.data.windowRemainingSeconds === "number" ? res.data.data.windowRemainingSeconds : null);
+      const { firstParty, secondParty, stampDutyPaidBy } = res.data.data;
       setEditForm({
-        firstParty: res.data.data.firstParty,
-        secondParty: res.data.data.secondParty,
+        firstParty,
+        secondParty,
         descriptionOfDocument: res.data.data.descriptionOfDocument,
         propertyDescription: res.data.data.propertyDescription || "",
-        stampDutyPaidBy: res.data.data.stampDutyPaidBy,
+        stampDutyPaidBy,
         considerationPrice: String(res.data.data.considerationPrice ?? ""),
         numberOfEStamps: String(res.data.data.numberOfEStamps ?? ""),
       });
+      // Only inferred when it names exactly one of the two parties - if both
+      // happen to share that name, or it matches neither, this intentionally
+      // stays unset rather than guessing.
+      const matchesFirst = stampDutyPaidBy === firstParty;
+      const matchesSecond = stampDutyPaidBy === secondParty;
+      setPaidBySide(matchesFirst && !matchesSecond ? "FIRST" : matchesSecond && !matchesFirst ? "SECOND" : null);
       if (res.data.data.orderId) {
         apiClient
           .get(`/orders/${res.data.data.orderId}`)
@@ -100,6 +115,29 @@ export default function RequestDetailPage() {
       .finally(() => setInitialLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  function choosePayer(side) {
+    setPaidBySide(side);
+    setEditForm((f) => ({ ...f, stampDutyPaidBy: side === "FIRST" ? f.firstParty : f.secondParty }));
+  }
+
+  // Keeps the submitted name in step with the chosen party if that party's
+  // name is edited in the same form, and clears the selection if the chosen
+  // party's name is emptied out entirely - same safeguard as the creation
+  // wizard, applied here too.
+  useEffect(() => {
+    if (!editForm || !paidBySide) return;
+    const name = paidBySide === "FIRST" ? editForm.firstParty : editForm.secondParty;
+    if (!name) {
+      setPaidBySide(null);
+      setEditForm((f) => ({ ...f, stampDutyPaidBy: "" }));
+      return;
+    }
+    if (name !== editForm.stampDutyPaidBy) {
+      setEditForm((f) => ({ ...f, stampDutyPaidBy: name }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paidBySide, editForm?.firstParty, editForm?.secondParty]);
 
   async function handleSaveEdit(e) {
     e.preventDefault();
@@ -228,11 +266,44 @@ export default function RequestDetailPage() {
               value={editForm.propertyDescription}
               onChange={(v) => setEditForm((f) => ({ ...f, propertyDescription: v }))}
             />
-            <EditField
-              label="Stamp Duty Paid By"
-              value={editForm.stampDutyPaidBy}
-              onChange={(v) => setEditForm((f) => ({ ...f, stampDutyPaidBy: v }))}
-            />
+            {editForm.firstParty && editForm.secondParty ? (
+              <div className="block">
+                <span className="block text-xs font-medium text-slate-700 mb-1">Who pays the stamp duty?</span>
+                <div role="group" aria-label="Who pays the stamp duty?" className="flex gap-2">
+                  <button
+                    type="button"
+                    aria-pressed={paidBySide === "FIRST"}
+                    onClick={() => choosePayer("FIRST")}
+                    className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
+                      paidBySide === "FIRST" ? "border-brand-600 bg-brand-50 text-brand-700 font-medium" : "border-slate-300 text-slate-600"
+                    }`}
+                  >
+                    {editForm.firstParty} (First Party)
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={paidBySide === "SECOND"}
+                    onClick={() => choosePayer("SECOND")}
+                    className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
+                      paidBySide === "SECOND" ? "border-brand-600 bg-brand-50 text-brand-700 font-medium" : "border-slate-300 text-slate-600"
+                    }`}
+                  >
+                    {editForm.secondParty} (Second Party)
+                  </button>
+                </div>
+                {!paidBySide && editForm.stampDutyPaidBy && (
+                  <p className="text-xs text-amber-700 mt-1">
+                    Currently set to "{editForm.stampDutyPaidBy}", which doesn't match either party above. Pick one to fix it.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <EditField
+                label="Stamp Duty Paid By"
+                value={editForm.stampDutyPaidBy}
+                onChange={(v) => setEditForm((f) => ({ ...f, stampDutyPaidBy: v }))}
+              />
+            )}
             {request.chargeStatus === "RESERVED" && (
               <>
                 <EditField label="Consideration Price" type="number" value={editForm.considerationPrice} onChange={(v) => setEditForm((f) => ({ ...f, considerationPrice: v }))} />
@@ -245,7 +316,10 @@ export default function RequestDetailPage() {
                 : "Consideration price, article, state and number of E-Stamps cannot be changed after creation."}
             </p>
             <div className="flex gap-2">
-              <button disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+              <button
+                disabled={saving || !editForm.stampDutyPaidBy || (!!editForm.firstParty && !!editForm.secondParty && !paidBySide)}
+                className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
                 {saving ? "Saving..." : "Save changes"}
               </button>
               <button type="button" onClick={() => setEditing(false)} className="text-sm text-slate-500 hover:underline">

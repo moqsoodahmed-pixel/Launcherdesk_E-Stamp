@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import RequestDetailPage from "./RequestDetailPage";
 import { apiClient } from "../../api/client";
@@ -123,5 +123,64 @@ describe("RequestDetailPage - modification window and permissions", () => {
     renderAt();
     expect(await screen.findByRole("button", { name: "Edit details" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel Request" })).not.toBeInTheDocument();
+  });
+});
+
+describe("RequestDetailPage - editing who pays the stamp duty", () => {
+  const open = (overrides = {}) => request({ status: "MODIFICATION_WINDOW", canModify: true, canCancel: true, windowRemainingSeconds: 600, ...overrides });
+
+  beforeEach(() => {
+    mockUser = { role: "SUPER_ADMIN", permissions: ["estamp.view", "estamp.modify", "estamp.cancel"] };
+  });
+
+  it("pre-selects the party that already matches the stored payer", async () => {
+    apiClient.get.mockResolvedValue({ data: { data: open({ firstParty: "Alice", secondParty: "Bob", stampDutyPaidBy: "Bob" }) } });
+    renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+    expect(await screen.findByRole("button", { name: "Bob (Second Party)" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Alice (First Party)" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("selects only ONE party when both parties share a name - the bug this fixes", async () => {
+    apiClient.get.mockResolvedValue({ data: { data: open({ firstParty: "das", secondParty: "das", stampDutyPaidBy: "das" }) } });
+    renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+
+    const first = await screen.findByRole("button", { name: "das (First Party)" });
+    const second = screen.getByRole("button", { name: "das (Second Party)" });
+    // With an ambiguous stored name, neither is auto-selected rather than both.
+    expect(first).toHaveAttribute("aria-pressed", "false");
+    expect(second).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(first);
+    expect(first).toHaveAttribute("aria-pressed", "true");
+    expect(second).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(second);
+    expect(first).toHaveAttribute("aria-pressed", "false");
+    expect(second).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("saving sends the chosen party's name, and the button is disabled with neither picked", async () => {
+    apiClient.get.mockResolvedValue({ data: { data: open({ firstParty: "das", secondParty: "das", stampDutyPaidBy: "das" }) } });
+    apiClient.patch.mockResolvedValue({ data: { data: {} } });
+    renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    fireEvent.click(await screen.findByRole("button", { name: "das (Second Party)" }));
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(apiClient.patch.mock.calls[0][1]).toMatchObject({ stampDutyPaidBy: "das" });
+  });
+
+  it("falls back to a plain text box when only one party is on the request", async () => {
+    apiClient.get.mockResolvedValue({ data: { data: open({ firstParty: "Alice", secondParty: "", stampDutyPaidBy: "Alice" }) } });
+    renderAt();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+    expect(await screen.findByLabelText("Stamp Duty Paid By")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Who pays the stamp duty?" })).not.toBeInTheDocument();
   });
 });
