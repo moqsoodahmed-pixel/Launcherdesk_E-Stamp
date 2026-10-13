@@ -96,7 +96,7 @@ const FIELD_ALIASES = {
     descriptionOfDocument: ["description of document", "document description", "description", "descriptionofdocument", "doc description"],
     propertyDescription: ["property description", "property details", "property", "propertydescription"],
     considerationPrice: ["consideration price", "consideration amount", "consideration value", "price", "amount", "considerationprice"],
-    stampDutyPaidBy: ["stamp duty paid by", "duty paid by", "paid by", "stampdutypaidby"],
+    stampDutyPaidBy: ["stamp duty paid by", "duty paid by", "paid by", "stampdutypaidby", "stamp duty", "stampduty"],
     numberOfEStamps: ["number of e-stamps", "number of estamps", "number of e stamps", "no of e-stamps", "no of estamps", "no. of e-stamps", "numberofestamps", "quantity", "count"],
 };
 // Builds { canonicalField -> columnIndex }, plus lists of missing/duplicate
@@ -391,13 +391,22 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
             if (data.articleId && !mongoose_1.Types.ObjectId.isValid(String(data.articleId))) {
                 const rawArticle = String(data.articleId).trim();
                 const state = String(data.stateCode || "").toUpperCase();
-                const code = rawArticle.split(" - ")[0].trim().toUpperCase();
+                const parts = rawArticle.split(" - ");
+                const code = parts[0].trim().toUpperCase();
+                const titlePart = parts.length > 1 ? parts.slice(1).join(" - ").trim().toUpperCase() : "";
                 let resolved = articleIdByStateAndCode.get(`${state}|${code}`);
                 if (!resolved) {
                     resolved = articleIdByStateAndCode.get(`${state}|${rawArticle.toUpperCase()}`);
                 }
+                if (!resolved && titlePart) {
+                    resolved = articleIdByStateAndCode.get(`${state}|${titlePart}`);
+                }
                 if (!resolved) {
                     resolved = articleIdByStateAndCode.get(`${state}|${code.replace(/[^A-Z0-9]/g, "")}`);
+                }
+                if (!resolved) {
+                    // Try matching rawArticle without hyphens
+                    resolved = articleIdByStateAndCode.get(`${state}|${rawArticle.replace(/[^A-Z0-9]/g, "")}`);
                 }
                 if (resolved)
                     data.articleId = resolved;

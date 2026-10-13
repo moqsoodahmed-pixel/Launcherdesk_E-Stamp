@@ -171,36 +171,53 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
         numberOfEStamps: 1,
     });
 
-    // "ArticleLists" holds one column per state - the source range each
-    // state's dependent dropdown pulls from. Hidden: it's a lookup table,
-    // not something a filler needs to see directly.
+    // "ArticleLists" holds:
+    // - Row 1: state full names (columns 1..N)
+    // - Row 2+: the articles for that state
     const listSheet = workbook.addWorksheet("ArticleLists", { state: "veryHidden" });
+    const stateFullNames = stateCodes.map((c) => (0, indianStates_1.stateNameForCode)(c));
     stateCodes.forEach((stateCode, colIdx) => {
         const col = colIdx + 1;
-        const articlesForState = articlesByState.get(stateCode);
+        const articlesForState = articlesByState.get(stateCode) || [];
         listSheet.getCell(1, col).value = (0, indianStates_1.stateNameForCode)(stateCode);
         articlesForState.forEach((article, rowIdx) => {
             listSheet.getCell(rowIdx + 2, col).value = `${article.articleCode} - ${article.title}`;
         });
         const colLetter = listSheet.getColumn(col).letter;
-        workbook.definedNames.add(`ArticleLists!$${colLetter}$2:$${colLetter}$${articlesForState.length + 1}`, definedNameForStateCode(stateCode));
+        if (articlesForState.length > 0) {
+            const rangeStr = `ArticleLists!$${colLetter}$2:$${colLetter}$${articlesForState.length + 1}`;
+            // Register under code e.g. ART_AN
+            workbook.definedNames.add(rangeStr, definedNameForStateCode(stateCode));
+            // Also register under sanitized full state name e.g. ART_ANDAMAN_AND_NICOBAR_ISLANDS
+            const fullName = (0, indianStates_1.stateNameForCode)(stateCode);
+            const sanitizedFullName = `ART_${String(fullName).toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+            if (sanitizedFullName !== definedNameForStateCode(stateCode)) {
+                workbook.definedNames.add(rangeStr, sanitizedFullName);
+            }
+        }
     });
 
-    const LAST_ROW = 200; // generous room to fill in beyond the example row
-    const stateFullNames = stateCodes.map((c) => (0, indianStates_1.stateNameForCode)(c));
+    // Defined name for state list so dataValidation never exceeds Excel's 255-char string literal limit
+    if (stateCodes.length > 0) {
+        const lastColLetter = listSheet.getColumn(stateCodes.length).letter;
+        workbook.definedNames.add(`ArticleLists!$A$1:$${lastColLetter}$1`, "STATE_NAMES_LIST");
+    }
+
+    const LAST_ROW = 500; // room to fill in batch rows
+    const stateFormula = stateFullNames.length > 0 && stateFullNames.join(",").length <= 250
+        ? `"${stateFullNames.join(",")}"`
+        : "=STATE_NAMES_LIST";
     for (let row = 2; row <= LAST_ROW; row += 1) {
         if (stateFullNames.length > 0) {
             templateSheet.getCell(`A${row}`).dataValidation = {
                 type: "list",
                 allowBlank: true,
-                formulae: [`"${stateFullNames.join(",")}"`],
+                formulae: [stateFormula],
                 showErrorMessage: false,
             };
         }
         // Dependent dropdown: looks up the ArticleLists named range matching
-        // whichever state was chosen in column A of this same row. If the
-        // state cell is blank or unrecognized, Excel just shows no options
-        // yet - never a hard error while the row is still being filled in.
+        // whichever state was chosen in column A of this same row.
         templateSheet.getCell(`B${row}`).dataValidation = {
             type: "list",
             allowBlank: true,

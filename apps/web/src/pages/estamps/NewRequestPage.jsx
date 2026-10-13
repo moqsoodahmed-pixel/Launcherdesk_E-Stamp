@@ -83,6 +83,7 @@ export default function NewRequestPage() {
   });
 
   const values = watch();
+  const selectedArticle = useMemo(() => articles.find((a) => a._id === values.articleId), [articles, values.articleId]);
   const currentKey = useMemo(() => calcKey(values), [values.stateCode, values.articleId, values.considerationPrice, values.numberOfEStamps]);
   const isFresh = calculation !== null && calculatedForKey === currentKey;
 
@@ -348,11 +349,21 @@ export default function NewRequestPage() {
               disabled={!values.stateCode || articlesLoading}
             >
               <option value="">Select article</option>
-              {articles.map((a, idx) => (
-                <option key={a._id} value={a._id}>
-                  {idx + 1}. {a.articleCode} - {a.title}
-                </option>
-              ))}
+              {articles.map((a, idx) => {
+                const rule = a.calculationRule;
+                const priceLabel = rule?.type === "FIXED" && rule.fixedAmount
+                  ? `Fixed: ₹${rule.fixedAmount}`
+                  : rule?.minAmount
+                  ? `Min: ₹${rule.minAmount}`
+                  : rule?.percentage
+                  ? `${rule.percentage}%`
+                  : null;
+                return (
+                  <option key={a._id} value={a._id}>
+                    {idx + 1}. {a.articleCode} - {a.title} {priceLabel ? `(${priceLabel})` : ""}
+                  </option>
+                );
+              })}
             </select>
             {errors.articleId?.message && <span className="block text-xs text-red-600 mt-1">{errors.articleId?.message}</span>}
             {values.stateCode && !articlesLoading && articles.length === 0 && (
@@ -360,56 +371,106 @@ export default function NewRequestPage() {
                 No official articles have been imported for this state yet.
               </p>
             )}
+            {selectedArticle && (
+              <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
+                <div className="flex items-center justify-between font-medium text-slate-800">
+                  <span>Government Stamp Duty:</span>
+                  <span className="text-brand-700 font-semibold text-sm">
+                    {selectedArticle.calculationRule?.type === "FIXED" && selectedArticle.calculationRule?.fixedAmount
+                      ? `₹${selectedArticle.calculationRule.fixedAmount} (Fixed)`
+                      : selectedArticle.calculationRule?.minAmount
+                      ? `₹${selectedArticle.calculationRule.minAmount} (Minimum statutory duty)`
+                      : selectedArticle.calculationRule?.percentage
+                      ? `${selectedArticle.calculationRule.percentage}% of Consideration`
+                      : "Statutory Rate"}
+                  </span>
+                </div>
+                {selectedArticle.description && (
+                  <p className="text-slate-500 text-[11px] leading-relaxed">{selectedArticle.description}</p>
+                )}
+              </div>
+            )}
           </div>
           </div>
         )}
 
         {step === 2 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Field label="Consideration Price (₹)" error={errors.considerationPrice?.message} hint="Enter 0 if document has no commercial consideration value">
-              <input type="number" className="input" {...register("considerationPrice", { valueAsNumber: true })} />
-            </Field>
-            {values.firstParty || values.secondParty ? (
-              <FieldGroup label="Who pays the stamp duty?" error={errors.stampDutyPaidBy?.message}>
-                <div className="flex gap-2">
-                  {values.firstParty && (
-                    <button
-                      type="button"
-                      aria-pressed={paidBySide === "FIRST"}
-                      onClick={() => choosePayer("FIRST")}
-                      className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
-                        paidBySide === "FIRST"
-                          ? "border-brand-600 bg-brand-50 text-brand-700 font-medium"
-                          : "border-slate-300 text-slate-600"
-                      }`}
-                    >
-                      {values.firstParty} (First Party)
-                    </button>
-                  )}
-                  {values.secondParty && (
-                    <button
-                      type="button"
-                      aria-pressed={paidBySide === "SECOND"}
-                      onClick={() => choosePayer("SECOND")}
-                      className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
-                        paidBySide === "SECOND"
-                          ? "border-brand-600 bg-brand-50 text-brand-700 font-medium"
-                          : "border-slate-300 text-slate-600"
-                      }`}
-                    >
-                      {values.secondParty} (Second Party)
-                    </button>
-                  )}
-                </div>
-              </FieldGroup>
-            ) : (
-              <Field label="Who pays the stamp duty?" error={errors.stampDutyPaidBy?.message}>
-                <input className="input" {...register("stampDutyPaidBy")} placeholder="Enter party names on the previous step first" />
+          <div className="space-y-4">
+            {/* Dedicated Stamp Duty Breakdown & Compliance Section */}
+            <div className="p-4 rounded-xl border border-brand-200 bg-brand-50/50">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-brand-800 uppercase tracking-wider">
+                  Mandatory Government Stamp Duty
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Government Statutory Rate
+                </span>
+              </div>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-2xl font-bold text-slate-900">
+                  {selectedArticle?.calculationRule?.type === "FIXED" && selectedArticle?.calculationRule?.fixedAmount
+                    ? `₹${selectedArticle.calculationRule.fixedAmount}`
+                    : selectedArticle?.calculationRule?.minAmount
+                    ? `₹${selectedArticle.calculationRule.minAmount} (Minimum)`
+                    : selectedArticle?.calculationRule?.percentage
+                    ? `${selectedArticle.calculationRule.percentage}%`
+                    : "As per State Rules"}
+                </span>
+                <span className="text-xs text-slate-600">
+                  {selectedArticle ? `for ${selectedArticle.title} (${selectedArticle.articleCode})` : "for selected article"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Official stamp duty governed by state treasury regulations. The payer selected below will be designated as the compulsory duty remitter on the e-Stamp certificate.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Field label="Consideration Price (₹)" error={errors.considerationPrice?.message} hint="Enter 0 if document has no commercial consideration value">
+                <input type="number" className="input" {...register("considerationPrice", { valueAsNumber: true })} />
               </Field>
-            )}
-            <Field label="No. of E-Stamps" error={errors.numberOfEStamps?.message} hint="Default is 1 certificate copy">
-              <input type="number" className="input" {...register("numberOfEStamps", { valueAsNumber: true })} />
-            </Field>
+              {values.firstParty || values.secondParty ? (
+                <FieldGroup label="Stamp Duty Paid By *" error={errors.stampDutyPaidBy?.message}>
+                  <div className="flex gap-2">
+                    {values.firstParty && (
+                      <button
+                        type="button"
+                        aria-pressed={paidBySide === "FIRST"}
+                        onClick={() => choosePayer("FIRST")}
+                        className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
+                          paidBySide === "FIRST"
+                            ? "border-brand-600 bg-brand-50 text-brand-700 font-medium"
+                            : "border-slate-300 text-slate-600"
+                        }`}
+                      >
+                        {values.firstParty} (First Party)
+                      </button>
+                    )}
+                    {values.secondParty && (
+                      <button
+                        type="button"
+                        aria-pressed={paidBySide === "SECOND"}
+                        onClick={() => choosePayer("SECOND")}
+                        className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
+                          paidBySide === "SECOND"
+                            ? "border-brand-600 bg-brand-50 text-brand-700 font-medium"
+                            : "border-slate-300 text-slate-600"
+                        }`}
+                      >
+                        {values.secondParty} (Second Party)
+                      </button>
+                    )}
+                  </div>
+                </FieldGroup>
+              ) : (
+                <Field label="Stamp Duty Paid By *" error={errors.stampDutyPaidBy?.message}>
+                  <input className="input" {...register("stampDutyPaidBy")} placeholder="Enter party names on the previous step first" />
+                </Field>
+              )}
+              <Field label="No. of E-Stamps" error={errors.numberOfEStamps?.message} hint="Default is 1 certificate copy">
+                <input type="number" className="input" {...register("numberOfEStamps", { valueAsNumber: true })} />
+              </Field>
+            </div>
           </div>
         )}
 

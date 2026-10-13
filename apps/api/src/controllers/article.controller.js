@@ -73,8 +73,26 @@ exports.listArticles = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         ]);
         return (0, ApiResponse_1.ok)(res, { items, total, page, limit });
     }
-    const articles = await models_1.Article.find(filter).sort({ stateCode: 1, articleCode: 1 });
-    return (0, ApiResponse_1.ok)(res, articles);
+    const articles = await models_1.Article.find(filter).sort({ stateCode: 1, articleCode: 1 }).lean();
+    const articleIds = articles.map((a) => a._id);
+    const versions = articleIds.length
+        ? await models_1.ArticleVersion.find({ articleId: { $in: articleIds }, effectiveFrom: { $lte: new Date() } })
+            .sort({ effectiveFrom: -1 })
+            .lean()
+        : [];
+    const versionMap = new Map();
+    for (const v of versions) {
+        const key = v.articleId.toString();
+        if (!versionMap.has(key)) versionMap.set(key, v);
+    }
+    const enriched = articles.map((a) => {
+        const v = versionMap.get(a._id.toString());
+        return {
+            ...a,
+            calculationRule: v?.calculationRule || null,
+        };
+    });
+    return (0, ApiResponse_1.ok)(res, enriched);
 });
 exports.getArticle = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const article = await models_1.Article.findById(req.params.id);
