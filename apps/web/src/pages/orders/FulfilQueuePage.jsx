@@ -109,7 +109,7 @@ export default function FulfilQueuePage() {
                         Recall
                       </button>
                     )}
-                    <Link to={`/orders/${o._id}`} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium" aria-label={`Open order ${o.orderNumber}`}>
+                    <Link to={`/orders/${o._id}`} state={{ from: "/orders/fulfil", label: "Orders to fulfil" }} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium" aria-label={`Open order ${o.orderNumber}`}>
                       Open
                     </Link>
                   </td>

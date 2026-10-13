@@ -124,7 +124,7 @@ export default function VendorReviewPage() {
                     <input type="checkbox" checked={selected.has(o._id)} onChange={() => toggle(o._id)} aria-label={`Select ${o.orderNumber}`} />
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-900">
-                    <Link to={`/orders/${o._id}`} className="hover:underline">
+                    <Link to={`/orders/${o._id}`} state={{ from: "/orders/vendor-review", label: "Vendor review" }} className="hover:underline">
                       {o.orderNumber}
                     </Link>
                   </td>

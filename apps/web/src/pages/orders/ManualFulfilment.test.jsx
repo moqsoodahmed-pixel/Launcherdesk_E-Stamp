@@ -145,6 +145,18 @@ describe("Order detail - fulfilment panel", () => {
     expect(screen.queryByText(/provider/i)).not.toBeInTheDocument();
     expect(screen.getByText("Queued")).toBeInTheDocument();
   });
+
+  it("navigates back to Orders to fulfil when opened from the fulfilment queue", async () => {
+    apiClient.get.mockReturnValue(ok(detail()));
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/orders/o1", state: { from: "/orders/fulfil", label: "Orders to fulfil" } }]}>
+        <Routes>
+          <Route path="/orders/:id" element={<OrderDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByRole("link", { name: "← Orders to fulfil" })).toHaveAttribute("href", "/orders/fulfil");
+  });
 });
 
 describe("Order detail - certificate View and Download", () => {

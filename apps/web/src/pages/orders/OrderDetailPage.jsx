@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission, PERMISSIONS } from "../../utils/permissions";
@@ -20,6 +20,9 @@ function fmt(date) {
 
 export default function OrderDetailPage() {
   const { id } = useParams();
+  const location = useLocation();
+  const backTo = location.state?.from || "/orders";
+  const backLabel = location.state?.label || "Orders";
   const { user } = useAuth();
   const canDownload = hasPermission(user, PERMISSIONS.ESTAMP_DOWNLOAD);
 
@@ -193,8 +196,8 @@ export default function OrderDetailPage() {
   if (error && !data) {
     return (
       <div className="space-y-3">
-        <Link to="/orders" className="text-sm text-slate-500 hover:underline">
-          ← Orders
+        <Link to={backTo} className="text-sm text-slate-500 hover:underline">
+          ← {backLabel}
         </Link>
         <ErrorState message={error} onRetry={() => load()} />
       </div>
@@ -220,8 +223,8 @@ export default function OrderDetailPage() {
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <Link to="/orders" className="text-sm text-slate-500 hover:underline">
-          ← Orders
+        <Link to={backTo} className="text-sm text-slate-500 hover:underline">
+          ← {backLabel}
         </Link>
         <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
           <div>
