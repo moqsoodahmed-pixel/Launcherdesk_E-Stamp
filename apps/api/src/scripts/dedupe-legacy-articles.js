@@ -4,15 +4,17 @@ exports.dedupeLegacyArticles = dedupeLegacyArticles;
 const db_1 = require("../config/db");
 const models_1 = require("../models");
 
-// Before the StampMitra audit import (commit e5c651b and the fix that
-// followed it), Andaman, Delhi and Karnataka already had a handful of
-// articles seeded under an older, inconsistent code scheme. Those old codes
-// represent the exact same legal instrument as one of the audit-sourced
-// codes below (same title, same state) and were never removed, so each of
-// these three states' real catalog size (12 / 98 / 113 per the audit)
-// appeared inflated by the leftover duplicates. Deactivating - never
-// deleting - the legacy duplicate keeps history intact while stopping it
-// from showing twice in the New Request / bulk-template dropdowns.
+// Two sources of duplicate articles, both fixed the same way (deactivate,
+// never delete, so history is preserved):
+// 1. Before the StampMitra audit import, Andaman, Delhi and Karnataka
+//    already had a handful of articles seeded under an older, inconsistent
+//    code scheme, naming the exact same legal instrument as one of the
+//    audit-sourced codes below.
+// 2. The audit's own F15 finding documents Andhra Pradesh articles that are
+//    duplicated under two code formats on the live competitor site itself
+//    (e.g. "31(a)(iii)(a)" and "31 (a) (iii) (a)").
+// Deactivating the duplicate - keeping the audit-preferred/spaced code -
+// stops it from showing twice in the New Request / bulk-template dropdowns.
 const LEGACY_DUPLICATE_CODES = {
     AN: [
         "ADOPTION-DEED",
@@ -42,6 +44,15 @@ const LEGACY_DUPLICATE_CODES = {
     // codes found alongside the audit's correctly-formatted "40 (A)" and
     // "32-A (ii)" entries.
     KA: ["40(A)", "32-A(ii) 32-A (ii)"],
+    // The StampMitra audit's own F15 finding documents these as duplicate
+    // labels already present in Andhra Pradesh's live dropdown (the same
+    // instrument listed twice, once with spaces in the code and once
+    // without). Deactivating the no-space variant, keeping the spaced one
+    // that matches the rest of AP's code formatting. NOTE: "41 (A) (b)" and
+    // "41 (C) (b)" also share an identical short label in the audit, but
+    // they are two distinct partnership sub-clauses, not a duplicate - F15
+    // does not list them as one, so they are deliberately left alone here.
+    AP: ["31(a)(iii)(a)", "31(a)(iii)(b)", "6(A)"],
 };
 
 async function dedupeLegacyArticles() {

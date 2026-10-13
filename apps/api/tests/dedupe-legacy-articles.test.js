@@ -19,6 +19,7 @@ describe("dedupeLegacyArticles - removes leftover pre-audit duplicate articles",
       { stateCode: "AN", legacyCode: "ADOPTION-DEED", auditCode: "AN-RG-2", title: "Adoption Deed" },
       { stateCode: "DL", legacyCode: "4", auditCode: "DL-RG-78", title: "4 - Affidavit" },
       { stateCode: "KA", legacyCode: "40(A)", auditCode: "40 (A)", title: "40 (A) - Partnership - Constitution of Partnership" },
+      { stateCode: "AP", legacyCode: "6(A)", auditCode: "6(A)(i)", title: "Agreement Where the value does not exceed Rs.5,000" },
     ];
     for (const { stateCode, legacyCode, auditCode, title } of cases) {
       await Article.create({ stateCode, articleCode: legacyCode, title, isActive: true, currentVersion: 1, createdBy: creator });
@@ -55,5 +56,24 @@ describe("dedupeLegacyArticles - removes leftover pre-audit duplicate articles",
 
     const unchanged = await Article.findById(real._id);
     expect(unchanged.isActive).toBe(true);
+  });
+
+  // 41(A)(b) and 41(C)(b) share an identical short display label in the
+  // audit ("Partnership in any other case") but are two distinct
+  // partnership sub-clauses under different parent articles - the audit's
+  // F15 duplicate-label finding does not list this pair, unlike the other
+  // AP pairs it does flag. Deactivating one would silently delete a real,
+  // distinct legal instrument, so both must stay active.
+  it("never deactivates 41(A)(b)/41(C)(b) even though they share a display label - they are distinct articles, not a duplicate", async () => {
+    const creator = new mongoose.Types.ObjectId();
+    await Article.create({ stateCode: "AP", articleCode: "41 (A) (b)", title: "Partnership in any other case", isActive: true, currentVersion: 1, createdBy: creator });
+    await Article.create({ stateCode: "AP", articleCode: "41 (C) (b)", title: "Partnership in any other case", isActive: true, currentVersion: 1, createdBy: creator });
+
+    await dedupeLegacyArticles();
+
+    const first = await Article.findOne({ stateCode: "AP", articleCode: "41 (A) (b)" });
+    const second = await Article.findOne({ stateCode: "AP", articleCode: "41 (C) (b)" });
+    expect(first.isActive).toBe(true);
+    expect(second.isActive).toBe(true);
   });
 });
