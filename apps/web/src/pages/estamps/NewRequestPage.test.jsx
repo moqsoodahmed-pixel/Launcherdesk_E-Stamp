@@ -275,16 +275,16 @@ describe("NewRequestPage - Review & Submit", () => {
     expect(screen.getByText("Stamp duty").parentElement).not.toHaveTextContent("At Actuals");
   });
 
-  it("shows 'At Actuals' instead of ₹0 when the duty is not configured, but the total is still a real number", async () => {
+  it("shows the real stamp duty amount (never 'At Actuals') while Government Fees keeps its own 'At Actuals' disclosure, and the total is always a real number", async () => {
     mockFullFlow({ amount: 0, pricing: PRICING_UNKNOWN });
     await navigateToReview();
     await screen.findByText("Price summary");
-    // The Stamp duty row (both in the top summary and the Price summary)
-    // and the Government Fees row read "At Actuals" rather than a bare ₹0
-    // that would look like a real, settled price.
-    expect(screen.getAllByText("At Actuals")).toHaveLength(3);
-    expect(screen.getByText("Stamp duty").parentElement).toHaveTextContent("At Actuals");
+    // Stamp duty always shows the real figure (₹0 here, since the article's
+    // duty isn't configured) - only Government Fees reads "At Actuals".
+    expect(screen.getAllByText("At Actuals")).toHaveLength(1);
     expect(screen.getByText("Government Fees").parentElement).toHaveTextContent("At Actuals");
+    expect(screen.getAllByText("Stamp Duty")[0].parentElement).not.toHaveTextContent("At Actuals");
+    expect(screen.getByText("Stamp duty").parentElement).not.toHaveTextContent("At Actuals");
     // The total is never left blank/"-" - it's the known fee+GST portion,
     // even while the government duty component is still unknown.
     expect(screen.getByText("Total payable").parentElement).toHaveTextContent("₹17.7");

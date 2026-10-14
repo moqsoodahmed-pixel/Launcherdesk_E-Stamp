@@ -371,25 +371,6 @@ export default function NewRequestPage() {
                 No official articles have been imported for this state yet.
               </p>
             )}
-            {selectedArticle && (
-              <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
-                <div className="flex items-center justify-between font-medium text-slate-800">
-                  <span>Government Stamp Duty:</span>
-                  <span className="text-brand-700 font-semibold text-sm">
-                    {selectedArticle.calculationRule?.type === "FIXED" && selectedArticle.calculationRule?.fixedAmount
-                      ? `₹${selectedArticle.calculationRule.fixedAmount} (Fixed)`
-                      : selectedArticle.calculationRule?.minAmount
-                      ? `₹${selectedArticle.calculationRule.minAmount} (Minimum statutory duty)`
-                      : selectedArticle.calculationRule?.percentage
-                      ? `${selectedArticle.calculationRule.percentage}% of Consideration`
-                      : "Statutory Rate"}
-                  </span>
-                </div>
-                {selectedArticle.description && (
-                  <p className="text-slate-500 text-[11px] leading-relaxed">{selectedArticle.description}</p>
-                )}
-              </div>
-            )}
           </div>
           </div>
         )}
@@ -592,7 +573,7 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
         <Row label="Property Description" value={values.propertyDescription || "-"} />
         <Row label="State" value={selectedState ? selectedState.name : values.stateCode} />
         <Row label="Article" value={selectedArticle ? `${selectedArticle.articleCode} - ${selectedArticle.title}` : "-"} />
-        <Row label="Stamp Duty" value={pricing && pricing.stampDuty !== 0 ? formatCurrency(pricing.stampDuty) : "At Actuals"} />
+        <Row label="Stamp Duty" value={formatCurrency(pricing ? pricing.stampDuty : calculation?.amount)} />
         {/* Names the party as well as the name, so a payer who shares a name
             with the other party is still unambiguous on the final check. */}
         <Row
@@ -659,21 +640,17 @@ function PriceSummary({ calculation, calculating, calcError, onRetry, balance })
       </div>
     );
   }
-  const atActuals = pricing.stampDuty === 0;
-  const dutyDisplay = atActuals ? "At Actuals" : formatCurrency(pricing.stampDuty);
   return (
     <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
       <p className="font-medium text-slate-900 mb-2">Price summary</p>
-      <Row label="Stamp duty" value={dutyDisplay} />
+      <Row label="Stamp duty" value={formatCurrency(pricing.stampDuty)} />
       <Row label="Convenience Fee" value={formatCurrency(pricing.convenienceFee)} />
       <Row label="Procurement Charge" value={formatCurrency(pricing.procurementFee)} />
       <Row label="GST (18%)" value={formatCurrency(pricing.gst)} />
       {/* The government stamp duty itself is always billed at the real,
           final government rate - never a figure LauncherDesk sets - so this
-          disclosure always reads "At Actuals", independent of whether that
-          rate happens to already be known (the "Stamp duty" row above). It
-          previously reused dutyDisplay, which showed a second, duplicate
-          currency figure instead of this disclosure once the duty WAS known. */}
+          disclosure always reads "At Actuals", regardless of the "Stamp
+          duty" row above. */}
       <Row label="Government Fees" value="At Actuals" />
       <div className="flex justify-between pt-2 mt-1 border-t border-slate-300">
         <span className="font-semibold text-slate-900">Total payable</span>
