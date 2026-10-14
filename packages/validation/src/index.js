@@ -12,6 +12,14 @@ const shared_1 = require("@launcherdesk/shared");
 function optionalPhone() {
     return zod_1.z.preprocess((val) => (val === "" || val === null ? undefined : val), zod_1.z.string().min(6).max(20).optional());
 }
+// Same empty-string-vs-optional fix as optionalPhone() above, for a creator
+// (Super Admin/Admin) optionally setting the new account's password
+// themselves instead of getting a random one. Same minimum strength as
+// every other password field in this file (changePasswordSchema,
+// resetPasswordSchema).
+function optionalPassword() {
+    return zod_1.z.preprocess((val) => (val === "" || val === null ? undefined : val), zod_1.z.string().min(8).max(72).optional());
+}
 exports.loginSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
     password: zod_1.z.string().min(8),
@@ -72,6 +80,8 @@ exports.createUserSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
     phone: optionalPhone(),
     role: zod_1.z.enum(["SUPER_ADMIN", "ADMIN", "USER"]),
+    // Left blank, the server generates one instead (unchanged behaviour).
+    password: optionalPassword(),
 }).strict();
 // Client employee profile edit - deliberately excludes organizationId, role,
 // isActive, permissions and anything authentication-related (those have

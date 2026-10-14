@@ -15,10 +15,11 @@ export default function CreateUserPage() {
   const initialRole = roleOptions.includes(requestedRole) ? requestedRole : roleOptions.includes("USER") ? "USER" : roleOptions[0] || "USER";
   const roleLabel = ROLE_LABELS[initialRole] || "User";
   const backTo = `/users?role=${initialRole}`;
-  const [form, setForm] = useState({ name: "", email: "", phone: "", role: initialRole });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", role: initialRole, password: "" });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -46,9 +47,11 @@ export default function CreateUserPage() {
           <p>
             <strong>{result.user.name}</strong> ({result.user.email}) has been created as <strong>{result.user.role}</strong>.
           </p>
-          <p>Share this temporary password securely - it will not be shown again:</p>
+          <p>Share this password securely - it won't be shown here again:</p>
           <p className="font-mono font-semibold text-lg">{result.tempPassword}</p>
-          <p className="text-xs text-amber-700">They will be required to change it on first login.</p>
+          <p className="text-xs text-amber-700">
+            They can sign in with it right away - no forced change on first login. You can view it again later from the user list, or ask them to request a reset if they ever want a different one.
+          </p>
         </div>
         <div className="mt-4 space-x-4">
           <Link to={backTo} className="text-sm text-brand-600 hover:underline">
@@ -57,7 +60,7 @@ export default function CreateUserPage() {
           <button
             onClick={() => {
               setResult(null);
-              setForm({ name: "", email: "", phone: "", role: initialRole });
+              setForm({ name: "", email: "", phone: "", role: initialRole, password: "" });
             }}
             className="text-sm text-slate-500 hover:underline"
           >
@@ -99,6 +102,28 @@ export default function CreateUserPage() {
             </label>
             <input id="create-user-phone" value={form.phone} onChange={(e) => update("phone", e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
           </div>
+        </div>
+        <div>
+          <label htmlFor="create-user-password" className="block text-sm font-medium text-slate-700 mb-1">
+            Password (optional)
+          </label>
+          <div className="relative">
+            <input
+              id="create-user-password"
+              type={showPassword ? "text" : "password"}
+              minLength={8}
+              placeholder="Leave blank to generate one automatically"
+              value={form.password}
+              onChange={(e) => update("password", e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute inset-y-0 right-0 px-3 text-xs font-medium text-slate-500 hover:text-slate-700">
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            At least 8 characters. They can log in with it right away - no forced password change on first login.
+          </p>
         </div>
         <div>
           <label htmlFor="create-user-role" className="block text-sm font-medium text-slate-700 mb-1">

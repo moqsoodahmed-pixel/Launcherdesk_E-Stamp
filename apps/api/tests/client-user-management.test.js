@@ -74,6 +74,36 @@ describe("CRUD", () => {
     expect(res.body.data.user.organizationId.toString()).toBe(org._id.toString());
     expect(res.body.data.user.passwordHash).toBeUndefined();
     expect(res.body.data.tempPassword).toBeDefined();
+    // Explicit, temporary product decision: never forced to change it on
+    // first login, whether the password was server-generated (this case)
+    // or chosen by the creator (next test) - they can keep using it, or ask
+    // a Super Admin/Admin to reset it later if they ever want a different one.
+    expect(res.body.data.user.mustChangePassword).toBe(false);
+  });
+
+  it("Super Admin can set the new Admin's password themselves instead of getting a random one; it logs in immediately", async () => {
+    const org = await makeOrg("CreatePasswordOrg");
+    const superAdmin = await makeTenantUser(org._id, Role.SUPER_ADMIN);
+    const email = `chosen-${new mongoose.Types.ObjectId()}@ld.local`;
+    const body = createUserSchema.parse({ name: "Chosen Password Admin", email, role: Role.ADMIN, password: "MyChosen1Pw" });
+    const { res, error } = await runController(userController.createUser, reqAs(superAdmin, { body }), makeRes());
+    expect(error).toBeNull();
+    expect(res.body.data.tempPassword).toBe("MyChosen1Pw");
+    expect(res.body.data.user.mustChangePassword).toBe(false);
+    // The exact password given logs in - never silently replaced.
+    const { AuthService } = require("../src/services/auth.service.js");
+    await expect(AuthService.loginStep1(email, "MyChosen1Pw")).resolves.toBeTruthy();
+  });
+
+  it("a too-short custom password is rejected at the schema layer, same minimum as every other password field", () => {
+    const result = createUserSchema.safeParse({ name: "Xavier", email: "x@example.com", role: Role.USER, password: "short1" });
+    expect(result.success).toBe(false);
+  });
+
+  it("a blank password field (submitted as '' by the form) is treated as not provided - the server still generates one", () => {
+    const parsed = createUserSchema.safeParse({ name: "Xavier", email: "x@example.com", role: Role.USER, password: "" });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.password).toBeUndefined();
   });
 
   it("Super Admin can view and update a single user's profile", async () => {
