@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import "./setup";
 import mongoose from "mongoose";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { Organization, Wallet, Article, ArticleVersion, User, BulkEStampBatchItem } from "../src/models/index.js";
 import { Role, OrganizationStatus } from "@launcherdesk/shared";
 import * as bulkController from "../src/controllers/bulk-estamp.controller.js";
@@ -67,6 +68,14 @@ describe("downloadTemplate - real catalog, no invented data", () => {
     expect(dutyFormula).toContain("Article Reference");
     expect(dutyFormula).toContain("$A2");
     expect(dutyFormula).toContain("$B2");
+    // Without this, Excel shows the stale/blank cached result instead of
+    // recalculating the Stamp Duty formulas on open - this is what made the
+    // column appear empty even though the formula and header were present.
+    // ExcelJS doesn't round-trip calcPr back into workbook.calcProperties on
+    // read, so check the raw xl/workbook.xml the way Excel itself would.
+    const zip = await JSZip.loadAsync(buffer);
+    const workbookXml = await zip.file("xl/workbook.xml").async("string");
+    expect(workbookXml).toContain('fullCalcOnLoad="1"');
     // State dropdown includes the full name, not the raw code.
     const stateValidation = templateSheet.getCell("A2").dataValidation;
     expect(stateValidation.formulae[0]).toContain("Karnataka");
@@ -84,8 +93,8 @@ describe("downloadTemplate - real catalog, no invented data", () => {
     expect(match[1]).toBe("Karnataka");
     expect(match[3]).toBe("Template Test Article");
     expect(match[4]).toBe("Used only for the template test");
-    // A percentage rule has no single amount to show - "At Actuals", not blank or ₹0.
-    expect(match[5]).toBe("At Actuals");
+    // A percentage rule has no single number to show - blank, not a guessed ₹0.
+    expect(match[5]).toBeUndefined();
     expect(match[6]).toBe("3% of consideration price");
   });
 
@@ -112,9 +121,30 @@ describe("downloadTemplate - real catalog, no invented data", () => {
     });
 
     const fixedRow = refRows.find((r) => r[2] === fixedArticle.articleCode);
-    expect(fixedRow[5]).toBe("Rs.500");
+    expect(fixedRow[5]).toBe(500);
+    expect(typeof fixedRow[5]).toBe("number");
     const customRow = refRows.find((r) => r[2] === customArticle.articleCode);
-    expect(customRow[5]).toBe("At Actuals");
+    expect(customRow[5]).toBeUndefined();
+  });
+
+  it("the Template sheet's pre-filled example row has a cached numeric result, so Stamp Duty shows correctly even without a recalculation", async () => {
+    const creator = new mongoose.Types.ObjectId();
+    // downloadTemplate always uses the first article (sorted by state then
+    // code) as its pre-filled Template-sheet example row.
+    const article = await Article.create({ stateCode: "AA", articleCode: "0", title: "Example Fixed Article", createdBy: creator, currentVersion: 1 });
+    await ArticleVersion.create({ articleId: article._id, versionNumber: 1, calculationRule: { type: "FIXED", fixedAmount: 777 }, createdBy: creator });
+
+    const req = makeReq({ user: { id: "u", role: Role.SUPER_ADMIN, organizationId: "org-1", permissions: [] } });
+    const { res, done } = makeStreamingRes();
+    await bulkController.downloadTemplate(req, res, (err) => {
+      if (err) throw err;
+    });
+    const buffer = await done;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const templateSheet = workbook.getWorksheet("Template");
+    const exampleDutyCell = templateSheet.getCell("C2").value;
+    expect(exampleDutyCell.result).toBe(777);
   });
 
   it("round-trips: a filled-in template using full state name and 'code - title' article text uploads successfully", async () => {

@@ -132,12 +132,14 @@ function describeCalculationRule(rule) {
             return rule.type || "";
     }
 }
-// The duty amount alone, for a plain "Stamp Duty" column next to the full
-// rule description - a known FIXED amount, or "At Actuals" rather than a
-// blank/zero for every rule this platform cannot resolve without the real
-// consideration price or an official rate (never a guessed number).
+// The duty amount alone, as a plain number a filler can read at a glance
+// (and that Excel can still treat as numeric if they copy it elsewhere) -
+// never text like "Rs.X" or "At Actuals". Only a FIXED rule has one exact
+// number; every other rule (CUSTOM/PERCENTAGE/SLAB) genuinely has no single
+// number to show without the real consideration price, so the cell is left
+// blank rather than guessed - see "Stamp Duty Rule" for the full rule text.
 function describeStampDuty(rule) {
-    return rule?.type === "FIXED" ? `Rs.${rule.fixedAmount ?? 0}` : "At Actuals";
+    return rule?.type === "FIXED" ? Number(rule.fixedAmount ?? 0) : null;
 }
 // Generates the bulk-upload .xlsx template from the REAL article catalog
 // (no invented states/articles) - a "Template" sheet with a State dropdown
@@ -168,10 +170,17 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
     }
     const stateCodes = Array.from(articlesByState.keys()).sort((a, b) => (0, indianStates_1.stateNameForCode)(a).localeCompare((0, indianStates_1.stateNameForCode)(b)));
     const workbook = new ExcelJS.Workbook();
+    // Without this, Excel shows the LAST CACHED result for every formula
+    // cell below - and ExcelJS never writes one unless told to - so the
+    // Stamp Duty column opened blank until the user manually forced a
+    // recalculation (Ctrl+Alt+F9). This tells Excel to recalculate every
+    // formula the moment the file opens, cached result or not.
+    workbook.calcProperties = { fullCalcOnLoad: true };
     // "Template" - the sheet a user actually fills in. Added first so Excel opens this tab by default!
     const templateSheet = workbook.addWorksheet("Template");
     templateSheet.columns = TEMPLATE_COLUMNS.map((c) => ({ header: c.header, key: c.field, width: c.width }));
     const exampleArticle = articles[0];
+    const exampleDuty = exampleArticle ? describeStampDuty(latestVersionByArticle.get(exampleArticle._id.toString())?.calculationRule) : null;
     templateSheet.addRow({
         stateCode: exampleArticle ? (0, indianStates_1.stateNameForCode)(exampleArticle.stateCode) : "",
         articleId: exampleArticle ? `${exampleArticle.articleCode} - ${exampleArticle.title}` : "",
@@ -243,9 +252,17 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
         // Reference" sheet (column E holds that sheet's own Stamp Duty
         // value, computed server-side, never guessed here). SUMPRODUCT finds
         // the matching row without needing an array-entered formula.
-        templateSheet.getCell(`C${row}`).value = {
+        const formulaCell = {
             formula: `IFERROR(INDEX('Article Reference'!$E:$E,SUMPRODUCT(('Article Reference'!$A:$A=$A${row})*('Article Reference'!$B:$B=LEFT($B${row},IFERROR(FIND(" - ",$B${row})-1,0)))*ROW('Article Reference'!$A:$A))),"")`,
         };
+        // Row 2 is the only row with a known answer up front (the
+        // pre-filled example article) - give it a cached result too, so it
+        // still shows correctly even in a viewer that doesn't honor
+        // fullCalcOnLoad and recalculate formulas on open.
+        if (row === 2 && exampleDuty !== null) {
+            formulaCell.result = exampleDuty;
+        }
+        templateSheet.getCell(`C${row}`).value = formulaCell;
     }
     // "Article Reference" - full, human-readable detail per article (state,
     // code, title, description, calculation rule) so a filler can see
