@@ -271,6 +271,52 @@ describe("Tenant isolation", () => {
   });
 });
 
+describe("Invoice download", () => {
+  async function makeSuccessfulPayment(amount = 500) {
+    const org = await makeOrgWithWallet(0);
+    const orderResult = await PaymentService.createOrder({ organizationId: org._id, userId: new mongoose.Types.ObjectId(), amount });
+    const razorpayPaymentId = `pay_${new mongoose.Types.ObjectId()}`;
+    const signature = mockCheckoutSignature(orderResult.razorpayOrderId, razorpayPaymentId);
+    await PaymentService.confirmPayment({
+      razorpayOrderId: orderResult.razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature: signature,
+      userId: new mongoose.Types.ObjectId(),
+    });
+    return { org, paymentId: orderResult.paymentId };
+  }
+
+  it("streams a real PDF for a successful payment belonging to the actor's own organization", async () => {
+    const { org, paymentId } = await makeSuccessfulPayment(500);
+    const req = reqAsTenant(Role.SUPER_ADMIN, org._id, { params: { id: paymentId.toString() } });
+    const res = makeRes();
+    const { error } = await runController(paymentController.downloadInvoice, req, res);
+    expect(error).toBeNull();
+    expect(res.getHeader("Content-Type")).toBe("application/pdf");
+    expect(res.getHeader("Content-Disposition")).toMatch(/^attachment; filename="INV-/);
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect(res.body.slice(0, 4).toString("latin1")).toBe("%PDF"); // genuine PDF, not a stub
+  });
+
+  it("refuses to generate an invoice for a payment that never succeeded", async () => {
+    const org = await makeOrgWithWallet(0);
+    const orderResult = await PaymentService.createOrder({ organizationId: org._id, userId: new mongoose.Types.ObjectId(), amount: 500 });
+    const req = reqAsTenant(Role.SUPER_ADMIN, org._id, { params: { id: orderResult.paymentId.toString() } });
+    const { error } = await runController(paymentController.downloadInvoice, req, makeRes());
+    expect(error).not.toBeNull();
+    expect(error.statusCode).toBe(400);
+  });
+
+  it("Organization A cannot download Organization B's invoice", async () => {
+    const orgA = await makeOrgWithWallet(0);
+    const { paymentId } = await makeSuccessfulPayment(300);
+    const req = reqAsTenant(Role.SUPER_ADMIN, orgA._id, { params: { id: paymentId.toString() } });
+    const { error } = await runController(paymentController.downloadInvoice, req, makeRes());
+    expect(error).not.toBeNull();
+    expect(error.statusCode).toBe(404);
+  });
+});
+
 describe("Assistant Master Admin oversight", () => {
   it("an Assistant without PAYMENT_MANAGE is denied", async () => {
     const req = makeReq({ user: { id: "x", role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: [] } });

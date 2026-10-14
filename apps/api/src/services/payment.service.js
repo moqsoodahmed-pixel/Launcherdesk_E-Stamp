@@ -8,6 +8,8 @@ const ApiError_1 = require("../utils/ApiError");
 const wallet_service_1 = require("./wallet.service");
 const payment_providers_1 = require("./payment-providers");
 const notification_service_1 = require("./notification.service");
+const invoicePdf_service_1 = require("./invoicePdf.service");
+const logger_1 = require("../utils/logger");
 // Rupees-per-stamp conversion rate for a custom top-up (no catalog package
 // selected) - kept server-side so the frontend's displayed "~N E-Stamps
 // equivalent" is never just a client-side estimate the server then ignores.
@@ -48,6 +50,31 @@ async function markPaymentSucceeded(paymentId, razorpayPaymentId) {
         return { payment: updated, won: true };
     return { payment: await models_1.Payment.findById(paymentId), won: false };
 }
+// Builds the invoice PDF for a SUCCESS payment, for attaching to outbound
+// emails. Never throws - a PDF rendering failure must not block the
+// business-critical notification/credit flow that triggered it; the invoice
+// remains downloadable on-demand via GET /payments/:id/invoice either way.
+async function buildInvoiceAttachment(payment, orgName, payerName, payerRole) {
+    try {
+        const invoiceNumber = payment.invoiceNumber || `INV-${new Date(payment.createdAt || Date.now()).getFullYear()}-${payment._id.toString().slice(-6).toUpperCase()}`;
+        const buffer = await (0, invoicePdf_service_1.generateInvoicePdfBuffer)({
+            invoiceNumber,
+            invoiceDate: new Date(payment.createdAt || Date.now()).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"),
+            organizationName: orgName,
+            payerName,
+            payerRole,
+            description: payment.plan || "Wallet Top-up & E-Stamping Balance",
+            amount: payment.amount,
+            transactionId: payment.razorpayPaymentId || payment.razorpayOrderId,
+            paymentMethod: "Razorpay Secure Gateway",
+        });
+        return [{ name: `${invoiceNumber}.pdf`, content: buffer }];
+    }
+    catch (err) {
+        logger_1.logger.error("[payment.service] Failed to generate invoice PDF attachment", { paymentId: payment._id?.toString(), error: err?.message });
+        return undefined;
+    }
+}
 // Tells whoever must credit this payment that it is waiting: the assigned
 // assistant, or every Master Admin if the organization has none.
 async function notifyPendingCredit(payment) {
@@ -62,6 +89,7 @@ async function notifyPendingCredit(payment) {
     const txId = payment.razorpayPaymentId || payment.razorpayOrderId;
 
     const message = `${orgName} has successfully purchased the ${planName}${stampsText} for ${amountStr}. Transaction ID: ${txId}.`;
+    const invoiceAttachment = await buildInvoiceAttachment(payment, orgName, buyerName, user?.role);
 
     const base = {
         type: shared_1.NotificationType.PAYMENT,
@@ -88,12 +116,23 @@ async function notifyPendingCredit(payment) {
     // unseen in-app badge is easy to miss for money that is waiting on them.
     // (The buyer is already emailed separately by notifyPaymentOutcome, so the
     // organization's own admins below stay in-app only rather than receiving
-    // a near-duplicate email.)
+    // a near-duplicate email.) They also get the richer alert template with
+    // the invoice PDF attached, and a direct sign-in-gated link to Payments.
     const staffParams = {
         ...base,
         email: {
-            method: "sendOrderStatusEmail",
-            args: [{ title: base.title, message, status: "Payment waiting to be credited", portalPath: "/payments" }],
+            method: "sendPaymentReceivedStaffAlert",
+            args: [{
+                payerName: buyerName,
+                payerRole: user?.role,
+                organizationName: orgName,
+                amount: payment.amount,
+                transactionId: txId,
+                invoiceNumber: payment.invoiceNumber,
+                paidAt: new Date(payment.createdAt || Date.now()).toLocaleString("en-IN"),
+                portalPath: "/payments",
+            }],
+            attachments: invoiceAttachment,
         },
     };
     await (0, notification_service_1.notifyAllMasterAdmins)(staffParams);
@@ -119,6 +158,7 @@ async function notifyPaymentOutcome(payment, outcome) {
     const invoiceNum = payment.invoiceNumber || `INV-${new Date(payment.createdAt || Date.now()).getFullYear()}-${payment._id.toString().slice(-6).toUpperCase()}`;
 
     let emailArg = payment.amount;
+    let invoiceAttachment;
     if (isSuccess && user.email) {
         const { OtpService } = require("./otp.service");
         const resetToken = await OtpService.issueDirectResetToken(user._id.toString(), user.email, user.role);
@@ -137,6 +177,7 @@ async function notifyPaymentOutcome(payment, outcome) {
             resetPasswordUrl,
             portalUrl,
         };
+        invoiceAttachment = await buildInvoiceAttachment(payment, orgName, user.name, user.role);
     }
 
     await (0, notification_service_1.notifyUser)({
@@ -151,7 +192,7 @@ async function notifyPaymentOutcome(payment, outcome) {
         entityType: "Payment",
         entityId: payment._id,
         eventKey: `payment:${payment._id.toString()}:${outcome}`,
-        email: user.email ? { to: user.email, method: isSuccess ? "sendPaymentSuccessEmail" : "sendPaymentFailedEmail", args: [emailArg] } : undefined,
+        email: user.email ? { to: user.email, method: isSuccess ? "sendPaymentSuccessEmail" : "sendPaymentFailedEmail", args: [emailArg], attachments: invoiceAttachment } : undefined,
     });
 }
 exports.PaymentService = {

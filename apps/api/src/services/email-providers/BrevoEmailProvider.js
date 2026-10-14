@@ -20,6 +20,9 @@ class BrevoEmailProvider {
                 to: [{ email: params.to }],
                 subject: params.subject,
                 htmlContent: params.html,
+                ...(params.attachments?.length
+                    ? { attachment: params.attachments.map((a) => ({ content: a.content.toString("base64"), name: a.name })) }
+                    : {}),
             });
             return { status: "SENT", providerMessageId: result?.messageId || null, source: "brevo" };
         } catch (err) {

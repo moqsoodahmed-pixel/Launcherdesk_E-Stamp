@@ -18,6 +18,7 @@ export function makeRes() {
   const res = {
     statusCode: 200,
     body: undefined,
+    headers: {},
   };
   res.status = (code) => {
     res.statusCode = code;
@@ -25,6 +26,17 @@ export function makeRes() {
   };
   res.json = (payload) => {
     res.body = payload;
+    return res;
+  };
+  res.setHeader = (name, value) => {
+    res.headers[name.toLowerCase()] = value;
+    return res;
+  };
+  res.getHeader = (name) => res.headers[name.toLowerCase()];
+  // Supports controllers that stream a raw buffer (e.g. PDF downloads)
+  // instead of calling res.json(...).
+  res.end = (payload) => {
+    if (payload !== undefined) res.body = payload;
     return res;
   };
   return res;
@@ -64,6 +76,15 @@ export function runController(controller, req, res) {
       resolve({ res, error: null });
       return res;
     };
+    const originalEnd = res.end;
+    if (originalEnd) {
+      res.end = (payload) => {
+        if (payload !== undefined) res.body = payload;
+        originalEnd(payload);
+        resolve({ res, error: null });
+        return res;
+      };
+    }
     const next = (err) => {
       if (err) resolve({ res, error: err });
     };

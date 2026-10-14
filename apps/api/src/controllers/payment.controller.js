@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCreditSummary = exports.reconcilePayment = exports.creditBalance = exports.razorpayWebhook = exports.getPayment = exports.listPayments = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
+exports.getCreditSummary = exports.reconcilePayment = exports.creditBalance = exports.razorpayWebhook = exports.downloadInvoice = exports.getPayment = exports.listPayments = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const dateRange_1 = require("../utils/dateRange");
 const ApiResponse_1 = require("../utils/ApiResponse");
@@ -12,6 +12,7 @@ const ApiError_1 = require("../utils/ApiError");
 const shared_1 = require("@launcherdesk/shared");
 const mongoose_1 = require("mongoose");
 const orgAccess_1 = require("../utils/orgAccess");
+const invoicePdf_service_1 = require("../services/invoicePdf.service");
 function isInternalActor(req) {
     return req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
 }
@@ -259,6 +260,43 @@ exports.getPayment = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const isSuccess = payment.status === shared_1.PaymentStatus.SUCCESS;
     paymentObj.invoiceNumber = payment.invoiceNumber || (isSuccess ? `INV-${new Date(payment.createdAt).getFullYear()}-${payment._id.toString().slice(-6).toUpperCase()}` : null);
     return (0, ApiResponse_1.ok)(res, { ...paymentObj, walletEffect });
+});
+// GET /payments/:id/invoice - streams a PDF built from the exact letterhead,
+// seal and signature assets. Only ever generated for a SUCCESS payment -
+// there is nothing to invoice for a pending/failed one. Same tenant-isolation
+// rule as getPayment: a missing payment and one belonging to another
+// organization look identical (404), and an internal actor still needs
+// canAccessOrganization.
+exports.downloadInvoice = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const payment = await models_1.Payment.findById(req.params.id)
+        .populate("organizationId", "name")
+        .populate("createdBy", "name email role");
+    const paymentOrgId = payment?.organizationId?._id ? payment.organizationId._id.toString() : payment?.organizationId?.toString();
+    if (!payment || (!isInternalActor(req) && paymentOrgId !== req.user.organizationId)) {
+        throw ApiError_1.ApiError.notFound("Payment not found");
+    }
+    if (isInternalActor(req) && !(await (0, orgAccess_1.canAccessOrganization)(req, paymentOrgId))) {
+        throw ApiError_1.ApiError.notFound("Payment not found");
+    }
+    if (payment.status !== shared_1.PaymentStatus.SUCCESS) {
+        throw ApiError_1.ApiError.badRequest("Invoice is only available for successful payments");
+    }
+    const invoiceNumber = payment.invoiceNumber || `INV-${new Date(payment.createdAt).getFullYear()}-${payment._id.toString().slice(-6).toUpperCase()}`;
+    const pdfBuffer = await (0, invoicePdf_service_1.generateInvoicePdfBuffer)({
+        invoiceNumber,
+        invoiceDate: new Date(payment.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"),
+        organizationName: payment.organizationId?.name || "Client Organization",
+        payerName: payment.createdBy?.name || null,
+        payerRole: payment.createdBy?.role || null,
+        description: payment.plan || "Wallet Top-up & E-Stamping Balance",
+        amount: payment.amount,
+        transactionId: payment.razorpayPaymentId || payment.razorpayOrderId,
+        paymentMethod: "Razorpay Secure Gateway",
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${invoiceNumber}.pdf"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    return res.end(pdfBuffer);
 });
 // Razorpay server-to-server webhook. Deliberately NOT behind `authenticate` -
 // Razorpay cannot present a LauncherDesk session token. Trust is established

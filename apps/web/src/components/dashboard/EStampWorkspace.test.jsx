@@ -107,7 +107,7 @@ describe("EStampWorkspace Component", () => {
     const invoiceBtn = await screen.findByRole("button", { name: /View Invoice/i });
     fireEvent.click(invoiceBtn);
 
-    expect(await screen.findByText(/Official Payment Receipt & Tax Invoice/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Official Payment Invoice/i)).toBeInTheDocument();
     expect(screen.getAllByText("INV-2026-PAY1").length).toBe(2);
     expect(screen.getByText("ABC Technologies")).toBeInTheDocument();
   });

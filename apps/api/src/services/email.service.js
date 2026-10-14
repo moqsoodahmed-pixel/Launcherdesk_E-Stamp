@@ -17,7 +17,7 @@ const email_templates_1 = require("./email-templates");
 //      await-and-propagate a failure from these methods),
 //   3. never logs the rendered HTML/OTP/token, only template name + subject
 //      + recipient + delivery status.
-async function dispatch(to, templateName, data, eventKey) {
+async function dispatch(to, templateName, data, eventKey, attachments) {
     // The entire function is best-effort: nothing in here is ever allowed to
     // propagate and break the caller's business operation (an OTP send
     // failing must not block login; a payment-success email failing must
@@ -47,7 +47,7 @@ async function dispatch(to, templateName, data, eventKey) {
         }
         try {
             const provider = (0, email_providers_1.getEmailProvider)();
-            const result = await provider.send({ to, subject, html });
+            const result = await provider.send({ to, subject, html, ...(attachments?.length ? { attachments } : {}) });
             log.status = result.status;
             log.provider = result.source;
             log.sentAt = new Date();
@@ -80,12 +80,18 @@ exports.EmailService = {
     async sendOrderPlacedEmail(to, orderData, eventKey) {
         await dispatch(to, "orderPlaced", orderData, eventKey);
     },
-    async sendPaymentSuccessEmail(to, payloadOrAmount, eventKey) {
+    async sendPaymentSuccessEmail(to, payloadOrAmount, eventKey, attachments) {
         const data = typeof payloadOrAmount === "object" ? payloadOrAmount : { amount: payloadOrAmount };
-        await dispatch(to, "paymentSuccess", data, eventKey);
+        await dispatch(to, "paymentSuccess", data, eventKey, attachments);
     },
     async sendPaymentFailedEmail(to, amount, eventKey) {
         await dispatch(to, "paymentFailed", { amount }, eventKey);
+    },
+    // Notifies a Master Admin / Assistant Master Admin that a Super Admin or
+    // Admin made a wallet top-up payment, with the invoice PDF attached and a
+    // sign-in-gated link into the Payments section.
+    async sendPaymentReceivedStaffAlert(to, data, eventKey, attachments) {
+        await dispatch(to, "paymentReceivedStaffAlert", data, eventKey, attachments);
     },
     async sendRequestStatusEmail(to, requestNumber, status) {
         await dispatch(to, "requestStatus", { requestNumber, status });

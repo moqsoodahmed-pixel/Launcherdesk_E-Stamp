@@ -18,6 +18,10 @@ function fmt(d) {
   return d ? new Date(d).toLocaleString() : "-";
 }
 
+function roleLabel(role) {
+  return role ? role.replace(/_/g, " ") : "";
+}
+
 export default function PaymentsListPage() {
   const { user } = useAuth();
   const isInternal = user?.role === "MASTER_ADMIN" || user?.role === "ASSISTANT_MASTER_ADMIN";
@@ -169,7 +173,7 @@ export default function PaymentsListPage() {
           <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
             <tr>
               {isInternal && <th className="text-left px-4 py-3">Organization</th>}
-              {isInternal && <th className="text-left px-4 py-3">Paid By</th>}
+              <th className="text-left px-4 py-3">Paid By</th>
               <th className="text-left px-4 py-3">Plan / Type</th>
               <th className="text-right px-4 py-3">Amount</th>
               <th className="text-left px-4 py-3">Status</th>
@@ -183,14 +187,14 @@ export default function PaymentsListPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={isInternal ? 10 : 8} className="px-4 py-6">
+                <td colSpan={isInternal ? 10 : 9} className="px-4 py-6">
                   <TableSkeleton rows={4} />
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && !error && (
               <tr>
-                <td colSpan={isInternal ? 10 : 8}>
+                <td colSpan={isInternal ? 10 : 9}>
                   <EmptyState text={hasFilters ? "No payments match these filters" : "No payments found"} />
                 </td>
               </tr>
@@ -199,12 +203,13 @@ export default function PaymentsListPage() {
               items.map((p) => (
                 <tr key={p._id} className="border-t border-slate-100 hover:bg-slate-50/50">
                   {isInternal && <td className="px-4 py-3 font-medium text-slate-900">{p.organizationName || "-"}</td>}
-                  {isInternal && (
-                    <td className="px-4 py-3 text-slate-600">
-                      <div className="font-medium text-slate-800">{p.createdByName || "-"}</div>
-                      {p.createdByEmail && <div className="text-xs text-slate-400">{p.createdByEmail}</div>}
-                    </td>
-                  )}
+                  <td className="px-4 py-3 text-slate-600">
+                    <div className="font-medium text-slate-800">
+                      {p.createdByName || "-"}
+                      {p.createdByRole && <span className="ml-1 text-xs font-normal text-slate-400">({roleLabel(p.createdByRole)})</span>}
+                    </div>
+                    {p.createdByEmail && <div className="text-xs text-slate-400">{p.createdByEmail}</div>}
+                  </td>
                   <td className="px-4 py-3">
                     <span className="inline-block px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700 font-medium">
                       {p.plan || "Wallet Balance"}
@@ -257,10 +262,13 @@ export default function PaymentsListPage() {
                   <>
                     <dt>Organization</dt>
                     <dd className="text-right text-slate-700 break-words">{p.organizationName || "-"}</dd>
-                    <dt>Paid By</dt>
-                    <dd className="text-right text-slate-700">{p.createdByName || p.createdByEmail || "-"}</dd>
                   </>
                 )}
+                <dt>Paid By</dt>
+                <dd className="text-right text-slate-700">
+                  {p.createdByName || p.createdByEmail || "-"}
+                  {p.createdByRole && <span className="text-slate-400"> ({roleLabel(p.createdByRole)})</span>}
+                </dd>
                 <dt>Plan</dt>
                 <dd className="text-right text-slate-700">{p.plan || "Wallet Balance"}</dd>
                 <dt>Transaction</dt>

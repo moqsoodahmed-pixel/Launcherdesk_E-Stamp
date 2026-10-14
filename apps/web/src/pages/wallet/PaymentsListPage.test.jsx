@@ -135,6 +135,38 @@ describe("PaymentsListPage - organization filter / tenant isolation", () => {
   });
 });
 
+describe("PaymentsListPage - who paid, visible to every actor", () => {
+  function paymentsPage(items) {
+    return { data: { data: { items, total: items.length } } };
+  }
+
+  it("a Super Admin can see who made each payment in their own organization, including the role", async () => {
+    useAuth.mockReturnValue({ user: tenantUser() });
+    apiClient.get.mockResolvedValue(
+      paymentsPage([{ _id: "p1", amount: 500, status: "SUCCESS", createdByName: "Jeevan Kumar", createdByRole: "ADMIN", createdByEmail: "jeevan@x.test", createdAt: new Date().toISOString() }])
+    );
+    renderPage();
+    expect((await screen.findAllByText("Jeevan Kumar")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("(ADMIN)").length).toBeGreaterThan(0);
+    // Tenant actors never see the Organization column - they only have one.
+    expect(screen.queryByText("Organization")).not.toBeInTheDocument();
+  });
+
+  it("an internal actor (Master Admin) sees both the organization and who paid, with role", async () => {
+    useAuth.mockReturnValue({ user: internalUser() });
+    apiClient.get.mockImplementation((url) => {
+      if (url === "/organizations") return Promise.resolve({ data: { data: { items: [] } } });
+      return Promise.resolve(
+        paymentsPage([{ _id: "p1", amount: 500, status: "SUCCESS", organizationName: "Acme Co", createdByName: "Super Admin One", createdByRole: "SUPER_ADMIN", createdAt: new Date().toISOString() }])
+      );
+    });
+    renderPage();
+    expect((await screen.findAllByText("Acme Co")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Super Admin One").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/SUPER ADMIN/).length).toBeGreaterThan(0);
+  });
+});
+
 describe("PaymentsListPage - access control", () => {
   it("shows a no-access message without payment.view, and never calls the payments API", () => {
     useAuth.mockReturnValue({ user: tenantUser([]) });

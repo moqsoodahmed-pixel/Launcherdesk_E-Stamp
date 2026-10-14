@@ -51,7 +51,8 @@ async function notifyUser(params) {
         const { EmailService } = require("./email.service");
         const method = email.method;
         if (typeof EmailService[method] === "function") {
-            await EmailService[method](email.to, ...(email.args || []), params.eventKey).catch(() => { });
+            const extraArgs = email.attachments ? [params.eventKey, email.attachments] : [params.eventKey];
+            await EmailService[method](email.to, ...(email.args || []), ...extraArgs).catch(() => { });
         }
     }
     return notification;

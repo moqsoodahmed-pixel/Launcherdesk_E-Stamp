@@ -53,6 +53,9 @@ class SmtpEmailProvider {
                 to: params.to,
                 subject: params.subject,
                 html: params.html,
+                ...(params.attachments?.length
+                    ? { attachments: params.attachments.map((a) => ({ filename: a.name, content: a.content })) }
+                    : {}),
             });
 
             return {

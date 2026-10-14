@@ -54,6 +54,10 @@ router.post("/razorpay/verify", rateLimiters_1.paymentLimiter, (0, authorize_1.r
 router.get("/", (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_VIEW), ctrl.listPayments);
 router.get("/credit-summary", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN, shared_1.Role.ASSISTANT_MASTER_ADMIN), (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_VIEW), ctrl.getCreditSummary);
 router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_VIEW), ctrl.getPayment);
+// Downloads the branded PDF invoice (exact letterhead, seal, signature) for a
+// successful payment. Same view permission as getPayment - the controller
+// enforces tenant isolation and SUCCESS-only.
+router.get("/:id/invoice", (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_VIEW), ctrl.downloadInvoice);
 // Ledger flow: confirm a verified payment and add it to the client balance.
 // Internal roles only; the controller further limits an Assistant Master
 // Admin to organizations assigned to them.

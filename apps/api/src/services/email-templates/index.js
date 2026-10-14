@@ -229,6 +229,56 @@ const TEMPLATES = {
             `),
         };
     },
+    // Alerts a Master Admin / Assistant Master Admin that a Super Admin or
+    // Admin made a wallet top-up payment. Links into the portal's Payments
+    // section (sign-in required) rather than attaching any portal data
+    // directly in the email body beyond what's needed to triage the payment;
+    // the invoice PDF is attached separately by the caller.
+    paymentReceivedStaffAlert: (data) => {
+        const payerName = escapeHtml(data.payerName || "A user");
+        const payerRole = escapeHtml((data.payerRole || "").replace(/_/g, " "));
+        const orgName = escapeHtml(data.organizationName || "Unknown Organization");
+        const amount = escapeHtml(data.amount);
+        const txId = escapeHtml(data.transactionId || "N/A");
+        const invoiceNum = escapeHtml(data.invoiceNumber || "N/A");
+        const date = escapeHtml(data.paidAt || new Date().toLocaleString("en-IN"));
+
+        return {
+            subject: `Payment received: ₹${data.amount} from ${orgName}`,
+            html: layout(`
+              <h2 style="margin-top:0; color:#0f172a;">Wallet Top-up Received</h2>
+              <p style="color:#475569; font-size:14px;"><b>${payerName}</b>${payerRole ? ` (${payerRole})` : ""} from <b>${orgName}</b> made a payment.</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; margin: 16px 0; font-size:13px;">
+                <tr>
+                  <td style="padding:10px 14px; color:#64748b; border-bottom:1px solid #f1f5f9;">Organization:</td>
+                  <td style="padding:10px 14px; font-weight:600; color:#0f172a; text-align:right; border-bottom:1px solid #f1f5f9;">${orgName}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 14px; color:#64748b; border-bottom:1px solid #f1f5f9;">Paid By:</td>
+                  <td style="padding:10px 14px; font-weight:600; color:#0f172a; text-align:right; border-bottom:1px solid #f1f5f9;">${payerName}${payerRole ? ` (${payerRole})` : ""}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 14px; color:#64748b; border-bottom:1px solid #f1f5f9;">Amount Paid:</td>
+                  <td style="padding:10px 14px; font-weight:700; color:#15803d; text-align:right; border-bottom:1px solid #f1f5f9;">&#8377;${amount}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 14px; color:#64748b; border-bottom:1px solid #f1f5f9;">Transaction ID:</td>
+                  <td style="padding:10px 14px; font-family:monospace; color:#334155; text-align:right; border-bottom:1px solid #f1f5f9;">${txId}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 14px; color:#64748b; border-bottom:1px solid #f1f5f9;">Invoice Number:</td>
+                  <td style="padding:10px 14px; font-family:monospace; font-weight:600; color:#2563eb; text-align:right; border-bottom:1px solid #f1f5f9;">${invoiceNum}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 14px; color:#64748b;">Date &amp; Time:</td>
+                  <td style="padding:10px 14px; color:#334155; text-align:right;">${date}</td>
+                </tr>
+              </table>
+              <p style="font-size:12px; color:#64748b;">The invoice PDF is attached to this email.</p>
+              ${portalLink(data.portalPath || "/payments", "Open Payments in LauncherDesk")}
+            `),
+        };
+    },
     paymentFailed: (data) => ({
         subject: "Payment failed",
         html: layout(`

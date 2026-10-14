@@ -236,9 +236,13 @@ describe("step 1 - package purchase", () => {
 
     await purchase(ctx);
 
-    expect(subjectsTo(master.email).join(" ")).toMatch(/New E-Stamp Package Purchased/);
-    expect(subjectsTo(assistant.email).join(" ")).toMatch(/New E-Stamp Package Purchased/);
+    expect(subjectsTo(master.email).join(" ")).toMatch(/Payment received/);
+    expect(subjectsTo(assistant.email).join(" ")).toMatch(/Payment received/);
     expect(emailsTo(unrelated.email)).toHaveLength(0);
+    // The staff alert carries the invoice PDF as an attachment.
+    const masterMail = emailsTo(master.email)[0];
+    expect(masterMail.attachments?.[0]?.name).toMatch(/^INV-.*\.pdf$/);
+    expect(Buffer.isBuffer(masterMail.attachments?.[0]?.content)).toBe(true);
   });
 
   it("the buyer keeps their own payment email and is not sent a duplicate staff-style one", async () => {
@@ -249,7 +253,7 @@ describe("step 1 - package purchase", () => {
 
     const subjects = subjectsTo(ctx.client.email);
     expect(subjects.some((s) => /^Purchase Confirmation/.test(s))).toBe(true);
-    expect(subjects.some((s) => /Payment waiting to be credited|New E-Stamp Package Purchased/.test(s))).toBe(false);
+    expect(subjects.some((s) => /Payment waiting to be credited|Payment received/.test(s))).toBe(false);
   });
 });
 
