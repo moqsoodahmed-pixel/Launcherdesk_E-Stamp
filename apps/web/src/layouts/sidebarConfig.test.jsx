@@ -43,6 +43,13 @@ describe("sidebarConfig - permission filtering", () => {
     expect(tos).toContain("/users");
   });
 
+  it("only MASTER_ADMIN sees Procurement Fees - never Assistant Master Admin, Super Admin, Admin, or User, regardless of permissions", () => {
+    expect(flatTos("MASTER_ADMIN", Object.values(PERMISSIONS))).toContain("/procurement-fees");
+    for (const role of ["ASSISTANT_MASTER_ADMIN", "SUPER_ADMIN", "ADMIN", "USER"]) {
+      expect(flatTos(role, Object.values(PERMISSIONS))).not.toContain("/procurement-fees");
+    }
+  });
+
   it("SUPER_ADMIN never sees Settings, Organizations list, or User management - those aren't in the role's own section array at all", () => {
     const tos = flatTos("SUPER_ADMIN", Object.values(PERMISSIONS));
     expect(tos).not.toContain("/settings");

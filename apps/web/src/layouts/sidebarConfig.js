@@ -39,6 +39,11 @@ const MASTER_ADMIN_SECTIONS = [
   ]),
   section("CONFIGURATION", [
     { to: "/articles", label: "Articles", permission: PERMISSIONS.ARTICLE_VIEW },
+    // Master-Admin-only (no permission gate, matching Vendors/Assistant
+    // Master Admins above) - sets each organization's procurement-fee
+    // override; see ProcurementFeesPage and OrganizationDetailPage's own
+    // "Procurement Fee" card (same backend endpoint, two entry points).
+    { to: "/procurement-fees", label: "Procurement Fees" },
     { to: "/settings", label: "Settings", permission: PERMISSIONS.SETTINGS_VIEW },
   ]),
   section("GOVERNANCE", [

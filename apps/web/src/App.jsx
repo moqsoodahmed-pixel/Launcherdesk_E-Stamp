@@ -13,6 +13,7 @@ import BulkBatchDetailPage from "./pages/estamps/BulkBatchDetailPage";
 import OrganizationsListPage from "./pages/organizations/OrganizationsListPage";
 import CreateOrganizationPage from "./pages/organizations/CreateOrganizationPage";
 import OrganizationDetailPage from "./pages/organizations/OrganizationDetailPage";
+import ProcurementFeesPage from "./pages/organizations/ProcurementFeesPage";
 import ArticlesPage from "./pages/articles/ArticlesPage";
 import WalletPage from "./pages/wallet/WalletPage";
 import OrdersListPage from "./pages/orders/OrdersListPage";
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="/organizations" element={guard(<OrganizationsListPage />, P.CLIENT_VIEW, INTERNAL)}/>
           <Route path="/organizations/new" element={guard(<CreateOrganizationPage />, P.CLIENT_MANAGE, INTERNAL)}/>
           <Route path="/organizations/:id" element={guard(<OrganizationDetailPage />, P.CLIENT_VIEW, INTERNAL)}/>
+          <Route path="/procurement-fees" element={guard(<ProcurementFeesPage />, null, ["MASTER_ADMIN"])}/>
           <Route path="/assistant-admins" element={guard(<AssistantAdminsPage />, null, ["MASTER_ADMIN"])}/>
           <Route path="/users" element={guard(<UsersListPage />, P.USER_VIEW)}/>
           <Route path="/users/new" element={guard(<CreateUserPage />, P.USER_CREATE)}/>
