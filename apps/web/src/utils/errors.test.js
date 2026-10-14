@@ -13,4 +13,31 @@ describe("getErrorMessage", () => {
     expect(getErrorMessage({ code: "ECONNABORTED", isAxiosError: true }, "x")).toBe(TIMEOUT_MESSAGE);
     expect(getErrorMessage({ isAxiosError: true, request: {} }, "x")).toBe(NETWORK_ERROR_MESSAGE);
   });
+  // A bare "Validation failed" told the user nothing they could act on - the
+  // real reason was sitting unused in details.fieldErrors (Zod's flatten()).
+  it("appends the specific Zod field error instead of a bare 'Validation failed'", () => {
+    const err = {
+      response: {
+        status: 400,
+        data: {
+          message: "Validation failed",
+          code: "VALIDATION_ERROR",
+          details: { formErrors: [], fieldErrors: { phone: ["String must contain at least 6 character(s)"] } },
+        },
+      },
+    };
+    expect(getErrorMessage(err, "x")).toBe("Validation failed - phone: String must contain at least 6 character(s)");
+  });
+  it("joins multiple field errors and ignores fields with no messages", () => {
+    const err = {
+      response: {
+        status: 400,
+        data: {
+          message: "Validation failed",
+          details: { fieldErrors: { name: ["Too short"], email: [], role: ["Invalid enum value"] } },
+        },
+      },
+    };
+    expect(getErrorMessage(err, "x")).toBe("Validation failed - name: Too short; role: Invalid enum value");
+  });
 });

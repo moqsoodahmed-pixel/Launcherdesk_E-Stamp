@@ -3,6 +3,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateEstampPackageSchema = exports.createEstampPackageSchema = exports.verifyRazorpayPaymentSchema = exports.createRazorpayOrderSchema = exports.createEStampRequestSchema = exports.updateAssistantAdminPermissionsSchema = exports.createAssistantAdminSchema = exports.createUserSchema = exports.createOrganizationSchema = exports.changePasswordSchema = exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.verifyOtpSchema = exports.loginSchema = void 0;
 const zod_1 = require("zod");
 const shared_1 = require("@launcherdesk/shared");
+// An optional phone field left blank in a form submits "" (empty string),
+// not undefined. z.string().min(6).optional() only treats a MISSING key or
+// an explicit undefined as "not provided" - an empty string still has to
+// satisfy min(6) and fails with no explanation the user can act on (just a
+// generic "Validation failed"). Treating "" (and null) as not provided
+// before the length check matches what "optional" actually means to a user.
+function optionalPhone() {
+    return zod_1.z.preprocess((val) => (val === "" || val === null ? undefined : val), zod_1.z.string().min(6).max(20).optional());
+}
 exports.loginSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
     password: zod_1.z.string().min(8),
@@ -47,7 +56,7 @@ exports.createOrganizationSchema = zod_1.z.object({
 exports.updateOrganizationSchema = zod_1.z.object({
     name: zod_1.z.string().min(2).max(200).optional(),
     contactEmail: zod_1.z.string().email().optional(),
-    contactPhone: zod_1.z.string().min(6).max(20).optional(),
+    contactPhone: optionalPhone(),
     gstin: zod_1.z.string().optional(),
     address: zod_1.z.string().optional(),
 }).strict();
@@ -56,12 +65,12 @@ exports.updateOrganizationSchema = zod_1.z.object({
 exports.provisionSuperAdminSchema = zod_1.z.object({
     name: zod_1.z.string().min(2).max(150),
     email: zod_1.z.string().email(),
-    phone: zod_1.z.string().min(6).max(20).optional(),
+    phone: optionalPhone(),
 });
 exports.createUserSchema = zod_1.z.object({
     name: zod_1.z.string().min(2).max(150),
     email: zod_1.z.string().email(),
-    phone: zod_1.z.string().min(6).max(20).optional(),
+    phone: optionalPhone(),
     role: zod_1.z.enum(["SUPER_ADMIN", "ADMIN", "USER"]),
 }).strict();
 // Client employee profile edit - deliberately excludes organizationId, role,
@@ -70,7 +79,7 @@ exports.createUserSchema = zod_1.z.object({
 exports.updateClientUserSchema = zod_1.z.object({
     name: zod_1.z.string().min(2).max(150).optional(),
     email: zod_1.z.string().email().optional(),
-    phone: zod_1.z.string().min(6).max(20).optional(),
+    phone: optionalPhone(),
 }).strict();
 // ADMIN <-> USER only. SUPER_ADMIN and internal roles are never reachable
 // through this schema - enforced again server-side in the controller.
@@ -83,7 +92,7 @@ exports.updateUserRoleSchema = zod_1.z.object({
 exports.createAssistantAdminSchema = zod_1.z.object({
     name: zod_1.z.string().min(2).max(150),
     email: zod_1.z.string().email(),
-    phone: zod_1.z.string().min(6).max(20).optional(),
+    phone: optionalPhone(),
     permissions: zod_1.z.array(zod_1.z.nativeEnum(shared_1.Permission)).optional(),
 });
 // Master-Admin-only: replaces the full permission set on an Assistant
@@ -276,7 +285,7 @@ exports.updateSettingSchema = zod_1.z.object({
 exports.createVendorSchema = zod_1.z.object({
     name: zod_1.z.string().trim().min(2).max(150),
     email: zod_1.z.string().email(),
-    phone: zod_1.z.string().min(6).max(20).optional(),
+    phone: optionalPhone(),
 }).strict();
 exports.updateVendorStatusSchema = zod_1.z.object({
     isActive: zod_1.z.boolean(),

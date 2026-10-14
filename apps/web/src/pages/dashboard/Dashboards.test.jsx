@@ -3,6 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import SuperAdminDashboard from "./SuperAdminDashboard";
 import AssistantDashboard from "./AssistantDashboard";
+import AdminDashboard from "./AdminDashboard";
+import UserDashboard from "./UserDashboard";
+import DashboardPage from "./DashboardPage";
 import { apiClient } from "../../api/client";
 
 vi.mock("../../api/client", () => ({ apiClient: { get: vi.fn() } }));
@@ -57,6 +60,83 @@ describe("SuperAdminDashboard", () => {
     expect(screen.queryByText("New E-Stamp Request")).not.toBeInTheDocument();
     expect(screen.queryByText("Bulk Request")).not.toBeInTheDocument();
     expect(screen.queryByText("Manage Users")).not.toBeInTheDocument();
+  });
+});
+
+// An ADMIN/USER created from Super Admin's "Add User" form must land on a
+// real, working dashboard (not a blank page or a crash) - these two
+// components previously had zero test coverage at all, which is exactly
+// how a routing or permission regression here would go unnoticed.
+describe("AdminDashboard - renders for an ADMIN created under a Super Admin's organization", () => {
+  it("fetches its three data sources and renders the organization-scoped KPIs", async () => {
+    mockUser = { name: "Priya", role: "ADMIN", permissions: ["estamp.create", "estamp.view", "estamp.bulk_create", "user.view", "report.view", "order.view"] };
+    apiClient.get.mockImplementation((url) => {
+      if (url === "/reports/dashboard") return ok(SUMMARY);
+      if (url === "/reports/requests") return ok({ dailyTrend: [] });
+      if (url === "/reports/recent-activity") return ok({ requests: [], orders: [] });
+      return ok({});
+    });
+    renderIt(<AdminDashboard />);
+    expect(await screen.findByText("Welcome back, Priya")).toBeInTheDocument();
+    expect(await screen.findByText("Total requests")).toBeInTheDocument();
+    // ADMIN never holds REPORT_FINANCIAL_VIEW by default - the financial KPI
+    // must not appear even though /reports/dashboard succeeded.
+    expect(screen.queryByText("Successful payments")).not.toBeInTheDocument();
+    expect(await screen.findByText("New E-Stamp Request")).toBeInTheDocument();
+  });
+
+  it("a failing data source shows its own error without blanking the rest of the dashboard", async () => {
+    mockUser = { name: "Priya", role: "ADMIN", permissions: ["estamp.view", "report.view", "order.view"] };
+    apiClient.get.mockImplementation((url) => {
+      if (url === "/reports/dashboard") return ok(SUMMARY);
+      if (url === "/reports/requests") return fail("Request analytics down");
+      if (url === "/reports/recent-activity") return ok({ requests: [], orders: [] });
+      return ok({});
+    });
+    renderIt(<AdminDashboard />);
+    expect(await screen.findByText("Request analytics down")).toBeInTheDocument();
+    expect(await screen.findByText("Total requests")).toBeInTheDocument();
+  });
+});
+
+describe("UserDashboard - renders for a USER created under a Super Admin's organization", () => {
+  it("fetches only the endpoints USER has permission for and renders its own activity", async () => {
+    mockUser = { name: "Rohit", role: "USER", permissions: ["estamp.create", "estamp.view", "order.view"] };
+    apiClient.get.mockImplementation((url) => {
+      if (url === "/estamps") return ok({ total: 2, items: [] });
+      if (url === "/orders") return ok({ total: 1, items: [] });
+      return ok({});
+    });
+    renderIt(<UserDashboard />);
+    expect(await screen.findByText("Welcome back, Rohit")).toBeInTheDocument();
+    expect(await screen.findByText("My requests")).toBeInTheDocument();
+    expect(await screen.findByText("Orders")).toBeInTheDocument();
+    // USER never holds REPORT_VIEW by default - must never call /reports/*.
+    expect(apiClient.get.mock.calls.some(([url]) => url.startsWith("/reports"))).toBe(false);
+  });
+
+  it("renders without its own Orders section when USER lacks ORDER_VIEW", async () => {
+    mockUser = { name: "Rohit", role: "USER", permissions: ["estamp.view"] };
+    apiClient.get.mockImplementation((url) => (url === "/estamps" ? ok({ total: 0, items: [] }) : ok({})));
+    renderIt(<UserDashboard />);
+    expect(await screen.findByText("Welcome back, Rohit")).toBeInTheDocument();
+    expect(screen.queryByText("Orders")).not.toBeInTheDocument();
+    expect(apiClient.get.mock.calls.some(([url]) => url === "/orders")).toBe(false);
+  });
+});
+
+describe("DashboardPage - role dispatch", () => {
+  it("routes ADMIN to AdminDashboard and USER to UserDashboard, not a blank fallback", async () => {
+    apiClient.get.mockImplementation((url) => ok(url === "/reports/dashboard" ? SUMMARY : {}));
+
+    mockUser = { name: "Priya", role: "ADMIN", permissions: ["report.view"] };
+    const { unmount } = renderIt(<DashboardPage />);
+    expect(await screen.findByText("Organization overview")).toBeInTheDocument();
+    unmount();
+
+    mockUser = { name: "Rohit", role: "USER", permissions: ["estamp.view"] };
+    renderIt(<DashboardPage />);
+    expect(await screen.findByText("Your E-Stamping activity")).toBeInTheDocument();
   });
 });
 

@@ -132,6 +132,27 @@ describe("Roles", () => {
     }
   });
 
+  // The Add User form always submits phone: "" when the optional field is
+  // left blank, never omits the key. z.string().min(6).optional() treats
+  // only a missing key / undefined as "not provided" - an empty string
+  // still has to satisfy min(6) and failed with a bare, unexplained
+  // "Validation failed" (never reached the controller to create the user).
+  it("an empty-string phone (the optional field left blank in the form) is accepted, not rejected", async () => {
+    const parsed = createUserSchema.safeParse({ name: "Bhojaraj", email: "bhojaraj@example.com", phone: "", role: Role.ADMIN });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.phone).toBeUndefined();
+
+    const org = await makeOrg("RoleOrgPhone");
+    const superAdmin = await makeTenantUser(org._id, Role.SUPER_ADMIN);
+    const { error } = await runController(userController.createUser, reqAs(superAdmin, { body: parsed.data }), makeRes());
+    expect(error).toBeNull();
+  });
+
+  it("a genuinely too-short phone number is still rejected", () => {
+    const result = createUserSchema.safeParse({ name: "X", email: "x@example.com", phone: "12345", role: Role.USER });
+    expect(result.success).toBe(false);
+  });
+
   it("Super Admin cannot create another Super Admin (equal authority level is rejected)", async () => {
     const org = await makeOrg("RoleOrg3");
     const superAdmin = await makeTenantUser(org._id, Role.SUPER_ADMIN);
