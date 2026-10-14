@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import PaymentDetailPage from "./PaymentDetailPage";
 import { apiClient } from "../../api/client";
@@ -58,6 +59,33 @@ describe("PaymentDetailPage - successful payment", () => {
     expect(screen.getByText("pay_xyz")).toBeInTheDocument();
     expect(screen.getByText("Payment created")).toBeInTheDocument();
     expect(screen.getByText("Payment verified")).toBeInTheDocument();
+  });
+
+  it("View Invoice opens the shared InvoiceModal - a real download, never a fabricated GST breakdown", async () => {
+    const u = userEvent.setup();
+    renderAt("p1", {
+      ok: true,
+      data: {
+        _id: "p1",
+        amount: 500,
+        currency: "INR",
+        status: "SUCCESS",
+        plan: "Wallet Top-up & E-Stamping Balance",
+        razorpayOrderId: "order_xyz",
+        razorpayPaymentId: "pay_xyz",
+        invoiceNumber: "INV-2026-ABC123",
+        createdAt: "2026-01-01T10:00:00.000Z",
+        verifiedAt: "2026-01-01T10:05:00.000Z",
+        walletEffect: null,
+      },
+    });
+
+    await u.click(await screen.findByRole("button", { name: /View Invoice/i }));
+
+    expect(screen.getByRole("button", { name: /Download Invoice \(PDF\)/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Print \/ Save PDF/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/CGST|SGST|GST \(18%\)/)).not.toBeInTheDocument();
+    expect(screen.queryByText("29AABCL1234F1Z5")).not.toBeInTheDocument();
   });
 });
 
