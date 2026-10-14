@@ -407,9 +407,21 @@ export default function NewRequestPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Consideration Price (₹)" error={errors.considerationPrice?.message} hint="Enter 0 if document has no commercial consideration value">
-                <input type="number" className="input" {...register("considerationPrice", { valueAsNumber: true })} />
-              </Field>
+              {/* This article's duty has no official formula (CUSTOM rule) -
+                  there is no "consideration price" to calculate from, so the
+                  filer enters the exact government stamp duty themselves and
+                  that figure IS the duty (see calculation.service.js). Every
+                  other rule type still calculates the duty from a real
+                  consideration price, so the field keeps its normal meaning. */}
+              {selectedArticle?.calculationRule?.type === "CUSTOM" ? (
+                <Field label="Stamp Duty (₹)" error={errors.considerationPrice?.message} hint="Enter the exact government stamp duty for this document - this article has no official rate formula on file">
+                  <input type="number" className="input" {...register("considerationPrice", { valueAsNumber: true })} />
+                </Field>
+              ) : (
+                <Field label="Consideration Price (₹)" error={errors.considerationPrice?.message} hint="Enter 0 if document has no commercial consideration value">
+                  <input type="number" className="input" {...register("considerationPrice", { valueAsNumber: true })} />
+                </Field>
+              )}
               {values.firstParty || values.secondParty ? (
                 <FieldGroup label="Stamp Duty Paid By *" error={errors.stampDutyPaidBy?.message}>
                   <div className="flex gap-2">
@@ -591,9 +603,9 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
 
       {dutyNotConfigured && (
         <div className="rounded-lg bg-amber-50 text-amber-800 px-3 py-2">
-          This article has no fixed duty in the official rate list, so the stamp duty is shown "At Actuals" - it is billed at the real
-          government charge rather than a guessed amount. Ask your Master Admin to set the rate for "
-          {selectedArticle ? selectedArticle.title : "this article"}" if it should be a fixed figure.
+          {selectedArticle?.calculationRule?.type === "CUSTOM"
+            ? `This article has no official rate formula on file, so the stamp duty must be entered yourself (go back to Financial Details and fill in "Stamp Duty") rather than being calculated automatically.`
+            : `This article has no fixed duty in the official rate list, so the stamp duty is shown "At Actuals" - it is billed at the real government charge rather than a guessed amount. Ask your Master Admin to set the rate for "${selectedArticle ? selectedArticle.title : "this article"}" if it should be a fixed figure.`}
         </div>
       )}
 

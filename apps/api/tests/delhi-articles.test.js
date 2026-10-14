@@ -52,18 +52,30 @@ describe("Delhi article catalog - sourced from the audit PDFs, nothing invented"
     }
   });
 
-  it("General Agreement and Lease<1yr have no official rate - calculate to 0, never a guessed amount", async () => {
+  it("General Agreement and Lease<1yr have no official rate - the filer's own entered amount becomes the duty, never a system guess", async () => {
     const creator = new mongoose.Types.ObjectId();
     await seedDelhiArticles(creator);
     for (const code of ["5", "35(c)(i)"]) {
       const article = await Article.findOne({ stateCode: "DL", articleCode: code });
-      const result = await CalculationService.calculate({
+      // Nothing entered yet (0) means "not yet determinable" - still 0, not
+      // a guessed figure.
+      const blank = await CalculationService.calculate({
+        stateCode: "DL",
+        articleId: article._id.toString(),
+        considerationPrice: 0,
+        numberOfEStamps: 1,
+      });
+      expect(blank.amount).toBe(0);
+      // Whatever the filer enters (frontend labels this "Stamp Duty" for a
+      // CUSTOM article, not "Consideration Price") IS the duty - the system
+      // never computes or overrides it, it's their own declared figure.
+      const entered = await CalculationService.calculate({
         stateCode: "DL",
         articleId: article._id.toString(),
         considerationPrice: 100000,
         numberOfEStamps: 1,
       });
-      expect(result.amount).toBe(0);
+      expect(entered.amount).toBe(100000);
     }
   });
 });

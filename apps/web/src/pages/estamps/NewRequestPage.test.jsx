@@ -232,6 +232,38 @@ describe("NewRequestPage - Review & Submit", () => {
     await screen.findByText("Create Request");
   }
 
+  it("labels the field 'Stamp Duty' (not 'Consideration Price') for a CUSTOM-rule article, since the filer's entry IS the duty", async () => {
+    apiClient.get.mockImplementation((url, config) => {
+      if (url === "/wallet/balance") return Promise.resolve({ data: { data: { balance: 1000 } } });
+      if (url === "/states") return Promise.resolve({ data: { data: [{ code: "KA", name: "Karnataka" }] } });
+      if (url === "/articles") {
+        if (config?.params?.stateCode === "KA") {
+          return Promise.resolve({ data: { data: [{ _id: "a1", articleCode: "30(1)(i)", title: "Lease of Immovable Property", calculationRule: { type: "CUSTOM" } }] } });
+        }
+        return Promise.resolve({ data: { data: [] } });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    apiClient.post.mockResolvedValue({ data: { data: { amount: 0, articleVersionUsed: 1, pricing: PRICING_UNKNOWN } } });
+
+    renderPage();
+    const inputs = screen.getAllByRole("textbox");
+    fireEvent.change(inputs[0], { target: { value: "Alice" } });
+    fireEvent.change(inputs[1], { target: { value: "Bob" } });
+    fireEvent.change(inputs[2], { target: { value: "Lease agreement for testing" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    const stateSelect = await screen.findByRole("combobox", { name: /state/i });
+    fireEvent.change(stateSelect, { target: { value: "KA" } });
+    const articleSelect = await screen.findByRole("combobox", { name: /article/i });
+    await waitFor(() => expect(screen.getByRole("option", { name: /30\(1\)\(i\)/ })).toBeInTheDocument());
+    fireEvent.change(articleSelect, { target: { value: "a1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByLabelText("Stamp Duty (₹)")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Consideration Price/)).not.toBeInTheDocument();
+  });
+
   it("has no Calculation step - the wizard is four steps ending at Review & Submit", async () => {
     mockFullFlow();
     renderPage();

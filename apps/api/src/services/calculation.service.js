@@ -39,9 +39,13 @@ exports.CalculationService = {
                 break;
             }
             case "CUSTOM":
-                // Placeholder for future rule engine plug-ins; defaults to 0 and must
-                // be reviewed by Master Admin - never silently guess a legal amount.
-                perStampAmount = 0;
+                // No official formula is configured for this article - rather than
+                // guess, the filer enters the real government-prescribed duty
+                // themselves (the frontend labels this input "Stamp Duty", not
+                // "Consideration Price", for exactly this rule type). A value of
+                // 0 here means nothing has been entered yet, not a free stamp -
+                // the preview/review screens already treat 0 as "At Actuals".
+                perStampAmount = Number(input.considerationPrice) || 0;
                 break;
             default:
                 throw ApiError_1.ApiError.internal("Unknown calculation rule type");
