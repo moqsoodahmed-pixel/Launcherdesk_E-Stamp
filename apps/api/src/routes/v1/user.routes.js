@@ -55,6 +55,10 @@ router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.USER_V
 router.patch("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.USER_MANAGE), (0, validate_1.validateBody)(validation_1.updateClientUserSchema), ctrl.updateUser);
 router.patch("/:id/status", (0, authorize_1.requirePermission)(shared_1.Permission.USER_MANAGE), ctrl.updateUserStatus);
 router.patch("/:id/role", (0, authorize_1.requirePermission)(shared_1.Permission.USER_MANAGE), (0, validate_1.validateBody)(validation_1.updateUserRoleSchema), ctrl.updateUserRole);
+// A Super Admin/Admin sets a new, explicit password for an existing
+// Admin's/User's account - the controller enforces the same tenant-
+// isolation and role-authority rule as every other action in this file.
+router.post("/:id/reset-password", (0, authorize_1.requirePermission)(shared_1.Permission.USER_MANAGE), require("../../middleware/rateLimiters").userPasswordResetLimiter, (0, validate_1.validateBody)(validation_1.resetUserPasswordSchema), ctrl.resetUserPassword);
 // Master-Admin-only: create and manage Assistant Master Admin accounts.
 // Registered with an explicit requireRole gate (not just permission checks)
 // so an Assistant Master Admin can never reach these routes at all, no

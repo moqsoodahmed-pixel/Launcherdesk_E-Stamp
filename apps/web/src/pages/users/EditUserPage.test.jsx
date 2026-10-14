@@ -5,7 +5,7 @@ import EditUserPage from "./EditUserPage";
 import { apiClient } from "../../api/client";
 
 vi.mock("../../api/client", () => ({
-  apiClient: { get: vi.fn(), patch: vi.fn() },
+  apiClient: { get: vi.fn(), patch: vi.fn(), post: vi.fn() },
 }));
 const SUPER_ADMIN = { role: "SUPER_ADMIN", permissions: ["user.view", "user.create", "user.manage"] };
 let mockMe = SUPER_ADMIN;
@@ -109,6 +109,58 @@ describe("EditUserPage - profile editing", () => {
     expect(body).not.toHaveProperty("organizationId");
     expect(body).not.toHaveProperty("role");
     expect(body).not.toHaveProperty("isActive");
+  });
+});
+
+describe("EditUserPage - Super Admin/Admin can reset an existing user's password", () => {
+  it("shows a Password section with a reset form when the actor can edit", async () => {
+    renderAt(makeUser());
+    await screen.findByText("Alice");
+    expect(screen.getByText("Password")).toBeInTheDocument();
+    expect(screen.getByLabelText("New password")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset password" })).toBeInTheDocument();
+  });
+
+  it("submits the admin-chosen password to the real reset endpoint and shows it once on success", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    apiClient.post.mockResolvedValue({ data: { data: { tempPassword: "MyNewPass1" } } });
+    renderAt(makeUser());
+    await screen.findByText("Alice");
+
+    await u.type(screen.getByLabelText("New password"), "MyNewPass1");
+    await u.click(screen.getByRole("button", { name: "Reset password" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/users/u1/reset-password", { password: "MyNewPass1" }));
+    expect(await screen.findByText("MyNewPass1")).toBeInTheDocument();
+  });
+
+  it("shows a server error instead of silently failing", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const u = userEvent.setup();
+    apiClient.post.mockRejectedValue({ response: { data: { message: "You cannot modify a user of this role" } } });
+    renderAt(makeUser());
+    await screen.findByText("Alice");
+
+    await u.type(screen.getByLabelText("New password"), "MyNewPass1");
+    await u.click(screen.getByRole("button", { name: "Reset password" }));
+
+    expect(await screen.findByText("You cannot modify a user of this role")).toBeInTheDocument();
+  });
+
+  it("does not show a Password section for a read-only ADMIN viewer (user.view without user.manage)", async () => {
+    mockMe = { role: "ADMIN", permissions: ["user.view"] };
+    renderAt(makeUser());
+    await screen.findByText("Alice");
+    expect(screen.queryByText("Password")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset password" })).not.toBeInTheDocument();
+  });
+
+  it("shows the current temporary-password reveal control when the backend reports one exists", async () => {
+    renderAt(makeUser({ passwordState: "TEMPORARY" }));
+    await screen.findByText("Alice");
+    expect(screen.getByText("Current password:")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Show password/i })).toBeInTheDocument();
   });
 });
 

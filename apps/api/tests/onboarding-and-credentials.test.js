@@ -366,3 +366,86 @@ describe("temporary password reveal", () => {
     expect((await call("GET", "/vendors", token)).body.data.items[0].passwordState).toBe("SET_BY_USER");
   });
 });
+
+describe("Super Admin/Admin resetting an existing Admin's/User's password", () => {
+  const resetPw = (id, token, password) => call("POST", `/users/${id}/reset-password`, token, { password });
+
+  it("a Super Admin sets a new, explicit password for an Admin/User in their own org; it logs in and is revealable afterward", async () => {
+    const org = await Organization.create({ name: `RP ${uid()}`, contactEmail: `rp-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const { token: superAdminToken } = await makeUser(Role.SUPER_ADMIN, { organizationId: org._id });
+    const target = await makeUser(Role.USER, { organizationId: org._id });
+
+    const r = await resetPw(target.user._id, superAdminToken, "BrandNewPass1");
+    expect(r.status).toBe(200);
+    expect(r.body.data.tempPassword).toBe("BrandNewPass1");
+
+    // The new password actually works, and is never forced to change.
+    const login = await call("POST", "/auth/login", null, { email: target.user.email, password: "BrandNewPass1" });
+    expect(login.status).toBe(200);
+    expect(await User.findById(target.user._id).then((u) => u.mustChangePassword)).toBe(false);
+
+    // Revealable afterward, same as a freshly-created password.
+    expect((await reveal(target.user._id, superAdminToken)).body.data.tempPassword).toBe("BrandNewPass1");
+
+    const audit = await AuditLog.findOne({ action: AuditAction.PASSWORD_RESET_COMPLETED, entityId: target.user._id.toString() });
+    expect(audit).not.toBeNull();
+    expect(JSON.stringify(audit)).not.toContain("BrandNewPass1");
+  });
+
+  it("invalidates every existing session for the target - their old access token stops working", async () => {
+    const org = await Organization.create({ name: `RP2 ${uid()}`, contactEmail: `rp2-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const { token: superAdminToken } = await makeUser(Role.SUPER_ADMIN, { organizationId: org._id });
+    const target = await makeUser(Role.USER, { organizationId: org._id });
+
+    const refreshBefore = await call("POST", "/auth/refresh", null, { refreshToken: target.refreshToken });
+    expect(refreshBefore.status).toBe(200);
+
+    await resetPw(target.user._id, superAdminToken, "BrandNewPass1");
+
+    const refreshAfter = await call("POST", "/auth/refresh", null, { refreshToken: target.refreshToken });
+    expect(refreshAfter.status).not.toBe(200);
+  });
+
+  it("an Admin can reset only a User's password, never a peer Admin's or a Super Admin's", async () => {
+    const org = await Organization.create({ name: `RP3 ${uid()}`, contactEmail: `rp3-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const { token: adminToken } = await makeUser(Role.ADMIN, { organizationId: org._id });
+    const user = await makeUser(Role.USER, { organizationId: org._id });
+    const peerAdmin = await makeUser(Role.ADMIN, { organizationId: org._id });
+    const superAdmin = await makeUser(Role.SUPER_ADMIN, { organizationId: org._id });
+
+    expect((await resetPw(user.user._id, adminToken, "BrandNewPass1")).status).toBe(200);
+    expect((await resetPw(peerAdmin.user._id, adminToken, "BrandNewPass1")).status).toBe(403);
+    expect((await resetPw(superAdmin.user._id, adminToken, "BrandNewPass1")).status).toBe(403);
+  });
+
+  it("cannot reset a password across organizations - hidden as not found, like every other cross-tenant lookup", async () => {
+    const orgA = await Organization.create({ name: `RPA ${uid()}`, contactEmail: `rpa-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const orgB = await Organization.create({ name: `RPB ${uid()}`, contactEmail: `rpb-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const { token: superAdminA } = await makeUser(Role.SUPER_ADMIN, { organizationId: orgA._id });
+    const userInOrgB = await makeUser(Role.USER, { organizationId: orgB._id });
+    const r = await resetPw(userInOrgB.user._id, superAdminA, "BrandNewPass1");
+    expect(r.status).toBe(404);
+    expect(await User.findById(userInOrgB.user._id).select("+passwordHash").then((u) => u.passwordHash)).toBe(userInOrgB.user.passwordHash);
+  });
+
+  it("rejects a password shorter than 8 characters with a clean 400, never silently truncating or accepting it", async () => {
+    const org = await Organization.create({ name: `RP4 ${uid()}`, contactEmail: `rp4-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const { token: superAdminToken } = await makeUser(Role.SUPER_ADMIN, { organizationId: org._id });
+    const target = await makeUser(Role.USER, { organizationId: org._id });
+    const r = await resetPw(target.user._id, superAdminToken, "short");
+    expect(r.status).toBe(400);
+  });
+
+  it("is never reachable by a USER or VENDOR, and never resets a Master Admin's or Assistant Master Admin's password", async () => {
+    const org = await Organization.create({ name: `RP5 ${uid()}`, contactEmail: `rp5-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const { token: userToken } = await makeUser(Role.USER, { organizationId: org._id });
+    const { token: vendorToken } = await makeUser(Role.VENDOR);
+    const other = await makeUser(Role.USER, { organizationId: org._id });
+    expect((await resetPw(other.user._id, userToken, "BrandNewPass1")).status).toBe(403);
+    expect((await resetPw(other.user._id, vendorToken, "BrandNewPass1")).status).toBe(403);
+
+    const { token: masterToken } = await makeUser(Role.MASTER_ADMIN);
+    const { user: assistant } = await makeAssistant();
+    expect((await resetPw(assistant._id, masterToken, "BrandNewPass1")).status).toBe(403);
+  });
+});

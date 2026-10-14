@@ -88,6 +88,13 @@ exports.updateClientUserSchema = zod_1.z.object({
 exports.updateUserRoleSchema = zod_1.z.object({
     role: zod_1.z.enum(["ADMIN", "USER"]),
 }).strict();
+// The dedicated, more tightly-gated endpoint updateClientUserSchema's
+// comment above refers to: a Super Admin/Admin resetting an existing
+// Admin's/User's password. Same rule as createUserSchema's password - the
+// admin chooses it explicitly, never auto-generated.
+exports.resetUserPasswordSchema = zod_1.z.object({
+    password: zod_1.z.string().min(8, "Password must be at least 8 characters").max(72),
+}).strict();
 // Master-Admin-only: creates an ASSISTANT_MASTER_ADMIN. Role is never
 // accepted here (it is hard-coded server-side) - only identity fields and
 // the permission set Master Admin chooses to grant.

@@ -7,6 +7,7 @@ import { hasPermission, PERMISSIONS } from "../../utils/permissions";
 import { manageableRoles, ROLE_LABELS } from "../../utils/roles";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
+import TemporaryPasswordCell from "../../components/common/TemporaryPasswordCell";
 
 export default function EditUserPage() {
   const { id } = useParams();
@@ -18,6 +19,11 @@ export default function EditUserPage() {
   const [notice, setNotice] = useState(null);
   const [saving, setSaving] = useState(false);
   const [roleBusy, setRoleBusy] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [resetResult, setResetResult] = useState(null);
+  const [resetError, setResetError] = useState(null);
 
   // `silent` reloads after a save keep the form on screen instead of
   // flashing back to "Loading...".
@@ -54,6 +60,24 @@ export default function EditUserPage() {
       setError(getErrorMessage(err, "Failed to update user."));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleResetPassword(e) {
+    e.preventDefault();
+    setResettingPassword(true);
+    setResetError(null);
+    setResetResult(null);
+    try {
+      await apiClient.post(`/users/${id}/reset-password`, { password: newPassword });
+      setResetResult(newPassword);
+      setNewPassword("");
+      setShowNewPassword(false);
+      load(true);
+    } catch (err) {
+      setResetError(getErrorMessage(err, "Failed to reset password."));
+    } finally {
+      setResettingPassword(false);
     }
   }
 
@@ -137,6 +161,56 @@ export default function EditUserPage() {
           {saving ? "Saving..." : "Save changes"}
         </button>
       </form>
+      )}
+
+      {canEdit && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+          <h2 className="font-medium text-slate-900">Password</h2>
+
+          {user.passwordState && (
+            <div className="text-sm text-slate-600">
+              Current password: <TemporaryPasswordCell userId={id} passwordState={user.passwordState} />
+            </div>
+          )}
+
+          <form onSubmit={handleResetPassword} className="space-y-3 pt-2 border-t border-slate-100">
+            <p className="text-sm font-medium text-slate-700">Set a new password</p>
+            <div>
+              <label htmlFor="edit-user-new-password" className="sr-only">
+                New password
+              </label>
+              <div className="relative">
+                <input
+                  id="edit-user-new-password"
+                  required
+                  minLength={8}
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="New password (min 8 characters)"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 px-3 text-xs font-medium text-slate-500 hover:text-slate-700"
+                >
+                  {showNewPassword ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
+            <button disabled={resettingPassword} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+              {resettingPassword ? "Resetting..." : "Reset password"}
+            </button>
+            {resetError && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{resetError}</div>}
+            {resetResult && (
+              <div className="rounded-lg bg-green-50 text-green-800 text-sm px-3 py-2 space-y-1">
+                <p>Password reset. Share it with {user.name} securely:</p>
+                <code className="block font-mono text-sm bg-white border border-green-200 rounded px-2 py-1">{resetResult}</code>
+              </div>
+            )}
+          </form>
+        </div>
       )}
 
       {canEdit && (user.role === "ADMIN" || user.role === "USER") && (

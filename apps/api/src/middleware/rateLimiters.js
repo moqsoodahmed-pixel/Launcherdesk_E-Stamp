@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.credentialRevealLimiter = exports.vendorAdminLimiter = exports.vendorUploadLimiter = exports.passwordChangeLimiter = exports.providerSyncLimiter = exports.documentUploadLimiter = exports.bulkUploadLimiter = exports.paymentLimiter = exports.refreshLimiter = exports.globalApiLimiter = exports.passwordResetLimiter = exports.otpVerifyLimiter = exports.otpRequestLimiter = exports.loginLimiter = void 0;
+exports.userPasswordResetLimiter = exports.credentialRevealLimiter = exports.vendorAdminLimiter = exports.vendorUploadLimiter = exports.passwordChangeLimiter = exports.providerSyncLimiter = exports.documentUploadLimiter = exports.bulkUploadLimiter = exports.paymentLimiter = exports.refreshLimiter = exports.globalApiLimiter = exports.passwordResetLimiter = exports.otpVerifyLimiter = exports.otpRequestLimiter = exports.loginLimiter = void 0;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 // Phase 19 - tag every limiter middleware with a stable, introspectable
 // `.limiterName` so tests can assert "this exact named limiter is wired to
@@ -128,4 +128,15 @@ exports.credentialRevealLimiter = tag("credentialRevealLimiter", (0, express_rat
     legacyHeaders: false,
     keyGenerator: (req) => `credential-reveal:${req.user?.id || req.ip}`,
     message: { success: false, message: "Too many password reveals. Please wait and try again.", code: "RATE_LIMITED" },
+}));
+// Super Admin/Admin resetting an Admin's/User's password: keyed per ACTOR
+// (runs after authenticate), same reasoning as vendorAdminLimiter - a
+// hijacked admin session must not be able to mass-reset passwords.
+exports.userPasswordResetLimiter = tag("userPasswordResetLimiter", (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => `user-password-reset:${req.user?.id || req.ip}`,
+    message: { success: false, message: "Too many password resets. Please wait and try again.", code: "RATE_LIMITED" },
 }));

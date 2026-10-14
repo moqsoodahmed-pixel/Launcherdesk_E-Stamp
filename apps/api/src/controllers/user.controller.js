@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.revealTemporaryPassword = exports.updateAssistantAdminPermissions = exports.createAssistantAdmin = exports.updateUserRole = exports.updateUser = exports.getUser = exports.updateUserStatus = exports.listUsers = exports.createUser = void 0;
+exports.revealTemporaryPassword = exports.resetUserPassword = exports.updateAssistantAdminPermissions = exports.createAssistantAdmin = exports.updateUserRole = exports.updateUser = exports.getUser = exports.updateUserStatus = exports.listUsers = exports.createUser = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const ApiResponse_1 = require("../utils/ApiResponse");
 const models_1 = require("../models");
@@ -173,7 +173,18 @@ exports.listUsers = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 });
 exports.getUser = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const target = await findScopedUser(req, req.params.id);
-    return (0, ApiResponse_1.ok)(res, { ...target.toObject(), passwordHash: undefined });
+    const plain = { ...target.toObject(), passwordHash: undefined };
+    // Same three roles allowed to reveal a password (listUsers does the
+    // identical thing for the list view) - lets the per-user detail page
+    // show whether a revealable temporary password currently exists.
+    // tempPasswordExpiresAt is select:false on the model, so it has to be
+    // fetched explicitly - never included in the default findScopedUser
+    // query every other action here reuses.
+    if ([shared_1.Role.MASTER_ADMIN, shared_1.Role.SUPER_ADMIN, shared_1.Role.ADMIN].includes(req.user.role)) {
+        const withTemp = await models_1.User.findById(target._id).select("+tempPasswordExpiresAt");
+        plain.passwordState = (0, credentialVault_1.passwordStateOf)(withTemp);
+    }
+    return (0, ApiResponse_1.ok)(res, plain);
 });
 exports.updateUser = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const target = await findScopedUser(req, req.params.id);
@@ -279,6 +290,58 @@ exports.updateUserRole = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         });
     }
     return (0, ApiResponse_1.ok)(res, { ...target.toObject(), passwordHash: undefined });
+});
+// Only the same client roles createUser can mint - never an internal role,
+// never through this endpoint.
+const RESETTABLE_ROLES = [shared_1.Role.SUPER_ADMIN, shared_1.Role.ADMIN, shared_1.Role.USER];
+// POST /users/:id/reset-password - a Super Admin/Admin sets a NEW, explicit
+// password for an existing Admin's/User's account (never auto-generated,
+// matching the same explicit-password decision createUser makes), within
+// the same authority rule as every other action here: only strictly-lower-
+// authority roles, only within the actor's own organization (or an
+// Assistant Master Admin's assigned organizations). Every existing session
+// for the target is invalidated immediately (the old password + any token
+// issued under it must stop working the moment it's replaced), and the new
+// password is stored in the same revealable vault as createUser's so it can
+// be looked up again later via GET /:id/temporary-password - the account
+// never ends up in a state nobody but the target can see the password for.
+exports.resetUserPassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { password } = req.body;
+    const target = await findScopedUser(req, req.params.id);
+    assertCanActOn(req.user.role, target.role);
+    if (!RESETTABLE_ROLES.includes(target.role)) {
+        throw ApiError_1.ApiError.forbidden("Passwords of this role cannot be reset through this endpoint");
+    }
+    target.passwordHash = await auth_service_1.AuthService.hashPassword(password);
+    // Deliberately not forced to change on first login - same product
+    // decision createUser makes: the admin-chosen password is usable
+    // immediately, see createUser's comment above.
+    target.mustChangePassword = false;
+    target.failedLoginAttempts = 0;
+    target.lockedUntil = null;
+    await target.save();
+    await auth_service_1.AuthService.invalidateAllSessions(target._id.toString());
+    await (0, credentialVault_1.storeTemporaryPassword)(target._id, password);
+    await (0, audit_service_1.recordAudit)({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        organizationId: target.organizationId?.toString() ?? null,
+        action: shared_1.AuditAction.PASSWORD_RESET_COMPLETED,
+        entityType: "User",
+        entityId: target._id.toString(),
+        metadata: { targetRole: target.role },
+        req,
+    });
+    if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN) {
+        await (0, notification_service_1.notifyAllMasterAdmins)({
+            type: shared_1.NotificationType.ASSISTANT_ADMIN_ACTIVITY,
+            title: "Client employee password reset",
+            message: `Assistant Master Admin reset a client employee's password.`,
+            relatedActorId: req.user.id,
+            organizationId: target.organizationId?.toString() ?? null,
+        });
+    }
+    return (0, ApiResponse_1.ok)(res, { tempPassword: password }, "Password reset");
 });
 // Master-Admin-only: create an Assistant Master Admin (INTERNAL_ROLE,
 // organizationId always null) with an explicit, Master-Admin-chosen
