@@ -16,6 +16,10 @@ const organizationSchema = new mongoose_1.Schema({
         index: true,
     },
     isEstampServiceEnabled: { type: Boolean, default: false },
+    // Per-organization override of the flat procurement charge (estampPricing.js's
+    // PROCUREMENT_FEE) a Master Admin can set for this client specifically.
+    // null = use the platform default for every organization without one.
+    procurementFeeOverride: { type: Number, default: null, min: 0 },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
     // The one Assistant Master Admin responsible for this client (credits
     // its payments, manages its balance). null = only Master Admins.

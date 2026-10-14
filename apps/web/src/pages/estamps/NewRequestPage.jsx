@@ -592,7 +592,7 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
         <Row label="Property Description" value={values.propertyDescription || "-"} />
         <Row label="State" value={selectedState ? selectedState.name : values.stateCode} />
         <Row label="Article" value={selectedArticle ? `${selectedArticle.articleCode} - ${selectedArticle.title}` : "-"} />
-        <Row label="Consideration Price" value={formatCurrency(values.considerationPrice)} />
+        <Row label="Stamp Duty" value={pricing && pricing.stampDuty !== 0 ? formatCurrency(pricing.stampDuty) : "At Actuals"} />
         {/* Names the party as well as the name, so a payer who shares a name
             with the other party is still unambiguous on the final check. */}
         <Row

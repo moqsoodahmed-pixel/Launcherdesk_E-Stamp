@@ -136,6 +136,69 @@ describe("OrganizationDetailPage - E-Stamp service toggle", () => {
   });
 });
 
+describe("OrganizationDetailPage - per-organization procurement fee override", () => {
+  it("shows the platform default message when no override is set", async () => {
+    renderAt(baseDetail({ organization: { ...baseDetail().organization, procurementFeeOverride: null } }));
+    await screen.findByText("Acme Corp");
+    expect(screen.getAllByText(/platform default/).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Override amount (₹)")).toHaveValue(null);
+  });
+
+  it("shows the current override amount when one is set, pre-filled in the input", async () => {
+    renderAt(baseDetail({ organization: { ...baseDetail().organization, procurementFeeOverride: 25 } }));
+    await screen.findByText("Acme Corp");
+    expect(screen.getByText("₹25")).toBeInTheDocument();
+    expect(screen.getByLabelText("Override amount (₹)")).toHaveValue(25);
+  });
+
+  it("saves a new override via the real endpoint", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    apiClient.patch.mockResolvedValue({ data: { data: {} } });
+    renderAt(baseDetail());
+    await screen.findByText("Acme Corp");
+
+    const input = screen.getByLabelText("Override amount (₹)");
+    await user.clear(input);
+    await user.type(input, "30");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalledWith("/organizations/o1/procurement-fee", { procurementFee: 30 }));
+  });
+
+  it("Clear reverts the organization to the platform default (sends null)", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    apiClient.patch.mockResolvedValue({ data: { data: {} } });
+    renderAt(baseDetail({ organization: { ...baseDetail().organization, procurementFeeOverride: 25 } }));
+    await screen.findByText("Acme Corp");
+
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalledWith("/organizations/o1/procurement-fee", { procurementFee: null }));
+  });
+
+  it("rejects a negative value - blocked by the input's own min=0 constraint, never reaching the API", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    renderAt(baseDetail());
+    await screen.findByText("Acme Corp");
+
+    const input = screen.getByLabelText("Override amount (₹)");
+    expect(input).toHaveAttribute("min", "0");
+    fireEvent.change(input, { target: { value: "-5" } });
+    fireEvent.submit(input.closest("form"));
+
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("hides the Procurement Fee control from an Assistant Master Admin (the API is Master-Admin-only)", async () => {
+    mockUser = { role: "ASSISTANT_MASTER_ADMIN", permissions: ["client.view", "client.manage"] };
+    renderAt(baseDetail());
+    await screen.findAllByText("Acme Corp");
+    expect(screen.queryByText("Procurement Fee")).not.toBeInTheDocument();
+    mockUser = { role: "MASTER_ADMIN" };
+  });
+});
+
 describe("OrganizationDetailPage - Super Admin provisioning", () => {
   it("shows the one-time temp password after provisioning and never persists/repeats it", async () => {
     const { default: userEvent } = await import("@testing-library/user-event");

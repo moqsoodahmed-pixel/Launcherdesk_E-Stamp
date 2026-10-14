@@ -279,9 +279,10 @@ describe("NewRequestPage - Review & Submit", () => {
     mockFullFlow({ amount: 0, pricing: PRICING_UNKNOWN });
     await navigateToReview();
     await screen.findByText("Price summary");
-    // Both the Stamp duty and Government Fees rows read "At Actuals" rather
-    // than a bare ₹0 that would look like a real, settled price.
-    expect(screen.getAllByText("At Actuals")).toHaveLength(2);
+    // The Stamp duty row (both in the top summary and the Price summary)
+    // and the Government Fees row read "At Actuals" rather than a bare ₹0
+    // that would look like a real, settled price.
+    expect(screen.getAllByText("At Actuals")).toHaveLength(3);
     expect(screen.getByText("Stamp duty").parentElement).toHaveTextContent("At Actuals");
     expect(screen.getByText("Government Fees").parentElement).toHaveTextContent("At Actuals");
     // The total is never left blank/"-" - it's the known fee+GST portion,

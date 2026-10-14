@@ -203,6 +203,12 @@ exports.BulkEStampService = {
         // registry/env default on any read error, same as every other
         // runtime-wired setting).
         const maxRows = await settings_service_1.SettingsService.getBulkEstampMaxRows();
+        // A Master Admin may set a per-organization procurement fee override
+        // (Organization.procurementFeeOverride) - read once per upload, same
+        // as the single-request preview, so every row in this batch prices
+        // consistently with that organization's own setting.
+        const orgForPricing = await models_1.Organization.findById(organizationId).select("procurementFeeOverride");
+        const procurementFeeOverride = orgForPricing?.procurementFeeOverride ?? null;
         let workbook;
         try {
             workbook = xlsx_1.read(fileBuffer, { type: "buffer" });
@@ -337,7 +343,7 @@ exports.BulkEStampService = {
         // left exactly as typed, so the existing zod/ObjectId validation
         // below still rejects it with its normal, clear error - this step
         // only ever helps a valid human-entered value, never masks a bad one.
-function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps = 1) {
+function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps = 1, procurementFeeOverride) {
     const qty = Math.max(1, Number(numberOfEStamps) || 1);
     let duty = Number(calcDuty) || 0;
     if (duty === 0) {
@@ -362,7 +368,7 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
     // published pricing from one place (see utils/estampPricing.js). `duty`
     // is always > 0 by this point thanks to the fallback above, so the
     // helper's "unknown duty" null total never applies here.
-    const { convenienceFee, procurementFee, feeTotal, gst, totalAmount } = (0, estampPricing_1.calculateEstampFees)(duty);
+    const { convenienceFee, procurementFee, feeTotal, gst, totalAmount } = (0, estampPricing_1.calculateEstampFees)(duty, procurementFeeOverride);
     return {
         stampDuty: duty,
         convenienceFee,
@@ -480,7 +486,7 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
             let pricing = null;
             if (isValid) {
                 validCount += 1;
-                pricing = calculateEstampRowPricing(calculatedDuty, result.data.considerationPrice, result.data.numberOfEStamps);
+                pricing = calculateEstampRowPricing(calculatedDuty, result.data.considerationPrice, result.data.numberOfEStamps, procurementFeeOverride);
                 estimatedDutyTotal += pricing.stampDuty;
                 estimatedConvTotal += pricing.convenienceFee;
                 estimatedProcTotal += pricing.procurementFee;
@@ -560,6 +566,8 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
         const batch = await loadOwnedBatch(batchId, organizationId, actorRole);
         const pageNum = Math.max(1, parseInt(page) || 1);
         const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 50));
+        const orgForPricing = await models_1.Organization.findById(batch.organizationId).select("procurementFeeOverride");
+        const procurementFeeOverride = orgForPricing?.procurementFeeOverride ?? null;
         const [rawItems, itemsTotal] = await Promise.all([
             models_1.BulkEStampBatchItem.find({ batchId: batch._id }).sort({ rowNumber: 1 }).skip((pageNum - 1) * limitNum).limit(limitNum).lean(),
             models_1.BulkEStampBatchItem.countDocuments({ batchId: batch._id }),
@@ -594,7 +602,7 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
                 totalAmount: it.totalAmount,
             };
             if (it.status === "VALID" && (!it.totalAmount || it.calculatedAmount === 0)) {
-                pricing = calculateEstampRowPricing(it.stampDuty || it.calculatedAmount, it.inputData?.considerationPrice, it.inputData?.numberOfEStamps);
+                pricing = calculateEstampRowPricing(it.stampDuty || it.calculatedAmount, it.inputData?.considerationPrice, it.inputData?.numberOfEStamps, procurementFeeOverride);
             }
             return {
                 ...it,
@@ -620,7 +628,7 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
             let sumGst = 0;
             let sumTotal = 0;
             for (const v of allValid) {
-                const p = calculateEstampRowPricing(v.stampDuty || v.calculatedAmount, v.inputData?.considerationPrice, v.inputData?.numberOfEStamps);
+                const p = calculateEstampRowPricing(v.stampDuty || v.calculatedAmount, v.inputData?.considerationPrice, v.inputData?.numberOfEStamps, procurementFeeOverride);
                 sumDuty += p.stampDuty;
                 sumConv += p.convenienceFee;
                 sumProc += p.procurementFee;

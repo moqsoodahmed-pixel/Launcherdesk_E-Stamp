@@ -29,6 +29,10 @@ export default function OrganizationDetailPage() {
 
   const [estampBusy, setEstampBusy] = useState(false);
 
+  const [procurementFeeInput, setProcurementFeeInput] = useState("");
+  const [procurementFeeBusy, setProcurementFeeBusy] = useState(false);
+  const [procurementFeeError, setProcurementFeeError] = useState(null);
+
   const [assistantChoice, setAssistantChoice] = useState("");
   const [assignBusy, setAssignBusy] = useState(false);
   const [assignError, setAssignError] = useState(null);
@@ -49,6 +53,7 @@ export default function OrganizationDetailPage() {
       .then((res) => {
         setData(res.data.data);
         setAssistantChoice(res.data.data.assignedAssistant?._id || "");
+        setProcurementFeeInput(res.data.data.organization.procurementFeeOverride ?? "");
         setEditForm({
           name: res.data.data.organization.name,
           contactEmail: res.data.data.organization.contactEmail,
@@ -127,6 +132,33 @@ export default function OrganizationDetailPage() {
     } finally {
       setEstampBusy(false);
     }
+  }
+
+  async function saveProcurementFee(rawValue) {
+    setProcurementFeeBusy(true);
+    setProcurementFeeError(null);
+    try {
+      const trimmed = String(rawValue ?? "").trim();
+      const procurementFee = trimmed === "" ? null : Number(trimmed);
+      if (procurementFee !== null && (!Number.isFinite(procurementFee) || procurementFee < 0)) {
+        throw new Error("Enter a non-negative number, or leave blank for the platform default.");
+      }
+      await apiClient.patch(`/organizations/${id}/procurement-fee`, { procurementFee });
+      setNotice(procurementFee === null ? "Procurement fee reverted to the platform default." : `Procurement fee set to ${formatCurrency(procurementFee)} for this organization.`);
+      load();
+    } catch (err) {
+      setProcurementFeeError(err.response ? getErrorMessage(err, "Failed to save the procurement fee.") : err.message);
+    } finally {
+      setProcurementFeeBusy(false);
+    }
+  }
+  function handleSaveProcurementFee(e) {
+    e.preventDefault();
+    saveProcurementFee(procurementFeeInput);
+  }
+  function handleClearProcurementFee() {
+    setProcurementFeeInput("");
+    saveProcurementFee("");
   }
 
   async function handleProvisionSuperAdmin(e) {
@@ -243,6 +275,53 @@ export default function OrganizationDetailPage() {
           </button>
           <p className="text-xs text-slate-500 mt-3">
             Until this is enabled, users in this organization cannot create E-Stamp requests.
+          </p>
+        </div>
+        )}
+
+        {canChangeStatus && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <h2 className="font-medium text-slate-900 mb-4">Procurement Fee</h2>
+          <p className="text-sm text-slate-600 mb-4">
+            {org.procurementFeeOverride != null ? (
+              <>Currently <span className="font-medium text-slate-900">{formatCurrency(org.procurementFeeOverride)}</span> for this organization (overrides the platform default).</>
+            ) : (
+              <>Currently using the <span className="font-medium text-slate-900">platform default</span> procurement fee.</>
+            )}
+          </p>
+          <form onSubmit={handleSaveProcurementFee} className="flex items-end gap-2">
+            <div>
+              <label htmlFor="org-procurement-fee" className="block text-xs font-medium text-slate-700 mb-1">
+                Override amount (₹)
+              </label>
+              <input
+                id="org-procurement-fee"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="Platform default"
+                value={procurementFeeInput}
+                onChange={(e) => setProcurementFeeInput(e.target.value)}
+                className="w-40 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+            <button disabled={procurementFeeBusy} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+              {procurementFeeBusy ? "Saving..." : "Save"}
+            </button>
+            {org.procurementFeeOverride != null && (
+              <button
+                type="button"
+                disabled={procurementFeeBusy}
+                onClick={handleClearProcurementFee}
+                className="text-sm text-slate-500 hover:underline"
+              >
+                Clear
+              </button>
+            )}
+          </form>
+          {procurementFeeError && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2 mt-3">{procurementFeeError}</div>}
+          <p className="text-xs text-slate-500 mt-3">
+            Leave blank and Save to revert this organization to the platform default procurement fee.
           </p>
         </div>
         )}

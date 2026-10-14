@@ -21,10 +21,15 @@ function round2(value) {
 // show "At Actuals" for it - but the total is always a real number: it never
 // withholds the known, computable fee+GST portion just because the
 // government duty component happens to still be unknown.
-function calculateEstampFees(stampDuty) {
+//
+// `procurementFeeOverride` is a Master-Admin-set, per-organization
+// replacement for the platform's flat PROCUREMENT_FEE (see
+// Organization.procurementFeeOverride) - null/undefined falls back to the
+// platform default, exactly like every organization without one.
+function calculateEstampFees(stampDuty, procurementFeeOverride) {
     const duty = Number(stampDuty) || 0;
     const convenienceFee = duty > CONVENIENCE_FEE_THRESHOLD ? round2(duty * CONVENIENCE_FEE_RATE) : 0;
-    const procurementFee = PROCUREMENT_FEE;
+    const procurementFee = procurementFeeOverride === null || procurementFeeOverride === undefined ? PROCUREMENT_FEE : Number(procurementFeeOverride);
     const feeTotal = round2(convenienceFee + procurementFee);
     // GST base is the procurement charge alone - never the convenience fee,
     // the stamp duty, or the consideration price.

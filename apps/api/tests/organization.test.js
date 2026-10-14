@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import { Organization, Wallet, User, AuditLog, Notification } from "../src/models/index.js";
 import { Role, Permission, AuditAction, OrganizationStatus } from "@launcherdesk/shared";
 import * as orgController from "../src/controllers/organization.controller.js";
-import { requirePermission } from "../src/middleware/authorize.js";
+import { requirePermission, requireRole } from "../src/middleware/authorize.js";
 import { AuthService } from "../src/services/auth.service.js";
 import { createOrganizationSchema, updateOrganizationSchema, provisionSuperAdminSchema } from "@launcherdesk/validation";
 import { makeReq, makeRes, runController, runMiddleware } from "./helpers/http.js";
@@ -267,6 +267,64 @@ describe("Assistant Master Admin: organization permissions are explicit, not rol
     const notification = await Notification.findOne({ recipientId: master._id, organizationId: res.body.data.organization._id.toString() });
     expect(notification).not.toBeNull();
     expect(notification.type).toBe("ASSISTANT_ADMIN_ACTIVITY");
+  });
+});
+
+describe("Procurement fee override (Master-Admin-only)", () => {
+  it("Master Admin sets a per-organization override, stored and returned as a real number", async () => {
+    const org = await makeActiveOrg();
+    const req = masterAdminReq({ params: { id: org._id.toString() }, body: { procurementFee: 25 } });
+    const { res, error } = await runController(orgController.setProcurementFeeOverride, req, makeRes());
+    expect(error).toBeNull();
+    expect(res.body.data.procurementFeeOverride).toBe(25);
+    expect((await Organization.findById(org._id)).procurementFeeOverride).toBe(25);
+
+    const auditEntry = await AuditLog.findOne({ action: AuditAction.ORG_MODIFIED, entityId: org._id.toString() });
+    expect(auditEntry).not.toBeNull();
+    expect(auditEntry.metadata.procurementFeeOverride).toBe(25);
+  });
+
+  it("Master Admin can clear an override back to the platform default with null", async () => {
+    const org = await makeActiveOrg({ procurementFeeOverride: 25 });
+    const req = masterAdminReq({ params: { id: org._id.toString() }, body: { procurementFee: null } });
+    const { error } = await runController(orgController.setProcurementFeeOverride, req, makeRes());
+    expect(error).toBeNull();
+    expect((await Organization.findById(org._id)).procurementFeeOverride).toBeNull();
+  });
+
+  it("rejects a negative or non-numeric value with a clean 400, never silently coercing it", async () => {
+    const org = await makeActiveOrg();
+    for (const bad of [-5, "abc", NaN, Infinity]) {
+      const req = masterAdminReq({ params: { id: org._id.toString() }, body: { procurementFee: bad } });
+      const { error } = await runController(orgController.setProcurementFeeOverride, req, makeRes());
+      expect(error).not.toBeNull();
+      expect(error.statusCode).toBe(400);
+    }
+    expect((await Organization.findById(org._id)).procurementFeeOverride).toBeNull();
+  });
+
+  it("flows through to the e-Stamp price preview for that organization only - never affecting another org", async () => {
+    const { calculateEstampFees } = await import("../src/utils/estampPricing.js");
+    const orgWithOverride = await makeActiveOrg({ procurementFeeOverride: 40 });
+    const orgDefault = await makeActiveOrg();
+    const overridden = calculateEstampFees(500, orgWithOverride.procurementFeeOverride);
+    const defaulted = calculateEstampFees(500, orgDefault.procurementFeeOverride);
+    expect(overridden.procurementFee).toBe(40);
+    expect(defaulted.procurementFee).not.toBe(40);
+  });
+
+  it("returns 404 for a non-existent organization", async () => {
+    const req = masterAdminReq({ params: { id: new mongoose.Types.ObjectId().toString() }, body: { procurementFee: 10 } });
+    const { error } = await runController(orgController.setProcurementFeeOverride, req, makeRes());
+    expect(error).not.toBeNull();
+    expect(error.statusCode).toBe(404);
+  });
+
+  it("the route itself is Master-Admin-only - an Assistant Master Admin is blocked at the role gate, no matter what permissions they hold", async () => {
+    const req = assistantReq([Permission.CLIENT_MANAGE]);
+    const { threw } = await runMiddleware(requireRole(Role.MASTER_ADMIN), req, makeRes());
+    expect(threw).not.toBeNull();
+    expect(threw.statusCode).toBe(403);
   });
 });
 

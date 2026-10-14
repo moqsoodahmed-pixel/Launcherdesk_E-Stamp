@@ -84,12 +84,23 @@ exports.previewCalculation = (0, asyncHandler_1.asyncHandler)(async (req, res) =
         considerationPrice: req.body.considerationPrice,
         numberOfEStamps: req.body.numberOfEStamps,
     });
+    // A Master Admin may set a per-organization procurement fee override
+    // (Organization.procurementFeeOverride); every other organization keeps
+    // the platform default. organizationId is the authenticated tenant
+    // actor's own org, or an internal actor's supplied one - same rule as
+    // every other org-scoped lookup in this file (resolveOrgId).
+    const organizationId = resolveOrgId(req);
+    let procurementFeeOverride = null;
+    if (organizationId && mongoose_1.Types.ObjectId.isValid(organizationId)) {
+        const org = await models_1.Organization.findById(organizationId).select("procurementFeeOverride");
+        procurementFeeOverride = org?.procurementFeeOverride ?? null;
+    }
     // The full published price breakdown (procurement charge, convenience
     // fee, GST) alongside the duty, computed server-side from the one shared
     // fee model the bulk flow already uses - the client never does this
     // arithmetic itself, so the two can never drift apart. `amount` is left
     // exactly as-is: it remains the only figure the wallet reserves.
-    const pricing = (0, estampPricing_1.calculateEstampFees)(result.amount);
+    const pricing = (0, estampPricing_1.calculateEstampFees)(result.amount, procurementFeeOverride);
     return (0, ApiResponse_1.ok)(res, { ...result, pricing });
 });
 exports.listRequests = (0, asyncHandler_1.asyncHandler)(async (req, res) => {

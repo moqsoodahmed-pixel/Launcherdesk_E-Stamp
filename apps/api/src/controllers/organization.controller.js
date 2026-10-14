@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setAssignedAssistant = exports.provisionSuperAdmin = exports.setEstampServiceEnabled = exports.updateOrganizationStatus = exports.updateOrganization = exports.getOrganization = exports.listOrganizations = exports.createOrganization = void 0;
+exports.setAssignedAssistant = exports.provisionSuperAdmin = exports.setProcurementFeeOverride = exports.setEstampServiceEnabled = exports.updateOrganizationStatus = exports.updateOrganization = exports.getOrganization = exports.listOrganizations = exports.createOrganization = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const ApiResponse_1 = require("../utils/ApiResponse");
 const models_1 = require("../models");
@@ -342,6 +342,29 @@ exports.setEstampServiceEnabled = (0, asyncHandler_1.asyncHandler)(async (req, r
         entityType: "Organization",
         entityId: org._id.toString(),
         metadata: { isEstampServiceEnabled: enabled },
+        req,
+    });
+    return (0, ApiResponse_1.ok)(res, org);
+});
+// Master-Admin-only: sets (or clears) this organization's override of the
+// flat procurement charge in the e-Stamp price summary (estampPricing.js's
+// PROCUREMENT_FEE). `procurementFee: null` reverts the organization to the
+// platform default - this is never a tenant-manageable setting.
+exports.setProcurementFeeOverride = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { procurementFee } = req.body;
+    if (procurementFee !== null && (typeof procurementFee !== "number" || !Number.isFinite(procurementFee) || procurementFee < 0)) {
+        throw ApiError_1.ApiError.badRequest("procurementFee must be a non-negative number, or null to use the platform default");
+    }
+    const org = await models_1.Organization.findByIdAndUpdate(req.params.id, { procurementFeeOverride: procurementFee }, { new: true });
+    if (!org)
+        throw ApiError_1.ApiError.notFound("Organization not found");
+    await (0, audit_service_1.recordAudit)({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        action: shared_2.AuditAction.ORG_MODIFIED,
+        entityType: "Organization",
+        entityId: org._id.toString(),
+        metadata: { procurementFeeOverride: procurementFee },
         req,
     });
     return (0, ApiResponse_1.ok)(res, org);

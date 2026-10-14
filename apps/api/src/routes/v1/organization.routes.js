@@ -55,6 +55,7 @@ router.patch("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.CLIE
 router.patch("/:id/status", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), ctrl.updateOrganizationStatus);
 router.patch("/:id/estamp-service", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), ctrl.setEstampServiceEnabled);
 router.patch("/:id/assigned-assistant", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), ctrl.setAssignedAssistant);
+router.patch("/:id/procurement-fee", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), ctrl.setProcurementFeeOverride);
 // Provisions the organization's initial Super Admin. Delegable to Assistant
 // Master Admin via CLIENT_MANAGE, same as organization create/edit.
 router.post("/:id/super-admin", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_MANAGE), orgScope, (0, validate_1.validateBody)(validation_1.provisionSuperAdminSchema), ctrl.provisionSuperAdmin);
