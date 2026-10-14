@@ -168,20 +168,20 @@ describe("NewRequestPage - Review & Submit", () => {
   const PRICING_500 = {
     stampDuty: 500,
     convenienceFee: 0,
-    procurementFee: 99,
-    feeTotal: 99,
-    gst: 17.82,
+    procurementFee: 15,
+    feeTotal: 15,
+    gst: 2.7,
     governmentFees: 500,
-    totalAmount: 616.82,
+    totalAmount: 517.7,
   };
   const PRICING_UNKNOWN = {
     stampDuty: 0,
     convenienceFee: 0,
-    procurementFee: 99,
-    feeTotal: 99,
-    gst: 17.82,
+    procurementFee: 15,
+    feeTotal: 15,
+    gst: 2.7,
     governmentFees: 0,
-    totalAmount: null,
+    totalAmount: 17.7,
   };
 
   function mockFullFlow({ submitError, amount = 0, pricing = PRICING_UNKNOWN, calcError } = {}) {
@@ -263,10 +263,10 @@ describe("NewRequestPage - Review & Submit", () => {
     expect(screen.getByText("Convenience Fee")).toBeInTheDocument();
     expect(screen.getByText("Procurement Charge")).toBeInTheDocument();
     expect(screen.getByText("GST (18%)")).toBeInTheDocument();
-    expect(screen.getByText("₹99")).toBeInTheDocument();
-    expect(screen.getByText("₹17.82")).toBeInTheDocument();
+    expect(screen.getByText("₹15")).toBeInTheDocument();
+    expect(screen.getByText("₹2.7")).toBeInTheDocument();
     expect(screen.getByText("Total payable")).toBeInTheDocument();
-    expect(screen.getByText("₹616.82")).toBeInTheDocument();
+    expect(screen.getByText("₹517.7")).toBeInTheDocument();
     // Stamp duty itself is a known, real number here - but Government Fees
     // is a disclosure that the duty is billed at the real government rate,
     // not a figure LauncherDesk invented, so it always reads "At Actuals"
@@ -275,7 +275,7 @@ describe("NewRequestPage - Review & Submit", () => {
     expect(screen.getByText("Stamp duty").parentElement).not.toHaveTextContent("At Actuals");
   });
 
-  it("shows 'At Actuals' instead of ₹0 when the duty is not configured, and leaves the total blank", async () => {
+  it("shows 'At Actuals' instead of ₹0 when the duty is not configured, but the total is still a real number", async () => {
     mockFullFlow({ amount: 0, pricing: PRICING_UNKNOWN });
     await navigateToReview();
     await screen.findByText("Price summary");
@@ -284,11 +284,12 @@ describe("NewRequestPage - Review & Submit", () => {
     expect(screen.getAllByText("At Actuals")).toHaveLength(2);
     expect(screen.getByText("Stamp duty").parentElement).toHaveTextContent("At Actuals");
     expect(screen.getByText("Government Fees").parentElement).toHaveTextContent("At Actuals");
-    // The total is never invented when the government charge is unknown.
-    expect(screen.getByText("Total payable").parentElement).toHaveTextContent("-");
-    expect(screen.getByText("Total payable").parentElement).not.toHaveTextContent("₹");
+    // The total is never left blank/"-" - it's the known fee+GST portion,
+    // even while the government duty component is still unknown.
+    expect(screen.getByText("Total payable").parentElement).toHaveTextContent("₹17.7");
+    expect(screen.getByText("Total payable").parentElement).not.toHaveTextContent("-");
     // The known fees are still quoted exactly, even with the duty unknown.
-    expect(screen.getByText("Procurement Charge").parentElement).toHaveTextContent("₹99");
+    expect(screen.getByText("Procurement Charge").parentElement).toHaveTextContent("₹15");
     expect(screen.getByText(/billed at the real government charge/)).toBeInTheDocument();
   });
 

@@ -435,7 +435,7 @@ describe("Phase 22: GET /estamps list filters", () => {
 });
 
 describe("Calculation preview - published price breakdown", () => {
-  it("returns the full fee breakdown alongside the duty, matching the audited Rs.500 summary", async () => {
+  it("returns the full fee breakdown alongside the duty, charging a flat Rs.15 procurement fee and GST on that fee alone", async () => {
     const { org, article } = await makeOrgWithArticle({ fixedAmount: 500 });
     const user = await User.create({ name: "P", email: `p-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.USER, organizationId: org._id });
     const req = reqAsUser(user, {
@@ -450,14 +450,14 @@ describe("Calculation preview - published price breakdown", () => {
     expect(res.body.data.pricing).toMatchObject({
       stampDuty: 500,
       convenienceFee: 0,
-      procurementFee: 99,
-      gst: 17.82,
+      procurementFee: 15,
+      gst: 2.7,
       governmentFees: 500,
-      totalAmount: 616.82,
+      totalAmount: 517.7,
     });
   });
 
-  it("reports a null total (shown as 'At Actuals') when the article's duty is not configured", async () => {
+  it("reports a real total (never null/'-') even when the article's duty is not configured", async () => {
     const creator = new mongoose.Types.ObjectId();
     const org = await Organization.create({
       name: "Unpriced Co",
@@ -478,9 +478,11 @@ describe("Calculation preview - published price breakdown", () => {
 
     expect(error).toBeNull();
     expect(res.body.data.amount).toBe(0);
-    expect(res.body.data.pricing.totalAmount).toBeNull();
-    // The fees themselves are still exact and knowable even when duty is not.
-    expect(res.body.data.pricing.procurementFee).toBe(99);
-    expect(res.body.data.pricing.gst).toBe(17.82);
+    // The total is always a real number - it only ever omits the still-
+    // unknown duty component, never the known, computable fee+GST portion.
+    expect(res.body.data.pricing.totalAmount).toBe(17.7);
+    expect(typeof res.body.data.pricing.totalAmount).toBe("number");
+    expect(res.body.data.pricing.procurementFee).toBe(15);
+    expect(res.body.data.pricing.gst).toBe(2.7);
   });
 });

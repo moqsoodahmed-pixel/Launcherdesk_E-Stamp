@@ -629,8 +629,9 @@ function ReviewStep({ values, calculation, balance, canOpenWallet, articles, sta
 // The published price breakdown, laid out like the public e-Stamp site's
 // "Price summary" card. Every figure comes from the server's own pricing
 // response - nothing is computed here - so the portal and the public site can
-// never quote different numbers. An unknown government charge reads "At
-// Actuals" and the total stays "-" rather than being invented.
+// never quote different numbers. An unknown government duty reads "At
+// Actuals", but the total is always a real number - it only ever omits the
+// still-unknown duty component, never the known, computable fee+GST portion.
 function PriceSummary({ calculation, calculating, calcError, onRetry, balance }) {
   if (calcError) {
     return (
@@ -676,10 +677,10 @@ function PriceSummary({ calculation, calculating, calcError, onRetry, balance })
       <Row label="Government Fees" value="At Actuals" />
       <div className="flex justify-between pt-2 mt-1 border-t border-slate-300">
         <span className="font-semibold text-slate-900">Total payable</span>
-        <span className="font-semibold text-slate-900">{pricing.totalAmount === null ? "-" : formatCurrency(pricing.totalAmount)}</span>
+        <span className="font-semibold text-slate-900">{formatCurrency(pricing.totalAmount)}</span>
       </div>
       <p className="text-xs text-slate-500 pt-2">
-        All taxes included. GST applies to the fees, not to the government stamp duty.
+        All taxes included. GST applies to the procurement charge only, not to the stamp duty or the convenience fee.
       </p>
       <div className="mt-2 pt-2 border-t border-slate-200">
         <Row label="Reserved from your balance now" value={formatCurrency(calculation.amount)} />
