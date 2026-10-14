@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.revealTemporaryPassword = exports.resetUserPassword = exports.updateAssistantAdminPermissions = exports.createAssistantAdmin = exports.updateUserRole = exports.updateUser = exports.getUser = exports.updateUserStatus = exports.listUsers = exports.createUser = void 0;
+exports.revealTemporaryPassword = exports.deleteUser = exports.resetUserPassword = exports.updateAssistantAdminPermissions = exports.createAssistantAdmin = exports.updateUserRole = exports.updateUser = exports.getUser = exports.updateUserStatus = exports.listUsers = exports.createUser = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const ApiResponse_1 = require("../utils/ApiResponse");
 const models_1 = require("../models");
@@ -28,7 +28,7 @@ function escapeRegex(value) {
 // platform-wide user visibility for Master/Assistant Master Admin.
 function resolveOrgFilter(req) {
     const isInternal = isInternalActor(req);
-    const filter = {};
+    const filter = { deletedAt: null };
     if (isInternal) {
         if (req.query.organizationId)
             filter.organizationId = req.query.organizationId;
@@ -62,7 +62,7 @@ function resolveOrgFilter(req) {
 // another organization" so cross-tenant probing can't distinguish the two.
 async function findScopedUser(req, id) {
     const target = await models_1.User.findById(id);
-    if (!target)
+    if (!target || target.deletedAt)
         throw ApiError_1.ApiError.notFound("User not found");
     if (!isInternalActor(req) && target.organizationId?.toString() !== req.user.organizationId) {
         throw ApiError_1.ApiError.notFound("User not found");
@@ -342,6 +342,61 @@ exports.resetUserPassword = (0, asyncHandler_1.asyncHandler)(async (req, res) =>
         });
     }
     return (0, ApiResponse_1.ok)(res, { tempPassword: password }, "Password reset");
+});
+// DELETE /users/:id - a Super Admin/Admin (or Master/Assistant Master Admin,
+// via the same tenant-isolation + role-hierarchy rules as every other action
+// in this file) removes an Admin's/User's account. Same hard-vs-soft-delete
+// pattern as vendor.controller.js's deleteVendor: a never-used account (no
+// requests, orders, payments, files or audit history of its own) is hard
+// deleted outright; anything with real history is soft deleted (deactivated,
+// email released for reuse, every session invalidated) so existing
+// requests/orders/payments/audit entries still resolve to a real user
+// record. Never deletable: a Master Admin (not reachable via this
+// client/tenant-only endpoint), an Assistant Master Admin (same reason),
+// or the caller's own account.
+exports.deleteUser = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const target = await findScopedUser(req, req.params.id);
+    assertCanActOn(req.user.role, target.role);
+    if (target._id.toString() === req.user.id) {
+        throw ApiError_1.ApiError.forbidden("You cannot delete your own account");
+    }
+    const id = target._id;
+    const [requests, orders, payments, files, audits] = await Promise.all([
+        models_1.EStampRequest.exists({ createdBy: id }),
+        models_1.EStampOrder.exists({ createdBy: id }),
+        models_1.Payment.exists({ createdBy: id }),
+        models_1.FileAsset.exists({ ownerUserId: id }),
+        models_1.AuditLog.exists({ actorId: id }),
+    ]);
+    const hard = !requests && !orders && !payments && !files && !audits;
+    if (hard) {
+        await models_1.RefreshToken.deleteMany({ userId: id });
+        await models_1.User.deleteOne({ _id: id });
+    }
+    else {
+        await models_1.User.updateOne({ _id: id }, { $set: { isActive: false, deletedAt: new Date(), email: `deleted+${id.toString()}@deleted.invalid` }, $unset: { initialPasswordEnc: "", tempPasswordExpiresAt: "" } });
+        await auth_service_1.AuthService.invalidateAllSessions(id.toString());
+    }
+    await (0, audit_service_1.recordAudit)({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        organizationId: target.organizationId?.toString() ?? null,
+        action: shared_1.AuditAction.USER_DELETED,
+        entityType: "User",
+        entityId: id.toString(),
+        metadata: { role: target.role, deleted: hard ? "hard" : "soft" },
+        req,
+    });
+    if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN) {
+        await (0, notification_service_1.notifyAllMasterAdmins)({
+            type: shared_1.NotificationType.ASSISTANT_ADMIN_ACTIVITY,
+            title: "Client employee deleted",
+            message: `Assistant Master Admin deleted a client employee account.`,
+            relatedActorId: req.user.id,
+            organizationId: target.organizationId?.toString() ?? null,
+        });
+    }
+    return (0, ApiResponse_1.ok)(res, { id: id.toString(), deleted: hard ? "hard" : "soft" }, "User deleted");
 });
 // Master-Admin-only: create an Assistant Master Admin (INTERNAL_ROLE,
 // organizationId always null) with an explicit, Master-Admin-chosen

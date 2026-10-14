@@ -11,7 +11,13 @@ import ErrorState from "../../components/common/ErrorState";
 import TemporaryPasswordCell from "../../components/common/TemporaryPasswordCell";
 
 const LIMIT = 10;
-const TITLES = { SUPER_ADMIN: "Super Admins", ADMIN: "Admins", USER: "Users" };
+const TITLES = {
+  MASTER_ADMIN: "Master Admins",
+  ASSISTANT_MASTER_ADMIN: "Assistant Master Admins",
+  SUPER_ADMIN: "Super Admins",
+  ADMIN: "Admins",
+  USER: "Users",
+};
 
 export default function UsersListPage() {
   const { user: me } = useAuth();
@@ -70,6 +76,29 @@ export default function UsersListPage() {
     }
   }
 
+  const canManage = hasPermission(me, PERMISSIONS.USER_MANAGE);
+  const canDelete = (target) => {
+    if (!canManage) return false;
+    if (target._id === me?._id) return false;
+    return manageableRoles(me?.role).includes(target.role);
+  };
+
+  async function handleDelete(user) {
+    if (!window.confirm(`Are you sure you want to delete ${user.name}? This action cannot be undone.`)) return;
+    setActionError(null);
+    try {
+      await apiClient.delete(`/users/${user._id}`);
+      setNotice(`${user.name} deleted.`);
+      if (items.length === 1 && page > 1) {
+        setPage((p) => p - 1);
+      } else {
+        load();
+      }
+    } catch (err) {
+      setActionError(getErrorMessage(err, "Failed to delete user."));
+    }
+  }
+
   const createRole = creatableRoles(me?.role).includes(role) ? role : "USER";
   const canCreate = hasPermission(me, PERMISSIONS.USER_CREATE) && creatableRoles(me?.role).length > 0;
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -77,7 +106,7 @@ export default function UsersListPage() {
   return (
     <div>
       <PageHeader
-        title={role ? TITLES[role] : "Users"}
+        title={role ? TITLES[role] || `${ROLE_LABELS[role] || role}s` : "Users"}
         actions={
           canCreate && (
             <Link to={`/users/new?role=${createRole}`} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium">
@@ -115,7 +144,7 @@ export default function UsersListPage() {
           onChange={(e) => setFilter("status", e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
-          <option value="">All statuses</option>
+          <option value="">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
@@ -195,6 +224,11 @@ export default function UsersListPage() {
                         Activate
                       </button>
                     ))}
+                  {canDelete(u) && (
+                    <button onClick={() => handleDelete(u)} className="text-red-600 hover:underline">
+                      Delete
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

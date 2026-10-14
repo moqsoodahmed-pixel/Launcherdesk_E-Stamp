@@ -59,6 +59,12 @@ router.patch("/:id/role", (0, authorize_1.requirePermission)(shared_1.Permission
 // Admin's/User's account - the controller enforces the same tenant-
 // isolation and role-authority rule as every other action in this file.
 router.post("/:id/reset-password", (0, authorize_1.requirePermission)(shared_1.Permission.USER_MANAGE), require("../../middleware/rateLimiters").userPasswordResetLimiter, (0, validate_1.validateBody)(validation_1.resetUserPasswordSchema), ctrl.resetUserPassword);
+// Deletes an existing Admin's/User's account (hard delete if it has no
+// history at all, otherwise soft delete) - same tenant-isolation and
+// role-authority rule as every other action in this file, enforced in the
+// controller. Rate-limited per actor, same as a password reset, so a
+// hijacked admin session cannot mass-delete accounts.
+router.delete("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.USER_MANAGE), require("../../middleware/rateLimiters").userPasswordResetLimiter, ctrl.deleteUser);
 // Master-Admin-only: create and manage Assistant Master Admin accounts.
 // Registered with an explicit requireRole gate (not just permission checks)
 // so an Assistant Master Admin can never reach these routes at all, no

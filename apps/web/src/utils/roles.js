@@ -22,4 +22,11 @@ export function creatableRoles(actorRole) {
 // and never manageable through /users - Master Admin manages vendors on /vendors.
 export const VENDOR_ROLE = "VENDOR";
 
-export const ROLE_LABELS = { SUPER_ADMIN: "Super Admin", ADMIN: "Admin", USER: "User", VENDOR: "Vendor" };
+export const ROLE_LABELS = {
+  MASTER_ADMIN: "Master Admin",
+  ASSISTANT_MASTER_ADMIN: "Assistant Master Admin",
+  SUPER_ADMIN: "Super Admin",
+  ADMIN: "Admin",
+  USER: "User",
+  VENDOR: "Vendor",
+};

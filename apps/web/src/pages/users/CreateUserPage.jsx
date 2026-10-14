@@ -45,7 +45,7 @@ export default function CreateUserPage() {
         <h1 className="text-xl font-semibold text-slate-900 mb-4">{ROLE_LABELS[result.user.role] || "User"} created</h1>
         <div className="bg-amber-50 text-amber-800 rounded-2xl border border-amber-200 p-6 space-y-2">
           <p>
-            <strong>{result.user.name}</strong> ({result.user.email}) has been created as <strong>{result.user.role}</strong>.
+            <strong>{result.user.name}</strong> ({result.user.email}) has been created as <strong>{ROLE_LABELS[result.user.role] || result.user.role}</strong>.
           </p>
           <p>Share this password securely - it won't be shown here again:</p>
           <p className="font-mono font-semibold text-lg">{result.tempPassword}</p>

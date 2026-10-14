@@ -70,6 +70,20 @@ export default function AssistantAdminsPage() {
     }
   }
 
+  async function handleDelete(u) {
+    if (!window.confirm(`Are you sure you want to delete ${u.name}? This action cannot be undone.`)) return;
+    setRowErr(null);
+    setBusyId(u._id);
+    try {
+      await apiClient.delete(`/users/${u._id}`);
+      refetch();
+    } catch (err) {
+      setRowErr(actionError(err, "Could not delete this account."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const items = data?.items || [];
   const total = data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
@@ -189,6 +203,14 @@ export default function AssistantAdminsPage() {
                       className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                     >
                       {u.isActive ? "Deactivate" : "Activate"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === u._id}
+                      onClick={() => handleDelete(u)}
+                      className="rounded-lg border border-red-300 text-red-700 px-3 py-1 text-xs hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>

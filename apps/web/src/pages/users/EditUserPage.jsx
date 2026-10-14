@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { getErrorMessage } from "../../utils/errors";
 import { useAuth } from "../../context/AuthContext";
@@ -11,6 +11,7 @@ import TemporaryPasswordCell from "../../components/common/TemporaryPasswordCell
 
 export default function EditUserPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user: me } = useAuth();
   const [user, setUser] = useState(null);
   const [form, setForm] = useState(null);
@@ -19,11 +20,25 @@ export default function EditUserPage() {
   const [notice, setNotice] = useState(null);
   const [saving, setSaving] = useState(false);
   const [roleBusy, setRoleBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [resetResult, setResetResult] = useState(null);
   const [resetError, setResetError] = useState(null);
+
+  async function handleDelete() {
+    if (!window.confirm(`Are you sure you want to delete ${user.name}? This action cannot be undone.`)) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await apiClient.delete(`/users/${id}`);
+      navigate(`/users?role=${user.role}`);
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to delete user."));
+      setDeleting(false);
+    }
+  }
 
   // `silent` reloads after a save keep the form on screen instead of
   // flashing back to "Loading...".
@@ -82,7 +97,7 @@ export default function EditUserPage() {
   }
 
   async function handleRoleChange(newRole) {
-    if (!window.confirm(`Change ${user.name}'s role to ${newRole}?`)) return;
+    if (!window.confirm(`Change ${user.name}'s role to ${ROLE_LABELS[newRole] || newRole}?`)) return;
     setRoleBusy(true);
     setError(null);
     setNotice(null);
@@ -217,7 +232,7 @@ export default function EditUserPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="font-medium text-slate-900 mb-3">Role</h2>
           <p className="text-sm text-slate-500 mb-3">
-            Current role: <span className="font-medium text-slate-900">{user.role}</span>
+            Current role: <span className="font-medium text-slate-900">{ROLE_LABELS[user.role] || user.role}</span>
           </p>
           <button
             disabled={roleBusy}
@@ -225,6 +240,23 @@ export default function EditUserPage() {
             className="text-sm rounded-lg border border-slate-300 px-4 py-2 disabled:opacity-50 hover:bg-slate-50"
           >
             Change to {user.role === "ADMIN" ? "User" : "Admin"}
+          </button>
+        </div>
+      )}
+
+      {canEdit && user._id !== me?._id && (
+        <div className="bg-white rounded-2xl border border-red-200 p-6">
+          <h2 className="font-medium text-red-900 mb-2">Delete User</h2>
+          <p className="text-sm text-slate-500 mb-4">
+            Permanently remove this user account. If the user has history (orders, requests, audits), their record will be safely deactivated and anonymized.
+          </p>
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={handleDelete}
+            className="rounded-lg bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            {deleting ? "Deleting..." : "Delete user"}
           </button>
         </div>
       )}
