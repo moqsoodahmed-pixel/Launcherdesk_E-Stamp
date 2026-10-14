@@ -630,3 +630,80 @@ describe("Assistant Master Admin oversight", () => {
     expect(res.body.data.items[0].organizationId.toString()).toBe(org1._id.toString());
   });
 });
+
+describe("Tenant isolation - confirm/cancel is blocked for an unassigned Assistant Master Admin", () => {
+  // Regression coverage for a real cross-tenant bug: confirmBatch/cancelBatch
+  // used to accept ANY organizationId an internal actor supplied in the
+  // request body, with no check that an Assistant Master Admin was actually
+  // assigned to that organization - letting them reserve wallet funds and
+  // create live EStampRequests/EStampOrders against a client they were never
+  // assigned to. The fix derives organizationId from the BATCH ITSELF and
+  // asserts org access before the controller calls the service at all.
+  async function uploadedBatchFor(org, article) {
+    const buffer = buildCsv([rowFor(article)]);
+    const { batch } = await BulkEStampService.uploadBatch({
+      organizationId: org._id, createdBy: new mongoose.Types.ObjectId(), actorRole: Role.MASTER_ADMIN,
+      fileBuffer: buffer, mimeType: "text/csv", originalFileName: "unassigned.csv",
+    });
+    return batch;
+  }
+  function unassignedAssistantReq(batch, overrides = {}) {
+    return makeReq({
+      user: { id: new mongoose.Types.ObjectId().toString(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: getEffectivePermissions(Role.ASSISTANT_MASTER_ADMIN, []) },
+      params: { batchId: batch._id.toString() },
+      body: {},
+      ...overrides,
+    });
+  }
+
+  it("confirmBatch is rejected (403) for an Assistant Master Admin never assigned to the batch's organization", async () => {
+    const { org, article } = await makeOrgWithArticle({ balance: 2000, fixedAmount: 500 });
+    const batch = await uploadedBatchFor(org, article);
+    const { error } = await runController(bulkController.confirmBatch, unassignedAssistantReq(batch), makeRes());
+    expect(error).not.toBeNull();
+    expect(error.statusCode).toBe(403);
+    // Never reserved any wallet funds or created requests against this org.
+    expect(await getWalletBalance(org._id.toString())).toBe(2000);
+    expect(await EStampRequest.countDocuments({ organizationId: org._id })).toBe(0);
+  });
+
+  it("cancelBatch is rejected (403) for an Assistant Master Admin never assigned to the batch's organization", async () => {
+    const { org, article } = await makeOrgWithArticle();
+    const batch = await uploadedBatchFor(org, article);
+    const { error } = await runController(bulkController.cancelBatch, unassignedAssistantReq(batch), makeRes());
+    expect(error).not.toBeNull();
+    expect(error.statusCode).toBe(403);
+    const reloaded = await BulkEStampBatch.findById(batch._id);
+    expect(reloaded.status).not.toBe("CANCELLED");
+  });
+
+  it("an organizationId supplied in the body that differs from the batch's real org never substitutes for real assignment", async () => {
+    const { org: realOrg, article } = await makeOrgWithArticle({ balance: 2000, fixedAmount: 500 });
+    const { org: assignedOrg } = await makeOrgWithArticle();
+    const batch = await uploadedBatchFor(realOrg, article);
+    const assistantId = new mongoose.Types.ObjectId();
+    // Assigned to a DIFFERENT org, and supplies that org's id in the body -
+    // must still be rejected, since the batch actually belongs to realOrg.
+    await Organization.updateOne({ _id: assignedOrg._id }, { assignedAssistantId: assistantId });
+    const req = makeReq({
+      user: { id: assistantId.toString(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: getEffectivePermissions(Role.ASSISTANT_MASTER_ADMIN, []) },
+      params: { batchId: batch._id.toString() },
+      body: { organizationId: assignedOrg._id.toString() },
+    });
+    const { error } = await runController(bulkController.confirmBatch, req, makeRes());
+    expect(error).not.toBeNull();
+    expect(error.statusCode).toBe(403);
+    expect(await getWalletBalance(realOrg._id.toString())).toBe(2000);
+  });
+
+  it("confirmBatch/cancelBatch succeed once the Assistant Master Admin IS assigned to the batch's organization", async () => {
+    const { org, article } = await makeOrgWithArticle({ balance: 2000, fixedAmount: 500 });
+    const batch = await uploadedBatchFor(org, article);
+    const assistantId = new mongoose.Types.ObjectId();
+    await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistantId });
+    const req = unassignedAssistantReq(batch, { user: { id: assistantId.toString(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: getEffectivePermissions(Role.ASSISTANT_MASTER_ADMIN, []) } });
+    const { error, res } = await runController(bulkController.confirmBatch, req, makeRes());
+    expect(error).toBeNull();
+    expect(["PROCESSING", "COMPLETED"]).toContain(res.body.data.batch.status);
+  });
+});

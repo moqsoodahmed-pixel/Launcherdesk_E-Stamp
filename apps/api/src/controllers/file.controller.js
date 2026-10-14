@@ -15,13 +15,16 @@ const estamp_notifications_1 = require("../services/estamp-notifications");
 const orgAccess_1 = require("../utils/orgAccess");
 // Internal roles (Master/Assistant Master Admin) always have organizationId
 // === null on their OWN account - they act ON BEHALF OF a client org, so the
-// target org must come from the request, never from their own record.
-function resolveUploadOrgId(req) {
+// target org must come from the request, never from their own record. An
+// Assistant Master Admin may only upload on behalf of an organization
+// assigned to them - a Master Admin may act on any organization.
+async function resolveUploadOrgId(req) {
     const isInternal = req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
     if (isInternal) {
         const organizationId = req.body.organizationId;
         if (!organizationId)
             throw ApiError_1.ApiError.badRequest("organizationId is required when uploading as an internal admin");
+        await (0, orgAccess_1.assertCanActOnOrganization)(req, organizationId);
         return organizationId;
     }
     return req.user.organizationId;
@@ -30,7 +33,7 @@ exports.uploadFile = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const file = req.file;
     if (!file)
         throw ApiError_1.ApiError.badRequest("No file provided");
-    const organizationId = resolveUploadOrgId(req);
+    const organizationId = await resolveUploadOrgId(req);
     const fileType = req.body.fileType || "OTHER";
     // Attaching the actual E-Stamp certificate/document is an operational
     // action distinct from ordinary supporting-document uploads (which any

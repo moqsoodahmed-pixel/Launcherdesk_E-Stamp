@@ -380,13 +380,26 @@ describe("Permissions", () => {
   it("an Assistant Master Admin explicitly granted ORDER_MANAGE can attach", async () => {
     const { org, order } = await makeIssuedOrder();
     const assistant = { id: new mongoose.Types.ObjectId().toString(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: [Permission.ORDER_MANAGE] };
+    // Assistants only reach organizations assigned to them.
+    await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistant.id });
     const { error } = await attach(org, order, { actor: assistant });
     expect(error).toBeNull();
+  });
+
+  it("an Assistant Master Admin assigned to a DIFFERENT organization cannot attach to this one", async () => {
+    const { org, order } = await makeIssuedOrder();
+    const assistant = { id: new mongoose.Types.ObjectId().toString(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: [Permission.ORDER_MANAGE] };
+    // Deliberately never assigned to `org`.
+    const { error } = await attach(org, order, { actor: assistant });
+    expect(error).not.toBeNull();
+    expect(error.statusCode).toBe(403);
   });
 
   it("an Assistant Master Admin WITHOUT ORDER_MANAGE is rejected (403) when attaching", async () => {
     const { org, order } = await makeIssuedOrder();
     const assistant = { id: new mongoose.Types.ObjectId().toString(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: [] };
+    // Assigned to the org, so the only thing being tested is the ORDER_MANAGE gate.
+    await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistant.id });
     const { error } = await attach(org, order, { actor: assistant });
     expect(error).not.toBeNull();
     expect(error.statusCode).toBe(403);

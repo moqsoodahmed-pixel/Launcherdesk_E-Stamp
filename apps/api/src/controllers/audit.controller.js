@@ -8,6 +8,7 @@ const ApiError_1 = require("../utils/ApiError");
 const mongoose_1 = require("mongoose");
 const models_1 = require("../models");
 const shared_1 = require("@launcherdesk/shared");
+const orgAccess_1 = require("../utils/orgAccess");
 // Phase 15 - hardening the EXISTING audit system (not a rebuild). Access
 // control mirrors report.controller.js's isInternalActor/resolveScope
 // pattern exactly: Master Admin is genuinely global; any OTHER actor holding
@@ -25,7 +26,7 @@ function isInternalActor(req) {
 // ignored/overridden, never honored and never surfaced as an error (matches
 // the codebase-wide existence-hiding convention: a tenant actor must never
 // learn, even indirectly, whether another org's data exists).
-function resolveScope(req) {
+async function resolveScope(req) {
     if (req.user.role === shared_1.Role.MASTER_ADMIN) {
         const requested = req.query.organizationId;
         if (requested) {
@@ -38,7 +39,11 @@ function resolveScope(req) {
     }
     if (isInternalActor(req)) {
         // Assistant Master Admin holding an explicit audit.view grant - never
-        // a silent global fallback; must name exactly one organization.
+        // a silent global fallback; must name exactly one organization, and
+        // only one they are actually assigned to (never a foreign org just
+        // because they hold the audit.view permission - that permission
+        // grants VIEWING AUDIT LOGS for assigned orgs, not cross-tenant
+        // access).
         const requested = req.query.organizationId;
         if (!requested) {
             throw ApiError_1.ApiError.badRequest("organizationId is required", "ORGANIZATION_ID_REQUIRED");
@@ -46,6 +51,7 @@ function resolveScope(req) {
         if (!mongoose_1.Types.ObjectId.isValid(requested)) {
             throw ApiError_1.ApiError.badRequest("Invalid organizationId", "INVALID_ORGANIZATION_ID");
         }
+        await (0, orgAccess_1.assertCanActOnOrganization)(req, requested);
         return { organizationId: requested, isGlobal: false };
     }
     // Tenant actor (SUPER_ADMIN/ADMIN holding audit.view via their own role
@@ -97,7 +103,7 @@ function parseSort(query) {
 // visibility into their OWN activity, regardless of audit.view, is exposed
 // separately via /audit/mine.
 exports.listAuditLogs = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { organizationId } = resolveScope(req);
+    const { organizationId } = await resolveScope(req);
     const { action, actorId, actorRole, actorType, entityType, entityId } = req.query;
     const filter = {};
     if (organizationId)

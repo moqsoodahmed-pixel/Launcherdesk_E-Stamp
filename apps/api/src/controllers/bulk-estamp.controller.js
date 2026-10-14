@@ -10,18 +10,22 @@ const ExcelJS = require("exceljs");
 const models_1 = require("../models");
 const indianStates_1 = require("../utils/indianStates");
 const orgAccess_1 = require("../utils/orgAccess");
+const mongoose_1 = require("mongoose");
 function isInternalActor(req) {
     return req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
 }
 // Action routes (upload/confirm/cancel): organizationId is ALWAYS the
 // authenticated tenant actor's own organization. Internal roles act on
 // behalf of a client org and must pass it explicitly on upload; on confirm/cancel
-// the existing batch already belongs to its organization.
-function resolveActionOrgId(req) {
+// the existing batch already belongs to its organization. An Assistant
+// Master Admin may only act on an organization assigned to them - a Master
+// Admin may act on any organization.
+async function resolveActionOrgId(req) {
     if (isInternalActor(req)) {
         const organizationId = req.body?.organizationId || req.query?.organizationId;
         if (!organizationId)
             throw ApiError_1.ApiError.badRequest("organizationId is required when acting as an internal admin");
+        await (0, orgAccess_1.assertCanActOnOrganization)(req, organizationId);
         return organizationId;
     }
     return req.user.organizationId;
@@ -36,7 +40,7 @@ exports.uploadBatch = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const file = req.file;
     if (!file)
         throw ApiError_1.ApiError.badRequest("No file provided");
-    const organizationId = resolveActionOrgId(req);
+    const organizationId = await resolveActionOrgId(req);
     const { batch, items } = await bulk_estamp_service_1.BulkEStampService.uploadBatch({
         organizationId,
         createdBy: req.user.id,
@@ -78,17 +82,30 @@ exports.getBatchPreview = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     }
     return (0, ApiResponse_1.ok)(res, result);
 });
+// Resolves the organizationId for a confirm/cancel action on an EXISTING
+// batch. The batch's own organizationId is the source of truth (never a
+// client-supplied value) - an internal actor must be assigned to that real
+// organization, checked BEFORE any mutation happens. A Master Admin may act
+// on any organization; an Assistant Master Admin only on one assigned to
+// them (see orgAccess.assertCanActOnOrganization).
+async function resolveExistingBatchOrgId(req) {
+    if (!isInternalActor(req))
+        return req.user.organizationId;
+    if (!mongoose_1.Types.ObjectId.isValid(req.params.batchId))
+        throw ApiError_1.ApiError.notFound("Batch not found");
+    const batch = await models_1.BulkEStampBatch.findById(req.params.batchId).select("organizationId");
+    if (!batch)
+        throw ApiError_1.ApiError.notFound("Batch not found");
+    await (0, orgAccess_1.assertCanActOnOrganization)(req, batch.organizationId);
+    return batch.organizationId;
+}
 exports.confirmBatch = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const organizationId = isInternalActor(req)
-        ? (req.body?.organizationId || req.query?.organizationId || null)
-        : req.user.organizationId;
+    const organizationId = await resolveExistingBatchOrgId(req);
     const result = await bulk_estamp_service_1.BulkEStampService.confirmBatch(req.params.batchId, organizationId, req.user.id, req.user.role, req);
     return (0, ApiResponse_1.ok)(res, result);
 });
 exports.cancelBatch = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const organizationId = isInternalActor(req)
-        ? (req.body?.organizationId || req.query?.organizationId || null)
-        : req.user.organizationId;
+    const organizationId = await resolveExistingBatchOrgId(req);
     const batch = await bulk_estamp_service_1.BulkEStampService.cancelBatch(req.params.batchId, organizationId, req.user.id, req.user.role, req);
     return (0, ApiResponse_1.ok)(res, batch);
 });

@@ -173,9 +173,22 @@ describe("Tenant isolation / scoping (listAuditLogs controller)", () => {
     await seedEntry({ organizationId: orgB._id });
     const permissions = getEffectivePermissions(Role.ASSISTANT_MASTER_ADMIN, [Permission.AUDIT_VIEW]);
     const req = reqAs(Role.ASSISTANT_MASTER_ADMIN, null, permissions, { query: { organizationId: orgA._id.toString() } });
+    // Assistants only reach organizations assigned to them.
+    await Organization.updateOne({ _id: orgA._id }, { assignedAssistantId: req.user.id });
     const { res, error } = await runController(auditController.listAuditLogs, req, makeRes());
     expect(error).toBeNull();
     expect(res.body.data.total).toBe(1);
+  });
+
+  it("Assistant Master Admin with audit.view CANNOT view an organization not assigned to them", async () => {
+    const orgA = await createOrg();
+    await seedEntry({ organizationId: orgA._id });
+    const permissions = getEffectivePermissions(Role.ASSISTANT_MASTER_ADMIN, [Permission.AUDIT_VIEW]);
+    const req = reqAs(Role.ASSISTANT_MASTER_ADMIN, null, permissions, { query: { organizationId: orgA._id.toString() } });
+    // orgA is never assigned to this assistant.
+    const { error } = await runController(auditController.listAuditLogs, req, makeRes());
+    expect(error).not.toBeNull();
+    expect(error.statusCode).toBe(403);
   });
 
   it("a tenant actor's forged organizationId query param is silently ignored - they only ever see their OWN organization's entries", async () => {

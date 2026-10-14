@@ -171,6 +171,8 @@ describe("Test 14/15 & 16/17: Assistant Master Admin E-Stamp upload/download cre
     const master = await makeMasterAdmin();
     const org = await makeOrgWithWallet();
     const { user: assistant } = await makeAssistant();
+    // Assistants only reach the organizations assigned to them.
+    await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistant._id });
 
     const req = makeReq({
       user: { id: assistant._id.toString(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: DEFAULT_ROLE_PERMISSIONS[Role.ASSISTANT_MASTER_ADMIN] },
@@ -189,6 +191,21 @@ describe("Test 14/15 & 16/17: Assistant Master Admin E-Stamp upload/download cre
 
     const notification = await Notification.findOne({ recipientId: master._id, type: "ASSISTANT_ADMIN_ACTIVITY" });
     expect(notification).not.toBeNull();
+  });
+
+  it("uploadFile is rejected (403) when the Assistant Master Admin is NOT assigned to the organizationId supplied in the body", async () => {
+    const org = await makeOrgWithWallet();
+    const { user: assistant } = await makeAssistant();
+    // Deliberately never assigned to `org`.
+    const req = makeReq({
+      user: { id: assistant._id.toString(), role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: DEFAULT_ROLE_PERMISSIONS[Role.ASSISTANT_MASTER_ADMIN] },
+      body: { organizationId: org._id.toString(), fileType: "OTHER" },
+      file: { buffer: Buffer.from("test-pdf-bytes"), originalname: "stamp.pdf", mimetype: "application/pdf" },
+    });
+    const { error } = await runController(fileController.uploadFile, req, makeRes());
+    expect(error).not.toBeNull();
+    expect(error.statusCode).toBe(403);
+    expect(await FileAsset.findOne({ organizationId: org._id })).toBeNull();
   });
 
   it("downloadEStamp records ESTAMP_DOWNLOADED audit and notifies Master Admin", async () => {

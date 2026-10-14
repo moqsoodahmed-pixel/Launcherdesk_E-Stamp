@@ -199,7 +199,21 @@ exports.cancelRequest = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 });
 exports.verifyDocuments = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const isInternal = (0, orgAccess_1.isInternalRole)(req.user.role);
-    const organizationId = isInternal ? undefined : req.user.organizationId;
+    // The request's OWN organizationId is the source of truth here - the
+    // frontend never sends one for this action. An internal actor must be
+    // assigned to that real organization, checked before any mutation
+    // (previously this passed organizationId=undefined for every internal
+    // actor, which skipped org scoping entirely).
+    let organizationId = req.user.organizationId;
+    if (isInternal) {
+        if (!mongoose_1.Types.ObjectId.isValid(req.params.id))
+            throw ApiError_1.ApiError.notFound("E-Stamp request not found");
+        const existing = await models_1.EStampRequest.findById(req.params.id).select("organizationId");
+        if (!existing)
+            throw ApiError_1.ApiError.notFound("E-Stamp request not found");
+        await (0, orgAccess_1.assertCanActOnOrganization)(req, existing.organizationId);
+        organizationId = existing.organizationId;
+    }
     const request = await estamp_request_service_1.EStampRequestService.verifyDocuments(
         req.params.id,
         organizationId,
