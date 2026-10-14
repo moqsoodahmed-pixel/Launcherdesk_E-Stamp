@@ -49,8 +49,8 @@ const SIGNATURE_PNG = path.join(ASSETS_DIR, "signature.png");
 
 // Seal/signature placement in the signature block, sized to sit together
 // just above the "Authorized Signatory" line.
-const SEAL_BOX = { x: 390, y: 600, width: 80, height: 82 };
-const SIGNATURE_BOX = { x: 478, y: 603, width: 70, height: 76 };
+const SEAL_BOX = { x: 390, y: 570, width: 80, height: 82 };
+const SIGNATURE_BOX = { x: 478, y: 573, width: 70, height: 76 };
 
 const SELLER_NAME = "LauncherDesk (DutyLaunch Solutions Private Limited)";
 const PAYEE_NAME = "DutyLaunch Solutions Private Limited";
@@ -68,32 +68,32 @@ function formatInvoiceDate(d) {
 
 function drawHeader(doc, { invoiceNumber }) {
     doc.font(FONT_BOLD).fontSize(16).fillColor("#1a1a1a");
-    doc.text("Payment Invoice", 0, 230, { width: PAGE_WIDTH, align: "center" });
+    doc.text("Payment Invoice", 0, 170, { width: PAGE_WIDTH, align: "center" });
 
     doc.font(FONT_BOLD).fontSize(9.5);
-    doc.text(`Sold By: ${SELLER_NAME}`, 40, 262, { width: 320 });
+    doc.text(`Sold By: ${SELLER_NAME}`, 40, 202, { width: 320 });
 
     // Dashed box around the invoice number.
     doc.save();
-    doc.dash(1.5, { space: 1.5 }).lineWidth(0.72).rect(371.1, 255, 184, 24).stroke("#000000");
+    doc.dash(1.5, { space: 1.5 }).lineWidth(0.72).rect(371.1, 195, 184, 24).stroke("#000000");
     doc.undash();
     doc.restore();
-    doc.font(FONT_BOLD).fontSize(9).text("Invoice Number # ", 380, 263, { continued: true });
+    doc.font(FONT_BOLD).fontSize(9).text("Invoice Number # ", 380, 203, { continued: true });
     doc.font(FONT_REGULAR).text(invoiceNumber, { continued: false });
 
-    doc.rect(40, 300, PAGE_WIDTH - 80, 1.0).fill("#000000");
+    doc.rect(40, 240, PAGE_WIDTH - 80, 1.0).fill("#000000");
 }
 
 function drawBillTo(doc, { invoiceDate, organizationName, payerName, payerRole }) {
     doc.font(FONT_BOLD).fontSize(9).fillColor("#1a1a1a");
-    doc.text("Invoice Date: ", 40, 315, { continued: true });
+    doc.text("Invoice Date: ", 40, 255, { continued: true });
     doc.font(FONT_REGULAR).text(invoiceDate, { continued: false });
 
-    doc.font(FONT_BOLD).text("Bill To", 320, 315);
-    doc.font(FONT_BOLD).fontSize(9.5).text(organizationName, 320, 328, { width: 235 });
+    doc.font(FONT_BOLD).text("Bill To", 320, 255);
+    doc.font(FONT_BOLD).fontSize(9.5).text(organizationName, 320, 268, { width: 235 });
     if (payerName) {
         doc.font(FONT_REGULAR).fontSize(8.5).fillColor("#444444");
-        doc.text(`Paid by: ${payerName}${payerRole ? ` (${payerRole.replace(/_/g, " ")})` : ""}`, 320, 344, { width: 235 });
+        doc.text(`Paid by: ${payerName}${payerRole ? ` (${payerRole.replace(/_/g, " ")})` : ""}`, 320, 284, { width: 235 });
         doc.fillColor("#1a1a1a");
     }
 }
@@ -102,10 +102,10 @@ const COLS = { description: 40, qty: 330, amountLabel: 400, amountValueRight: 55
 
 function drawTableHeader(doc) {
     doc.font(FONT_BOLD).fontSize(9).fillColor("#1a1a1a");
-    doc.text("Description", COLS.description, 400);
-    doc.text("Qty", COLS.qty, 400);
-    doc.text(`Amount (${RUPEE})`, COLS.amountLabel, 400);
-    doc.rect(40, 416, PAGE_WIDTH - 80, 1.0).fill("#000000");
+    doc.text("Description", COLS.description, 340);
+    doc.text("Qty", COLS.qty, 340);
+    doc.text(`Amount (${RUPEE})`, COLS.amountLabel, 340);
+    doc.rect(40, 356, PAGE_WIDTH - 80, 1.0).fill("#000000");
 }
 
 function rightText(doc, text, rightEdge, y) {
@@ -141,9 +141,9 @@ function drawSignatureBlock(doc) {
         doc.image(SIGNATURE_PNG, SIGNATURE_BOX.x, SIGNATURE_BOX.y, { width: SIGNATURE_BOX.width, height: SIGNATURE_BOX.height });
     }
     doc.font(FONT_BOLD).fontSize(8.5).fillColor("#1a1a1a");
-    doc.text(PAYEE_NAME, 390, 590, { width: 165, align: "right" });
+    doc.text(PAYEE_NAME, 390, 560, { width: 165, align: "right" });
     doc.font(FONT_REGULAR).fontSize(9);
-    doc.text("Authorized Signatory", 478, 685);
+    doc.text("Authorized Signatory", 478, 665);
 }
 
 function drawFooterNote(doc) {
@@ -151,7 +151,7 @@ function drawFooterNote(doc) {
     // the letterhead's own footer band (logo-free contact row + blue
     // banner) starts further down the page and must never be covered.
     doc.font(FONT_ITALIC).fontSize(7.5).fillColor("#444444");
-    doc.text("Thank you for your business with LauncherDesk. This is a system-generated invoice for a wallet top-up / E-Stamping balance purchase - no GST is levied on this transaction.", 40, 550, { width: PAGE_WIDTH - 80 });
+    doc.text("Thank you for your business with LauncherDesk. This is a system-generated invoice for a wallet top-up / E-Stamping balance purchase - no GST is levied on this transaction.", 40, 510, { width: PAGE_WIDTH - 80 });
     doc.fillColor("#1a1a1a");
 }
 
@@ -185,9 +185,9 @@ function generateInvoicePdfBuffer(data) {
             drawHeader(doc, data);
             drawBillTo(doc, { invoiceDate: data.invoiceDate || formatInvoiceDate(), organizationName: data.organizationName || "Client Organization", payerName: data.payerName, payerRole: data.payerRole });
             drawTableHeader(doc);
-            drawLineItem(doc, { description: data.description || "Wallet Top-up & E-Stamping Balance", amount: data.amount }, 432);
-            drawGrandTotal(doc, data.amount, 470);
-            drawPaymentDetails(doc, { transactionId: data.transactionId, paymentMethod: data.paymentMethod }, 510);
+            drawLineItem(doc, { description: data.description || "Wallet Top-up & E-Stamping Balance", amount: data.amount }, 372);
+            drawGrandTotal(doc, data.amount, 410);
+            drawPaymentDetails(doc, { transactionId: data.transactionId, paymentMethod: data.paymentMethod }, 460);
             drawFooterNote(doc);
             drawSignatureBlock(doc);
 
