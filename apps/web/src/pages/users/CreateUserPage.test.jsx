@@ -45,7 +45,7 @@ describe("CreateUserPage - setting a password at creation", () => {
     apiClient.post.mockResolvedValue({ data: { data: { user: { name: "Admin Test", email: "admin@x.test", role: "ADMIN" }, tempPassword: "MyChosen1Pw" } } });
     renderAt("/users/new?role=ADMIN");
 
-    const passwordInput = screen.getByLabelText("Password (optional)");
+    const passwordInput = screen.getByLabelText("Password");
     expect(passwordInput).toHaveAttribute("type", "password");
     await u.type(passwordInput, "MyChosen1Pw");
     await u.click(screen.getByRole("button", { name: "Show" }));
@@ -62,17 +62,20 @@ describe("CreateUserPage - setting a password at creation", () => {
     expect(screen.queryByText(/required to change it on first login/)).not.toBeInTheDocument();
   });
 
-  it("left blank, the field submits as empty rather than a fabricated value - the server generates one", async () => {
+  it("is required - the browser blocks submission and the server is never called when it's left blank", async () => {
     const { default: userEvent } = await import("@testing-library/user-event");
     const u = userEvent.setup();
-    apiClient.post.mockResolvedValue({ data: { data: { user: { name: "Gen User", email: "gen@x.test", role: "USER" }, tempPassword: "Server-Generated-1" } } });
     renderAt("/users/new?role=USER");
+
+    const passwordInput = screen.getByLabelText("Password");
+    expect(passwordInput).toBeRequired();
 
     await u.type(screen.getByLabelText("Name"), "Gen User");
     await u.type(screen.getByLabelText("Email"), "gen@x.test");
     await u.click(screen.getByRole("button", { name: /Create user/ }));
 
-    expect(apiClient.post).toHaveBeenCalledWith("/users", expect.objectContaining({ password: "" }));
-    expect(await screen.findByText("Server-Generated-1")).toBeInTheDocument();
+    // Native HTML5 "required" validation blocks the submit handler entirely -
+    // nothing is auto-generated, and the creator must supply a password.
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 });

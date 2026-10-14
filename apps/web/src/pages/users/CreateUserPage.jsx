@@ -105,14 +105,14 @@ export default function CreateUserPage() {
         </div>
         <div>
           <label htmlFor="create-user-password" className="block text-sm font-medium text-slate-700 mb-1">
-            Password (optional)
+            Password
           </label>
           <div className="relative">
             <input
               id="create-user-password"
+              required
               type={showPassword ? "text" : "password"}
               minLength={8}
-              placeholder="Leave blank to generate one automatically"
               value={form.password}
               onChange={(e) => update("password", e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"

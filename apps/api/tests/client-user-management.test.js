@@ -68,7 +68,7 @@ describe("CRUD", () => {
   it("Super Admin can create an Admin and a User for their own organization", async () => {
     const org = await makeOrg("CreateOrg");
     const superAdmin = await makeTenantUser(org._id, Role.SUPER_ADMIN);
-    const body = createUserSchema.parse({ name: "New Admin", email: `newadmin-${new mongoose.Types.ObjectId()}@ld.local`, role: Role.ADMIN });
+    const body = createUserSchema.parse({ name: "New Admin", email: `newadmin-${new mongoose.Types.ObjectId()}@ld.local`, role: Role.ADMIN, password: "TestPass123" });
     const { res, error } = await runController(userController.createUser, reqAs(superAdmin, { body }), makeRes());
     expect(error).toBeNull();
     expect(res.body.data.user.organizationId.toString()).toBe(org._id.toString());
@@ -100,10 +100,12 @@ describe("CRUD", () => {
     expect(result.success).toBe(false);
   });
 
-  it("a blank password field (submitted as '' by the form) is treated as not provided - the server still generates one", () => {
-    const parsed = createUserSchema.safeParse({ name: "Xavier", email: "x@example.com", role: Role.USER, password: "" });
-    expect(parsed.success).toBe(true);
-    expect(parsed.data.password).toBeUndefined();
+  // Password is required (not auto-generated) - the creator must set it
+  // themselves, and the empty string the form submits when it's genuinely
+  // left blank must fail with a clear reason, same as leaving it out entirely.
+  it("a blank or missing password is rejected - the creator must set it, nothing is auto-generated", () => {
+    expect(createUserSchema.safeParse({ name: "Xavier", email: "x@example.com", role: Role.USER, password: "" }).success).toBe(false);
+    expect(createUserSchema.safeParse({ name: "Xavier", email: "x@example.com", role: Role.USER }).success).toBe(false);
   });
 
   it("Super Admin can view and update a single user's profile", async () => {
@@ -137,7 +139,7 @@ describe("Roles", () => {
   it("Super Admin can create an Admin", async () => {
     const org = await makeOrg("RoleOrg1");
     const superAdmin = await makeTenantUser(org._id, Role.SUPER_ADMIN);
-    const body = createUserSchema.parse({ name: "Aaa Admin", email: `a-${new mongoose.Types.ObjectId()}@ld.local`, role: Role.ADMIN });
+    const body = createUserSchema.parse({ name: "Aaa Admin", email: `a-${new mongoose.Types.ObjectId()}@ld.local`, role: Role.ADMIN, password: "TestPass123" });
     const { error } = await runController(userController.createUser, reqAs(superAdmin, { body }), makeRes());
     expect(error).toBeNull();
   });
@@ -145,19 +147,19 @@ describe("Roles", () => {
   it("Super Admin can create a User", async () => {
     const org = await makeOrg("RoleOrg2");
     const superAdmin = await makeTenantUser(org._id, Role.SUPER_ADMIN);
-    const body = createUserSchema.parse({ name: "Bbb User", email: `b-${new mongoose.Types.ObjectId()}@ld.local`, role: Role.USER });
+    const body = createUserSchema.parse({ name: "Bbb User", email: `b-${new mongoose.Types.ObjectId()}@ld.local`, role: Role.USER, password: "TestPass123" });
     const { error } = await runController(userController.createUser, reqAs(superAdmin, { body }), makeRes());
     expect(error).toBeNull();
   });
 
   it("an invalid role is rejected at the schema layer", () => {
-    const result = createUserSchema.safeParse({ name: "X", email: "x@example.com", role: "OWNER" });
+    const result = createUserSchema.safeParse({ name: "X", email: "x@example.com", role: "OWNER", password: "TestPass123" });
     expect(result.success).toBe(false);
   });
 
   it("protected internal roles (MASTER_ADMIN, ASSISTANT_MASTER_ADMIN) are rejected at the schema layer", () => {
     for (const role of [Role.MASTER_ADMIN, Role.ASSISTANT_MASTER_ADMIN]) {
-      const result = createUserSchema.safeParse({ name: "X", email: "x@example.com", role });
+      const result = createUserSchema.safeParse({ name: "X", email: "x@example.com", role, password: "TestPass123" });
       expect(result.success).toBe(false);
     }
   });
@@ -168,7 +170,7 @@ describe("Roles", () => {
   // still has to satisfy min(6) and failed with a bare, unexplained
   // "Validation failed" (never reached the controller to create the user).
   it("an empty-string phone (the optional field left blank in the form) is accepted, not rejected", async () => {
-    const parsed = createUserSchema.safeParse({ name: "Bhojaraj", email: "bhojaraj@example.com", phone: "", role: Role.ADMIN });
+    const parsed = createUserSchema.safeParse({ name: "Bhojaraj", email: "bhojaraj@example.com", phone: "", role: Role.ADMIN, password: "TestPass123" });
     expect(parsed.success).toBe(true);
     expect(parsed.data.phone).toBeUndefined();
 
@@ -179,7 +181,7 @@ describe("Roles", () => {
   });
 
   it("a genuinely too-short phone number is still rejected", () => {
-    const result = createUserSchema.safeParse({ name: "X", email: "x@example.com", phone: "12345", role: Role.USER });
+    const result = createUserSchema.safeParse({ name: "X", email: "x@example.com", phone: "12345", role: Role.USER, password: "TestPass123" });
     expect(result.success).toBe(false);
   });
 
@@ -217,7 +219,7 @@ describe("Tenant isolation", () => {
 
     // Attempting to spoof organizationId in the body does not let Super Admin A
     // create a user for Organization B - createUser never reads it from the body.
-    const body = createUserSchema.parse({ name: "Spoofed", email: `spoof-${new mongoose.Types.ObjectId()}@ld.local`, role: Role.USER });
+    const body = createUserSchema.parse({ name: "Spoofed", email: `spoof-${new mongoose.Types.ObjectId()}@ld.local`, role: Role.USER, password: "TestPass123" });
     const { res: createRes, error: createErr } = await runController(
       userController.createUser,
       reqAs(superAdminA, { body: { ...body, organizationId: orgB._id.toString() } }),
@@ -394,7 +396,7 @@ describe("Assistant Master Admin: permission-gated employee management", () => {
     const { threw } = await runMiddleware(requirePermission(Permission.USER_CREATE), makeReq({ user: assistant }), makeRes());
     expect(threw).toBeNull();
 
-    const body = createUserSchema.parse({ name: "Assistant Made", email: `assistmade-${new mongoose.Types.ObjectId()}@ld.local`, role: Role.USER });
+    const body = createUserSchema.parse({ name: "Assistant Made", email: `assistmade-${new mongoose.Types.ObjectId()}@ld.local`, role: Role.USER, password: "TestPass123" });
     const { res, error } = await runController(userController.createUser, makeReq({ user: assistant, body }), makeRes());
     expect(error).toBeNull();
 

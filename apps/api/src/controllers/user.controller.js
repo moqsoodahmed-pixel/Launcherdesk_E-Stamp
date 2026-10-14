@@ -96,10 +96,10 @@ exports.createUser = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const existing = await models_1.User.findOne({ email: email.toLowerCase() });
     if (existing)
         throw ApiError_1.ApiError.conflict("A user with this email already exists");
-    // The creator (Super Admin/Admin) may set the password themselves instead
-    // of getting a random one - still stored in the same revealable vault
-    // below either way, so it's never lost. Never logged.
-    const tempPassword = password || crypto_1.default.randomBytes(9).toString("base64url");
+    // The creator (Super Admin/Admin) sets the password themselves - required
+    // by the schema, never auto-generated. Still stored in the same
+    // revealable vault below, so it's never lost. Never logged.
+    const tempPassword = password;
     const passwordHash = await auth_service_1.AuthService.hashPassword(tempPassword);
     const user = await models_1.User.create({
         name,

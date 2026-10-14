@@ -206,7 +206,7 @@ describe("temporary password reveal", () => {
     const sa = await User.findById(onboarding.body.data.superAdmin._id);
     await User.updateOne({ _id: sa._id }, { $set: { lastOtpVerifiedAt: new Date(), mustChangePassword: false } });
     const saToken = (await AuthService.issueTokens(await User.findById(sa._id))).accessToken;
-    const employee = await call("POST", "/users", saToken, { name: "Employee", email: `emp-${uid()}@client.test`, role: "USER" });
+    const employee = await call("POST", "/users", saToken, { name: "Employee", email: `emp-${uid()}@client.test`, role: "USER", password: "TestPass123" });
     expect(employee.status).toBe(201);
     expect((await reveal(employee.body.data.user._id, token)).body.data.tempPassword).toBe(employee.body.data.tempPassword);
     // The Master Admin vendor reset replaces it.
