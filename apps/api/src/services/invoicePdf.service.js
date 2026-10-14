@@ -49,8 +49,13 @@ const SIGNATURE_PNG = path.join(ASSETS_DIR, "signature.png");
 
 // Seal/signature placement in the signature block, sized to sit together
 // just above the "Authorized Signatory" line.
-const SEAL_BOX = { x: 390, y: 500, width: 80, height: 82 };
-const SIGNATURE_BOX = { x: 478, y: 503, width: 70, height: 76 };
+// Anchored near the very bottom of the page, just above the letterhead's
+// own footer band. Measured directly off the letterhead's pixels (not
+// guessed): its contact-info row starts at y=2960px of a 3508px-tall
+// image, i.e. ~710pt down a 841.92pt page - so this block must clear
+// well above that, not float mid-page with empty space beneath it.
+const SEAL_BOX = { x: 390, y: 572, width: 80, height: 82 };
+const SIGNATURE_BOX = { x: 478, y: 575, width: 70, height: 76 };
 
 const SELLER_NAME = "LauncherDesk (DutyLaunch Solutions Private Limited)";
 const PAYEE_NAME = "DutyLaunch Solutions Private Limited";
@@ -141,9 +146,9 @@ function drawSignatureBlock(doc) {
         doc.image(SIGNATURE_PNG, SIGNATURE_BOX.x, SIGNATURE_BOX.y, { width: SIGNATURE_BOX.width, height: SIGNATURE_BOX.height });
     }
     doc.font(FONT_BOLD).fontSize(8.5).fillColor("#1a1a1a");
-    doc.text(PAYEE_NAME, 390, 490, { width: 165, align: "right" });
+    doc.text(PAYEE_NAME, 390, 560, { width: 165, align: "right" });
     doc.font(FONT_REGULAR).fontSize(9);
-    doc.text("Authorized Signatory", 478, 585);
+    doc.text("Authorized Signatory", 478, 660);
 }
 
 function drawFooterNote(doc) {
