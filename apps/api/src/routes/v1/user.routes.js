@@ -44,8 +44,13 @@ const router = (0, express_1.Router)();
 router.use(authenticate_1.authenticate, (0, authorize_1.requireOrganizationAccess)());
 router.post("/", (0, authorize_1.requirePermission)(shared_1.Permission.USER_CREATE), (0, validate_1.validateBody)(validation_1.createUserSchema), ctrl.createUser);
 router.get("/", (0, authorize_1.requirePermission)(shared_1.Permission.USER_VIEW), ctrl.listUsers);
-// Master Admin only: reveal a SYSTEM-GENERATED temporary password.
-router.get("/:id/temporary-password", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), require("../../middleware/rateLimiters").credentialRevealLimiter, ctrl.revealTemporaryPassword);
+// Reveal a SYSTEM-GENERATED temporary password. Master Admin can reveal
+// anyone's (platform-wide); Super Admin and Admin can reveal only someone
+// they themselves had the authority to create, within their own
+// organization - the controller enforces both the tenant-isolation and
+// the role-authority check, this gate just keeps every other role out
+// (never an Assistant Master Admin, a User, or a Vendor).
+router.get("/:id/temporary-password", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN, shared_1.Role.SUPER_ADMIN, shared_1.Role.ADMIN), require("../../middleware/rateLimiters").credentialRevealLimiter, ctrl.revealTemporaryPassword);
 router.get("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.USER_VIEW), ctrl.getUser);
 router.patch("/:id", (0, authorize_1.requirePermission)(shared_1.Permission.USER_MANAGE), (0, validate_1.validateBody)(validation_1.updateClientUserSchema), ctrl.updateUser);
 router.patch("/:id/status", (0, authorize_1.requirePermission)(shared_1.Permission.USER_MANAGE), ctrl.updateUserStatus);

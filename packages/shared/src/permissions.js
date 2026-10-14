@@ -129,6 +129,14 @@ exports.DEFAULT_ROLE_PERMISSIONS = {
     ],
     [roles_1.Role.ADMIN]: [
         Permission.USER_VIEW,
+        // ADMIN previously lacked both of these, so there was no way for an
+        // Admin to create or manage a User at all (the "Add User"/password
+        // -reveal flow this unlocks). createUser's own ROLE_LEVEL check
+        // still only ever lets ADMIN create/manage USER - never another
+        // ADMIN or anything above - so this is not a scope increase beyond
+        // that one, already-enforced boundary.
+        Permission.USER_CREATE,
+        Permission.USER_MANAGE,
         Permission.ESTAMP_CREATE,
         Permission.ESTAMP_VIEW,
         Permission.ESTAMP_MODIFY,

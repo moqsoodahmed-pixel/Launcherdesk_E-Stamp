@@ -667,7 +667,13 @@ function PriceSummary({ calculation, calculating, calcError, onRetry, balance })
       <Row label="Convenience Fee" value={formatCurrency(pricing.convenienceFee)} />
       <Row label="Procurement Charge" value={formatCurrency(pricing.procurementFee)} />
       <Row label="GST (18%)" value={formatCurrency(pricing.gst)} />
-      <Row label="Government Fees" value={dutyDisplay} />
+      {/* The government stamp duty itself is always billed at the real,
+          final government rate - never a figure LauncherDesk sets - so this
+          disclosure always reads "At Actuals", independent of whether that
+          rate happens to already be known (the "Stamp duty" row above). It
+          previously reused dutyDisplay, which showed a second, duplicate
+          currency figure instead of this disclosure once the duty WAS known. */}
+      <Row label="Government Fees" value="At Actuals" />
       <div className="flex justify-between pt-2 mt-1 border-t border-slate-300">
         <span className="font-semibold text-slate-900">Total payable</span>
         <span className="font-semibold text-slate-900">{pricing.totalAmount === null ? "-" : formatCurrency(pricing.totalAmount)}</span>

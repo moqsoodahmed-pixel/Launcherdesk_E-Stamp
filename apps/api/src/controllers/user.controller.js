@@ -142,18 +142,23 @@ exports.listUsers = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { page = "1", limit = "20" } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
-    const isMaster = req.user.role === shared_1.Role.MASTER_ADMIN;
+    // Same three roles the /:id/temporary-password route now allows to
+    // reveal a password (Master Admin platform-wide; Super Admin/Admin only
+    // within their own org, already enforced by resolveOrgFilter above) -
+    // everyone else gets no passwordState at all, matching what they're
+    // actually permitted to act on.
+    const canSeePasswordState = [shared_1.Role.MASTER_ADMIN, shared_1.Role.SUPER_ADMIN, shared_1.Role.ADMIN].includes(req.user.role);
     const [users, total] = await Promise.all([
         models_1.User.find(filter)
-            .select(isMaster ? "-passwordHash +tempPasswordExpiresAt" : "-passwordHash")
+            .select(canSeePasswordState ? "-passwordHash +tempPasswordExpiresAt" : "-passwordHash")
             .sort({ createdAt: -1 })
             .skip((pageNum - 1) * limitNum)
             .limit(limitNum),
         models_1.User.countDocuments(filter),
     ]);
-    // Master Admin only: passwordState (TEMPORARY / SET_BY_USER) and nothing
-    // else credential-related; the expiry field itself is never returned.
-    const items = isMaster ? users.map((u) => {
+    // passwordState (TEMPORARY / SET_BY_USER) only - nothing else
+    // credential-related; the expiry field itself is never returned.
+    const items = canSeePasswordState ? users.map((u) => {
         const plain = u.toObject();
         delete plain.tempPasswordExpiresAt;
         return { ...plain, passwordState: (0, credentialVault_1.passwordStateOf)(u) };
@@ -235,6 +240,13 @@ exports.updateUserRole = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { role: newRole } = req.body;
     const target = await findScopedUser(req, req.params.id);
     assertCanActOn(req.user.role, target.role);
+    // assertCanActOn above only checks the target's CURRENT role - an actor
+    // who may act on a USER (because USER is strictly below them) could
+    // otherwise promote that same USER straight to a role equal to or above
+    // their own (e.g. an ADMIN granting ADMIN) by naming it in the request
+    // body. The role being GRANTED needs the exact same authority check as
+    // the role being acted on.
+    assertCanActOn(req.user.role, newRole);
     if (![shared_1.Role.ADMIN, shared_1.Role.USER].includes(target.role)) {
         throw ApiError_1.ApiError.forbidden("This user's role cannot be changed through this endpoint");
     }
@@ -331,18 +343,39 @@ exports.updateAssistantAdminPermissions = (0, asyncHandler_1.asyncHandler)(async
         req,
     });
     return (0, ApiResponse_1.ok)(res, { ...target.toObject(), passwordHash: undefined });
-});// GET /users/:id/temporary-password - MASTER_ADMIN only (route-gated).
-// Reveals a SYSTEM-GENERATED temporary password until the user sets their
-// own (any change/reset purges it) or 7 days pass. Never for a Master Admin
-// target. Every reveal is audited without the password; responses are never
-// cached.
+});// GET /users/:id/temporary-password - Master Admin (platform-wide), and now
+// also Super Admin/Admin for someone they themselves had the authority to
+// create: a Super Admin may reveal an Admin's or User's password within
+// their OWN organization; an Admin may reveal only a User's, also within
+// their own organization. Reveals a SYSTEM-GENERATED temporary password
+// until the user sets their own (any change/reset purges it) or 7 days
+// pass. Never for a Master Admin target. Every reveal is audited without
+// the password; responses are never cached.
 const REVEALABLE_ROLES = [shared_1.Role.VENDOR, shared_1.Role.ASSISTANT_MASTER_ADMIN, shared_1.Role.SUPER_ADMIN, shared_1.Role.ADMIN, shared_1.Role.USER];
 exports.revealTemporaryPassword = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     res.set("Cache-Control", "no-store");
     res.set("Pragma", "no-cache");
-    const target = /^[a-f0-9]{24}$/i.test(String(req.params.id)) ? await models_1.User.findOne({ _id: req.params.id, deletedAt: null }).select("+initialPasswordEnc +tempPasswordExpiresAt role") : null;
+    const target = /^[a-f0-9]{24}$/i.test(String(req.params.id)) ? await models_1.User.findOne({ _id: req.params.id, deletedAt: null }).select("+initialPasswordEnc +tempPasswordExpiresAt role organizationId") : null;
     if (!target)
         throw ApiError_1.ApiError.notFound("User not found");
+    // Tenant isolation: a non-internal actor (Super Admin, Admin) may only
+    // ever reveal a password for a user inside their OWN organization - the
+    // same "not found" shape for "doesn't exist" and "exists in another
+    // org" as findScopedUser() uses elsewhere, so cross-tenant probing can't
+    // tell the two apart.
+    if (!isInternalActor(req) && target.organizationId?.toString() !== req.user.organizationId) {
+        throw ApiError_1.ApiError.notFound("User not found");
+    }
+    if (req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN && !(await (0, orgAccess_1.canAccessOrganization)(req, target.organizationId))) {
+        throw ApiError_1.ApiError.notFound("User not found");
+    }
+    // Authority check: the same "only strictly-lower-authority roles" rule
+    // as createUser/updateUserRole - a Super Admin can reveal an Admin's or
+    // User's password, an Admin only a User's, and Master Admin (level 1)
+    // outranks everyone revealable. Never a peer's or superior's.
+    if (shared_1.ROLE_LEVEL[target.role] <= shared_1.ROLE_LEVEL[req.user.role]) {
+        throw ApiError_1.ApiError.forbidden("You cannot reveal the password of a user of this role");
+    }
     if (!REVEALABLE_ROLES.includes(target.role))
         throw ApiError_1.ApiError.forbidden("Passwords of this role can never be revealed");
     if (!(0, credentialVault_1.isEnabled)()) {

@@ -214,15 +214,24 @@ describe("temporary password reveal", () => {
     expect((await reveal(vendor.id, token)).body.data.tempPassword).toBe(reset.body.data.tempPassword);
   });
 
-  it("403 for every non-master role; never for a Master Admin target", async () => {
+  it("403 for roles the route never admits at all (Assistant Master Admin, Vendor, User); a Vendor target is 404 for a tenant actor (no organization to match); never 200 for a Master Admin target", async () => {
     const { token: master } = await makeUser(Role.MASTER_ADMIN);
     const vendor = await createVendor(master);
     const { token: assistant } = await makeAssistant();
     const { token: vendorToken } = await makeUser(Role.VENDOR);
     const org = await Organization.create({ name: `O ${uid()}`, contactEmail: `o-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
-    const tenantTokens = [];
-    for (const role of [Role.SUPER_ADMIN, Role.ADMIN, Role.USER]) tenantTokens.push((await makeUser(role, { organizationId: org._id })).token);
-    for (const t of [assistant, vendorToken, ...tenantTokens]) expect((await reveal(vendor.id, t)).status).toBe(403);
+    const { token: tenantUserToken } = await makeUser(Role.USER, { organizationId: org._id });
+    // The route gate itself never admits these three roles - 403 before the
+    // controller's tenant/authority checks ever run.
+    for (const t of [assistant, vendorToken, tenantUserToken]) expect((await reveal(vendor.id, t)).status).toBe(403);
+
+    // Super Admin/Admin DO pass the route gate now, but a Vendor has no
+    // organizationId to match against theirs, so the controller's tenant
+    // isolation hides it the same way a genuinely nonexistent id would.
+    const { token: superAdminToken } = await makeUser(Role.SUPER_ADMIN, { organizationId: org._id });
+    const { token: adminToken } = await makeUser(Role.ADMIN, { organizationId: org._id });
+    expect((await reveal(vendor.id, superAdminToken)).status).toBe(404);
+    expect((await reveal(vendor.id, adminToken)).status).toBe(404);
 
     const { user: otherMaster } = await makeUser(Role.MASTER_ADMIN);
     await vault.storeTemporaryPassword(otherMaster._id, "Never-Shown-1");
@@ -230,6 +239,44 @@ describe("temporary password reveal", () => {
     expect(r.status).toBe(403);
     expect(JSON.stringify(r.body)).not.toContain("Never-Shown-1");
     expect((await reveal(uid(), master)).status).toBe(404);
+  });
+
+  it("Super Admin reveals an Admin's or User's password within their own organization only; never a peer or a superior; never cross-tenant", async () => {
+    const orgA = await Organization.create({ name: `A ${uid()}`, contactEmail: `a-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const orgB = await Organization.create({ name: `B ${uid()}`, contactEmail: `b-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const { token: superAdminA } = await makeUser(Role.SUPER_ADMIN, { organizationId: orgA._id });
+    const admin = await makeUser(Role.ADMIN, { organizationId: orgA._id });
+    await vault.storeTemporaryPassword(admin.user._id, "Admin-Temp-Pass-1");
+    const user = await makeUser(Role.USER, { organizationId: orgA._id });
+    await vault.storeTemporaryPassword(user.user._id, "User-Temp-Pass-1");
+    const peerSuperAdmin = await makeUser(Role.SUPER_ADMIN, { organizationId: orgA._id });
+    const userInOrgB = await makeUser(Role.USER, { organizationId: orgB._id });
+    await vault.storeTemporaryPassword(userInOrgB.user._id, "Other-Org-Pass-1");
+
+    expect((await reveal(admin.user._id, superAdminA)).body.data.tempPassword).toBe("Admin-Temp-Pass-1");
+    expect((await reveal(user.user._id, superAdminA)).body.data.tempPassword).toBe("User-Temp-Pass-1");
+    // A peer (another Super Admin, even in the same org) is never revealable.
+    expect((await reveal(peerSuperAdmin.user._id, superAdminA)).status).toBe(403);
+    // A user in a DIFFERENT organization is hidden as "not found", not 403 -
+    // the same shape as a nonexistent id, so cross-tenant probing learns nothing.
+    const crossTenant = await reveal(userInOrgB.user._id, superAdminA);
+    expect(crossTenant.status).toBe(404);
+    expect(JSON.stringify(crossTenant.body)).not.toContain("Other-Org-Pass-1");
+    const audit = await AuditLog.findOne({ action: AuditAction.CREDENTIAL_REVEALED, entityId: admin.user._id });
+    expect(audit.organizationId.toString()).toBe(orgA._id.toString());
+  });
+
+  it("Admin reveals only a User's password within their own organization; never an Admin peer or a Super Admin", async () => {
+    const org = await Organization.create({ name: `C ${uid()}`, contactEmail: `c-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const { token: adminToken } = await makeUser(Role.ADMIN, { organizationId: org._id });
+    const user = await makeUser(Role.USER, { organizationId: org._id });
+    await vault.storeTemporaryPassword(user.user._id, "User-Temp-Pass-2");
+    const peerAdmin = await makeUser(Role.ADMIN, { organizationId: org._id });
+    const superAdmin = await makeUser(Role.SUPER_ADMIN, { organizationId: org._id });
+
+    expect((await reveal(user.user._id, adminToken)).body.data.tempPassword).toBe("User-Temp-Pass-2");
+    expect((await reveal(peerAdmin.user._id, adminToken)).status).toBe(403);
+    expect((await reveal(superAdmin.user._id, adminToken)).status).toBe(403);
   });
 
   it("never appears in list responses; lists carry passwordState only", async () => {
@@ -245,9 +292,24 @@ describe("temporary password reveal", () => {
     }
     expect(lists[0].body.data.items.find((v) => v._id === vendor.id).passwordState).toBe("TEMPORARY");
     expect(lists[4].body.data.superAdmin.passwordState).toBe("TEMPORARY");
-    // A non-master list never carries passwordState.
+    // Assistant Master Admin and a plain USER list never carry passwordState
+    // - neither role can reveal anyone's password.
     const { token: assistant } = await makeAssistant();
     expect(JSON.stringify((await call("GET", "/users", assistant)).body)).not.toContain("passwordState");
+
+    // Super Admin and Admin now CAN reveal (within their own org), so their
+    // own GET /users list carries passwordState too.
+    const org = await Organization.create({ name: `PS ${uid()}`, contactEmail: `ps-${uid()}@x.test`, contactPhone: "1", createdBy: uid(), status: OrganizationStatus.ACTIVE });
+    const { token: superAdminToken } = await makeUser(Role.SUPER_ADMIN, { organizationId: org._id });
+    const { user: orgUser } = await makeUser(Role.USER, { organizationId: org._id });
+    await vault.storeTemporaryPassword(orgUser._id, "List-Temp-Pass-1");
+    const superAdminList = await call("GET", "/users", superAdminToken);
+    expect(superAdminList.body.data.items.find((u) => u._id === orgUser._id.toString()).passwordState).toBe("TEMPORARY");
+    expect(JSON.stringify(superAdminList.body)).not.toContain("List-Temp-Pass-1");
+
+    const { token: adminToken } = await makeUser(Role.ADMIN, { organizationId: org._id });
+    const adminList = await call("GET", "/users", adminToken);
+    expect(adminList.body.data.items.find((u) => u._id === orgUser._id.toString()).passwordState).toBe("TEMPORARY");
   });
 
   it("purged on change-password, reset, delete and after 7 days; reveal is 404 afterwards", async () => {

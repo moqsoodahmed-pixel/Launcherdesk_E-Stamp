@@ -225,14 +225,36 @@ describe("Privilege escalation", () => {
     }
   });
 
-  it("Admin cannot change a User's role to ADMIN without USER_MANAGE permission", async () => {
+  // ADMIN now holds USER_MANAGE by default (needed so an Admin can create
+  // and manage its own org's Users), so the permission gate alone no longer
+  // stops this - the controller's own role-authority check is now the real
+  // and only protection, and it must check the role being GRANTED, not just
+  // the target's role before the change (an Admin acting on a User, who IS
+  // strictly below it, could otherwise promote that same User straight to
+  // ADMIN - its own peer level - by naming it in the request body).
+  it("Admin cannot promote a User to ADMIN even though it holds USER_MANAGE (controller-level authority check)", async () => {
     const org = await makeOrg("EscalateOrg2");
-    const admin = await makeTenantUser(org._id, Role.ADMIN); // default perms: USER_VIEW only
+    const admin = await makeTenantUser(org._id, Role.ADMIN);
     const employee = await makeTenantUser(org._id, Role.USER);
     const req = reqAs(admin, { params: { id: employee._id.toString() }, body: { role: Role.ADMIN } });
-    const { threw } = await runMiddleware(requirePermission(Permission.USER_MANAGE), req, makeRes());
-    expect(threw).not.toBeNull();
-    expect(threw.statusCode).toBe(403);
+    // The permission gate itself now passes - ADMIN genuinely has USER_MANAGE.
+    const { threw: permissionThrew } = await runMiddleware(requirePermission(Permission.USER_MANAGE), req, makeRes());
+    expect(permissionThrew).toBeNull();
+    // But the controller rejects the actual escalation.
+    const { error } = await runController(userController.updateUserRole, req, makeRes());
+    expect(error).not.toBeNull();
+    expect(error.statusCode).toBe(403);
+    expect(await User.findById(employee._id).then((u) => u.role)).toBe(Role.USER);
+  });
+
+  it("Super Admin CAN promote a User to ADMIN within its own organization", async () => {
+    const org = await makeOrg("EscalateOrg2b");
+    const superAdmin = await makeTenantUser(org._id, Role.SUPER_ADMIN);
+    const employee = await makeTenantUser(org._id, Role.USER);
+    const req = reqAs(superAdmin, { params: { id: employee._id.toString() }, body: { role: Role.ADMIN } });
+    const { error } = await runController(userController.updateUserRole, req, makeRes());
+    expect(error).toBeNull();
+    expect(await User.findById(employee._id).then((u) => u.role)).toBe(Role.ADMIN);
   });
 
   it("a Super Admin's role can never be changed through the role-change endpoint, even by Master Admin", async () => {

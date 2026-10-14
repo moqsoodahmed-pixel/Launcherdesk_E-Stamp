@@ -141,15 +141,23 @@ describe("Password columns", () => {
     expect(apiClient.get).toHaveBeenCalledTimes(1);
   });
 
-  it("Users page shows the Password column only to Master Admin", async () => {
+  it("Users page shows the Password column to Master Admin, Super Admin and Admin - but never to a role that can't reveal anyone's password", async () => {
     const items = [{ _id: "u1", name: "Emp", email: "e@x.test", role: "USER", isActive: true, createdAt: new Date().toISOString(), passwordState: "TEMPORARY" }];
     apiClient.get.mockReturnValue(ok({ items, total: 1 }));
-    const { unmount } = inRouter(<UsersListPage />);
-    await screen.findByText("Emp");
-    expect(screen.getByRole("columnheader", { name: "Password" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Show password for Emp" })).toBeInTheDocument();
-    unmount();
-    mockUser = { role: "SUPER_ADMIN", organizationId: "org1", permissions: [PERMISSIONS.USER_VIEW, PERMISSIONS.USER_MANAGE] };
+
+    for (const role of ["MASTER_ADMIN", "SUPER_ADMIN", "ADMIN"]) {
+      mockUser = { role, organizationId: "org1", permissions: [PERMISSIONS.USER_VIEW, PERMISSIONS.USER_MANAGE] };
+      const { unmount } = inRouter(<UsersListPage />);
+      await screen.findByText("Emp");
+      expect(screen.getByRole("columnheader", { name: "Password" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Show password for Emp" })).toBeInTheDocument();
+      unmount();
+    }
+
+    // Assistant Master Admin can view/manage client users but was never
+    // granted password-reveal (GET /:id/temporary-password route-gates it
+    // out) - the column must not appear and imply a capability it doesn't have.
+    mockUser = { role: "ASSISTANT_MASTER_ADMIN", permissions: [PERMISSIONS.CLIENT_VIEW, PERMISSIONS.USER_VIEW] };
     inRouter(<UsersListPage />);
     await screen.findByText("Emp");
     expect(screen.queryByRole("columnheader", { name: "Password" })).not.toBeInTheDocument();

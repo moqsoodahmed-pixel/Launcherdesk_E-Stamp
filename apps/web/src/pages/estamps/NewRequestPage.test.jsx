@@ -267,7 +267,12 @@ describe("NewRequestPage - Review & Submit", () => {
     expect(screen.getByText("₹17.82")).toBeInTheDocument();
     expect(screen.getByText("Total payable")).toBeInTheDocument();
     expect(screen.getByText("₹616.82")).toBeInTheDocument();
-    expect(screen.queryByText("At Actuals")).not.toBeInTheDocument();
+    // Stamp duty itself is a known, real number here - but Government Fees
+    // is a disclosure that the duty is billed at the real government rate,
+    // not a figure LauncherDesk invented, so it always reads "At Actuals"
+    // even when that rate is already known.
+    expect(screen.getByText("Government Fees").parentElement).toHaveTextContent("At Actuals");
+    expect(screen.getByText("Stamp duty").parentElement).not.toHaveTextContent("At Actuals");
   });
 
   it("shows 'At Actuals' instead of ₹0 when the duty is not configured, and leaves the total blank", async () => {
