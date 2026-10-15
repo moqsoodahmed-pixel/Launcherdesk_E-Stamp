@@ -33,7 +33,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
   const [loadingPackages, setLoadingPackages] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
-  const [customAmount, setCustomAmount] = useState("1000");
+  const [customAmount, setCustomAmount] = useState("1117");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [successResult, setSuccessResult] = useState(null);
@@ -83,17 +83,22 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
   const finalStamps = isCustom ? Math.floor(finalAmount / 15) : selectedPkg.stampsCount;
   const copy = INTENT_COPY[intent] || INTENT_COPY.buy;
 
+  // A custom top-up must cover at least 10 E-Stamps at the base ₹100 duty
+  // plus the platform's flat procurement fee and GST - see
+  // payment.service.js's MIN_CUSTOM_TOPUP_AMOUNT, which enforces this same
+  // floor server-side regardless of what the client sends.
+  const MIN_CUSTOM_TOPUP_AMOUNT = 1117;
   const isAmountValid =
     !isCustom ||
-    (Number.isFinite(finalAmount) && finalAmount >= 100 && finalAmount <= 1000000);
+    (Number.isFinite(finalAmount) && finalAmount >= MIN_CUSTOM_TOPUP_AMOUNT && finalAmount <= 1000000);
 
   async function handleCheckout(e) {
     e.preventDefault();
     if (purchasingRef.current) return;
     setError(null);
 
-    if (!Number.isFinite(finalAmount) || finalAmount < 100) {
-      setError("Please specify an amount of at least ₹100.");
+    if (!Number.isFinite(finalAmount) || finalAmount < MIN_CUSTOM_TOPUP_AMOUNT) {
+      setError(`Please specify an amount of at least ₹${MIN_CUSTOM_TOPUP_AMOUNT} (covers 10 E-Stamps).`);
       return;
     }
     if (finalAmount > 1000000) {
@@ -333,7 +338,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-semibold text-sm text-slate-900">Custom Amount Top-Up</span>
-                <p className="text-xs text-slate-500">Fund wallet balance with any custom amount</p>
+                <p className="text-xs text-slate-500">Minimum ₹1,117 — covers 10 E-Stamps</p>
               </div>
               <input
                 type="radio"
@@ -351,12 +356,12 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
                   </span>
                   <input
                     type="number"
-                    min="100"
-                    step="100"
+                    min={MIN_CUSTOM_TOPUP_AMOUNT}
+                    step="1"
                     value={customAmount}
                     onChange={(e) => setCustomAmount(e.target.value)}
                     className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    placeholder="Enter amount"
+                    placeholder={`Enter amount (min ₹${MIN_CUSTOM_TOPUP_AMOUNT})`}
                   />
                 </div>
                 <span className="text-xs text-slate-500 whitespace-nowrap">

@@ -39,7 +39,7 @@ function reqAsTenant(role, organizationId, overrides = {}) {
 describe("Payment order creation", () => {
   it("an authorized Super Admin can create a payment order", async () => {
     const org = await makeOrgWithWallet();
-    const body = createRazorpayOrderSchema.parse({ amount: 500 });
+    const body = createRazorpayOrderSchema.parse({ amount: 1117 });
     const req = reqAsTenant(Role.SUPER_ADMIN, org._id, { body });
     const { res, error } = await runController(paymentController.createRazorpayOrder, req, makeRes());
     expect(error).toBeNull();
@@ -68,10 +68,16 @@ describe("Payment order creation", () => {
     expect(createRazorpayOrderSchema.safeParse({ amount: 5000000 }).success).toBe(false);
   });
 
+  it("rejects a custom top-up below the ₹1,117 minimum, but never a packageKey purchase (its own price is resolved server-side)", () => {
+    expect(createRazorpayOrderSchema.safeParse({ amount: 1116 }).success).toBe(false);
+    expect(createRazorpayOrderSchema.safeParse({ amount: 1117 }).success).toBe(true);
+    expect(createRazorpayOrderSchema.safeParse({ packageKey: "starter" }).success).toBe(true);
+  });
+
   it("organization is derived from the authenticated user - a spoofed organizationId in the body is ignored for tenant actors", async () => {
     const org = await makeOrgWithWallet();
     const otherOrg = await makeOrgWithWallet();
-    const body = { ...createRazorpayOrderSchema.parse({ amount: 200 }), organizationId: otherOrg._id.toString() };
+    const body = { ...createRazorpayOrderSchema.parse({ amount: 1117 }), organizationId: otherOrg._id.toString() };
     const req = reqAsTenant(Role.SUPER_ADMIN, org._id, { body });
     const { res, error } = await runController(paymentController.createRazorpayOrder, req, makeRes());
     expect(error).toBeNull();
@@ -331,7 +337,7 @@ describe("Assistant Master Admin oversight", () => {
     const assistantId = new mongoose.Types.ObjectId().toString();
     // Assistants may only act on organizations assigned to them.
     await Organization.updateOne({ _id: org._id }, { assignedAssistantId: assistantId });
-    const body = { ...createRazorpayOrderSchema.parse({ amount: 500 }), organizationId: org._id.toString() };
+    const body = { ...createRazorpayOrderSchema.parse({ amount: 1117 }), organizationId: org._id.toString() };
     const req = makeReq({ user: { id: assistantId, role: Role.ASSISTANT_MASTER_ADMIN, organizationId: null, permissions: [Permission.PAYMENT_MANAGE] }, body });
 
     const { res, error } = await runController(paymentController.createRazorpayOrder, req, makeRes());

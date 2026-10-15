@@ -149,14 +149,14 @@ describe("WalletPage - Add Money flow", () => {
       [/\/wallet\/balance/, { ok: true, data: { balance: 100 } }],
       [/\/wallet\/transactions/, { ok: true, data: { items: [] } }],
     ]);
-    apiClient.post.mockResolvedValue({ data: { data: { keyId: null, razorpayOrderId: "order_1", amount: 100 } } });
+    apiClient.post.mockResolvedValue({ data: { data: { keyId: null, razorpayOrderId: "order_1", amount: 1117 } } });
 
     const { default: userEvent } = await import("@testing-library/user-event");
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Add money");
 
-    await user.type(screen.getByLabelText("Amount in rupees"), "100");
+    await user.type(screen.getByLabelText("Amount in rupees"), "1117");
     await user.click(screen.getByRole("button", { name: /add money/i }));
 
     expect(await screen.findByText(/Payment gateway is not configured/i)).toBeInTheDocument();
@@ -179,7 +179,7 @@ describe("WalletPage - Add Money flow", () => {
     });
     apiClient.post.mockImplementation((url) => {
       if (url === "/payments/razorpay/order") {
-        return Promise.resolve({ data: { data: { keyId: "rzp_test_key", razorpayOrderId: "order_1", amount: 100 } } });
+        return Promise.resolve({ data: { data: { keyId: "rzp_test_key", razorpayOrderId: "order_1", amount: 1117 } } });
       }
       if (url === "/payments/razorpay/verify") {
         return Promise.resolve({ data: { data: { status: "SUCCESS" } } });
@@ -198,7 +198,7 @@ describe("WalletPage - Add Money flow", () => {
     renderPage();
     await screen.findByText("₹100");
 
-    await user.type(screen.getByLabelText("Amount in rupees"), "100");
+    await user.type(screen.getByLabelText("Amount in rupees"), "1117");
     await user.click(screen.getByRole("button", { name: /add money/i }));
 
     await waitFor(() => expect(window.Razorpay).toHaveBeenCalled());

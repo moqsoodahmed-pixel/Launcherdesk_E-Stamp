@@ -476,7 +476,7 @@ describe("Secret-leakage sweep - regression guard, not a perfect scanner", () =>
     await Wallet.create({ organizationId: org._id, balance: 0 });
     const orderReq = makeReq({
       user: { id: user._id.toString(), role: Role.SUPER_ADMIN, organizationId: org._id.toString(), permissions: [] },
-      body: createRazorpayOrderSchema.parse({ amount: 500 }),
+      body: createRazorpayOrderSchema.parse({ amount: 1117 }),
     });
     const { res: orderRes } = await runController(paymentController.createRazorpayOrder, orderReq, makeRes());
     const razorpayOrderId = orderRes.body.data.razorpayOrderId;

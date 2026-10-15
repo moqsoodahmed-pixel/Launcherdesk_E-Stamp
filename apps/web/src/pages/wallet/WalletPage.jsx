@@ -24,6 +24,12 @@ export function loadRazorpayScript() {
   });
 }
 
+// Minimum amount for a wallet top-up - enough to cover at least 10
+// E-Stamps at the base ₹100 duty plus the platform's flat procurement fee
+// and GST (see estampPricing.js). Enforced server-side too (payment.service.js
+// MIN_CUSTOM_TOPUP_AMOUNT) so this is never just a client-side suggestion.
+const MIN_TOPUP_AMOUNT = 1117;
+
 const TX_BADGE = {
   CREDIT: "bg-green-100 text-green-700",
   DEBIT: "bg-red-100 text-red-700",
@@ -126,8 +132,8 @@ export default function WalletPage() {
     setError(null);
     setNotice(null);
     const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount < 100) {
-      setError("Enter a valid amount of at least ₹100.");
+    if (!Number.isFinite(numericAmount) || numericAmount < MIN_TOPUP_AMOUNT) {
+      setError(`Enter a valid amount of at least ₹${MIN_TOPUP_AMOUNT} (covers 10 E-Stamps).`);
       return;
     }
     if (numericAmount > 1000000) {
@@ -269,22 +275,23 @@ export default function WalletPage() {
             {canFund && (
               <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h2 className="font-medium text-slate-900 mb-3">Add money</h2>
+                <p className="text-xs text-slate-500 mb-2">Minimum ₹{MIN_TOPUP_AMOUNT} — covers 10 E-Stamps</p>
                 <form onSubmit={handleAddFunds} className="flex flex-col sm:flex-row gap-2">
                   <input
                     aria-label="Amount in rupees"
                     type="number"
-                    min="100"
+                    min={MIN_TOPUP_AMOUNT}
                     max="1000000"
                     step="1"
                     inputMode="numeric"
-                    placeholder="Amount (min ₹100)"
+                    placeholder={`Amount (min ₹${MIN_TOPUP_AMOUNT})`}
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     disabled={!!fundStep}
                     className="flex-1 min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                   <button
-                    disabled={!!fundStep || !amount || Number(amount) < 100 || Number(amount) > 1000000}
+                    disabled={!!fundStep || !amount || Number(amount) < MIN_TOPUP_AMOUNT || Number(amount) > 1000000}
                     className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
                   >
                     {stepLabel || "Add Money"}
