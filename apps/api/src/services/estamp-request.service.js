@@ -15,6 +15,7 @@ const settings_service_1 = require("./settings.service");
 const policy_service_1 = require("./policy.service");
 const Policy_1 = require("../models/Policy");
 const shared_2 = require("@launcherdesk/shared");
+const sequence_1 = require("../utils/sequence");
 // Proper state-machine-oriented service for the E-Stamp request lifecycle.
 // Nothing outside this service should mutate an EStampRequest.status directly.
 const ALLOWED_TRANSITIONS = {
@@ -114,11 +115,12 @@ async function loadOwnedOrder(orderId, organizationId, actorRole) {
     return { order, request };
 }
 async function nextSequenceNumber(prefix) {
-    // Simple, safe-enough Phase 1 approach: timestamp + random suffix.
-    // For high-throughput production use, replace with a dedicated Counter collection.
+    // A dedicated Counter document per prefix (LDE-REQ, LDE-ORD), atomically
+    // incremented - the first request/order ever created (or the first
+    // after a reset) is numbered 1, not a random suffix.
     const year = new Date().getFullYear();
-    const rand = Math.floor(Math.random() * 900000 + 100000);
-    return `${prefix}-${year}-${rand}`;
+    const seq = await (0, sequence_1.nextSequence)(prefix);
+    return `${prefix}-${year}-${seq}`;
 }
 // Applies a (already-obtained, trusted) provider status result to an order +
 // its request. Shared by syncEStampOrderStatus (result freshly fetched via
@@ -231,6 +233,8 @@ exports.EStampRequestService = {
             stateCode: input.stateCode,
             articleId: input.articleId,
             considerationPrice: input.considerationPrice,
+            manualStampDuty: input.manualStampDuty,
+            additionalAmount: input.additionalAmount,
             numberOfEStamps: input.numberOfEStamps,
         });
         if (!amount || amount <= 0) {
@@ -271,7 +275,11 @@ exports.EStampRequestService = {
                 secondParty: input.secondParty,
                 descriptionOfDocument: input.descriptionOfDocument,
                 propertyDescription: input.propertyDescription,
-                considerationPrice: input.considerationPrice,
+                // A bulk row has no considerationPrice (it enters the duty
+                // directly) - store the typed stamp duty amount in this field
+                // instead, same precedent as a CUSTOM-rule article's
+                // considerationPrice already being "the filer's entered duty".
+                considerationPrice: input.manualStampDuty !== undefined && input.manualStampDuty !== null ? input.manualStampDuty : input.considerationPrice,
                 stampDutyPaidBy: input.stampDutyPaidBy,
                 numberOfEStamps: input.numberOfEStamps,
                 extraFields: input.extraFields,

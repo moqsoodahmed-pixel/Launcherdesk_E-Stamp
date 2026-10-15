@@ -38,7 +38,7 @@ const HEADERS = [
   "secondParty",
   "descriptionOfDocument",
   "propertyDescription",
-  "considerationPrice",
+  "stampDuty",
   "stampDutyPaidBy",
   "numberOfEStamps",
 ];
@@ -62,7 +62,7 @@ function rowFor(article, overrides = {}) {
     secondParty: "Bulk Continuation Bob",
     descriptionOfDocument: "Bulk-to-order continuation agreement",
     propertyDescription: "Plot 9",
-    considerationPrice: 0,
+    stampDuty: 0,
     stampDutyPaidBy: "Bulk Continuation Alice",
     numberOfEStamps: 1,
     ...overrides,

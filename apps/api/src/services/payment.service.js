@@ -10,6 +10,7 @@ const payment_providers_1 = require("./payment-providers");
 const notification_service_1 = require("./notification.service");
 const invoicePdf_service_1 = require("./invoicePdf.service");
 const logger_1 = require("../utils/logger");
+const sequence_1 = require("../utils/sequence");
 // Rupees-per-stamp conversion rate for a custom top-up (no catalog package
 // selected) - kept server-side so the frontend's displayed "~N E-Stamps
 // equivalent" is never just a client-side estimate the server then ignores.
@@ -32,9 +33,11 @@ const RUPEES_PER_CUSTOM_STAMP = 15;
 // is retried or raced.
 async function markPaymentSucceeded(paymentId, razorpayPaymentId) {
     const existing = await models_1.Payment.findById(paymentId);
-    const invoiceYear = new Date().getFullYear();
-    const invoiceSuffix = String(existing?.razorpayOrderId || razorpayPaymentId || "PAY").slice(-6).toUpperCase();
-    const invoiceNum = existing?.invoiceNumber || `INV-${invoiceYear}-${invoiceSuffix}`;
+    // A dedicated Counter document ("INV") atomically incremented - the first
+    // invoice ever issued (or the first after a reset) is numbered 1, not a
+    // random suffix. Only consumed when this payment doesn't already have one
+    // (idempotent retries of an already-SUCCESS payment never burn a number).
+    const invoiceNum = existing?.invoiceNumber || `INV-${new Date().getFullYear()}-${await (0, sequence_1.nextSequence)("INV")}`;
 
     const updated = await models_1.Payment.findOneAndUpdate({ _id: paymentId, status: { $ne: shared_1.PaymentStatus.SUCCESS } }, {
         $set: {

@@ -164,8 +164,8 @@ describe("downloadTemplate - real catalog, no invented data", () => {
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Template");
-    sheet.addRow(["State", "Article", "First Party", "Second Party", "Description of Document", "Property Description", "Consideration Price", "Stamp Duty Paid By", "Number of E-Stamps"]);
-    sheet.addRow(["Karnataka", `${article.articleCode} - ${article.title}`, "Alice", "Bob", "Round trip test", "Plot 1", 0, "Alice", 1]);
+    sheet.addRow(["State", "Article", "Stamp Duty", "Additional Amount (Optional)", "First Party", "Second Party", "Description of Document", "Property Description", "Stamp Duty Paid By", "Number of E-Stamps"]);
+    sheet.addRow(["Karnataka", `${article.articleCode} - ${article.title}`, 0, 0, "Alice", "Bob", "Round trip test", "Plot 1", "Alice", 1]);
     const buffer = await workbook.xlsx.writeBuffer();
 
     const { batch } = await BulkEStampService.uploadBatch({
@@ -207,8 +207,8 @@ describe("downloadTemplate - real catalog, no invented data", () => {
     listSheet.addRow([`${article.articleCode} - ${article.title}`]);
 
     const templateSheet = workbook.addWorksheet("Template");
-    templateSheet.addRow(["State", "Article", "First Party", "Second Party", "Description of Document", "Property Description", "Consideration Price", "Stamp Duty Paid By", "Number of E-Stamps"]);
-    templateSheet.addRow(["karnataka", `${article.articleCode} - ${article.title}`, "Alice", "Bob", "Sale agreement", "Flat 101", 1000000, "Alice", 1]);
+    templateSheet.addRow(["State", "Article", "Stamp Duty", "First Party", "Second Party", "Description of Document", "Property Description", "Stamp Duty Paid By", "Number of E-Stamps"]);
+    templateSheet.addRow(["karnataka", `${article.articleCode} - ${article.title}`, 0, "Alice", "Bob", "Sale agreement", "Flat 101", "Alice", 1]);
 
     const refSheet = workbook.addWorksheet("Article Reference");
     refSheet.addRow(["State", "Article Code", "Article Title"]);
@@ -248,8 +248,8 @@ describe("downloadTemplate - real catalog, no invented data", () => {
     const user = await User.create({ name: "Snake User", email: `snake-${new mongoose.Types.ObjectId()}@ld.local`, passwordHash: "x", role: Role.SUPER_ADMIN, organizationId: org._id });
 
     const csvContent = [
-      "state_code,article_id,first_party,second_party,description_of_document,consideration_price,stamp_duty_paid_by,number_of_e_stamps",
-      `karnataka,${article.articleCode},Alice,Bob,Agreement,500000,Alice,1`,
+      "state_code,article_id,first_party,second_party,description_of_document,stamp_duty,stamp_duty_paid_by,number_of_e_stamps",
+      `karnataka,${article.articleCode},Alice,Bob,Agreement,0,Alice,1`,
     ].join("\n");
 
     const { batch } = await BulkEStampService.uploadBatch({

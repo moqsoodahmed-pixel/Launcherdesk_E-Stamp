@@ -199,7 +199,7 @@ export default function BulkUploadWizard() {
                       <th className="px-3 py-3">First Party</th>
                       <th className="px-3 py-3">Second Party</th>
                       <th className="px-3 py-3">Document / Property</th>
-                      <th className="px-3 py-3 text-right">Consideration</th>
+                      <th className="px-3 py-3 text-right">Additional Amount</th>
                       <th className="px-3 py-3">Paid By</th>
                       <th className="px-3 py-3 text-center">Qty</th>
                       <th className="px-3 py-3 text-right">Stamp Duty</th>
@@ -238,7 +238,7 @@ export default function BulkUploadWizard() {
                             )}
                           </td>
                           <td className="px-3 py-2.5 text-right font-medium text-slate-700 whitespace-nowrap">
-                            {item.inputData?.considerationPrice != null ? formatCurrency(item.inputData.considerationPrice) : "-"}
+                            {item.inputData?.additionalAmount ? formatCurrency(item.inputData.additionalAmount) : "-"}
                           </td>
                           <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap">{item.inputData?.stampDutyPaidBy || "-"}</td>
                           <td className="px-3 py-2.5 text-center font-medium text-slate-800">{item.inputData?.numberOfEStamps || 1}</td>

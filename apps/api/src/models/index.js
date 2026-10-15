@@ -35,3 +35,4 @@ __exportStar(require("./EmailLog"), exports);
 __exportStar(require("./BulkEStampBatch"), exports);
 __exportStar(require("./BulkEStampBatchItem"), exports);
 __exportStar(require("./Policy"), exports);
+__exportStar(require("./Counter"), exports);

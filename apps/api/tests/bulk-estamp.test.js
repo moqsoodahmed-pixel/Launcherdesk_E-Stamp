@@ -30,7 +30,7 @@ const HEADERS = [
   "secondParty",
   "descriptionOfDocument",
   "propertyDescription",
-  "considerationPrice",
+  "stampDuty",
   "stampDutyPaidBy",
   "numberOfEStamps",
 ];
@@ -62,7 +62,7 @@ function rowFor(article, overrides = {}) {
     secondParty: "Bob",
     descriptionOfDocument: "Bulk agreement",
     propertyDescription: "Plot 1",
-    considerationPrice: 0,
+    stampDuty: 0,
     numberOfEStamps: 1,
     ...overrides,
   };
@@ -119,7 +119,7 @@ async function expectStructuralFailure(promise, code) {
 describe("Upload - file parsing", () => {
   it("a valid CSV upload creates the batch and one item per row", async () => {
     const { org, user, article } = await makeOrgWithArticle();
-    const buffer = buildCsv([rowFor(article, { considerationPrice: 1000 }), rowFor(article, { firstParty: "Carl", considerationPrice: 2000 })]);
+    const buffer = buildCsv([rowFor(article, { stampDuty: 1000 }), rowFor(article, { firstParty: "Carl", stampDuty: 2000 })]);
     const { batch, items } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "batch.csv" });
     expect(batch.status).toBe("PREVIEW_READY");
     expect(batch.fileType).toBe("CSV");
@@ -131,12 +131,12 @@ describe("Upload - file parsing", () => {
     expect(stored.length).toBe(2);
     expect(stored[0].rowNumber).toBe(1);
     expect(stored[0].status).toBe("VALID");
-    expect(stored[0].inputData.considerationPrice).toBe(1000);
+    expect(stored[0].inputData.stampDuty).toBe(1000);
   });
 
   it("a valid XLSX upload creates the batch and items", async () => {
     const { org, user, article } = await makeOrgWithArticle();
-    const buffer = buildXlsx([rowFor(article, { considerationPrice: 1500 })]);
+    const buffer = buildXlsx([rowFor(article, { stampDuty: 1500 })]);
     const { batch, items } = await upload({
       org, user, buffer,
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -149,13 +149,13 @@ describe("Upload - file parsing", () => {
 
   it("a missing required header fails the whole batch structurally, but the batch record is still created", async () => {
     const { org, user, article } = await makeOrgWithArticle();
-    const headers = HEADERS.filter((h) => h !== "considerationPrice");
+    const headers = HEADERS.filter((h) => h !== "stampDuty");
     const buffer = buildCsv([rowFor(article)], headers);
     const err = await expectStructuralFailure(upload({ org, user, buffer, mimeType: "text/csv", fileName: "bad.csv" }), "BULK_BATCH_STRUCTURAL_FAILURE");
-    expect(err.message).toMatch(/considerationPrice/);
+    expect(err.message).toMatch(/stampDuty/);
     const batch = await BulkEStampBatch.findById(err.details.batchId);
     expect(batch.status).toBe("FAILED");
-    expect(batch.errorSummary).toMatch(/considerationPrice/);
+    expect(batch.errorSummary).toMatch(/stampDuty/);
   });
 
   it("a duplicate header fails the whole batch structurally", async () => {
@@ -217,21 +217,23 @@ describe("Upload - file parsing", () => {
     expect(await BulkEStampBatch.countDocuments({ organizationId: org._id })).toBe(0);
   });
 
-  // The Template sheet's informational "Stamp Duty" column (the duty
-  // amount, auto-filled by formula) sits right next to "Stamp Duty Paid By"
-  // (who pays it). Before this fix, matchHeaders() aliased "stamp duty" to
-  // the payer field, so uploading an exported template would have silently
-  // overwritten the real payer name with a duty amount like "Rs.500".
-  it("an extra 'Stamp Duty' column (the Template sheet's informational duty column) is ignored, never confused with Stamp Duty Paid By", async () => {
+  // "Stamp Duty" (the amount) and "Stamp Duty Paid By" (who pays it) are
+  // both real, distinct columns - a header-matching regression that aliased
+  // one to the other would either silently drop the entered duty or
+  // overwrite the real payer name.
+  it("'Stamp Duty' and 'Stamp Duty Paid By' are matched to their own distinct fields, never confused with each other", async () => {
     const { org, user, article } = await makeOrgWithArticle();
-    const headers = [...HEADERS, "Stamp Duty"];
-    const row = { ...rowFor(article), "Stamp Duty": "Rs.500" };
+    const headers = HEADERS.map((h) => (h === "stampDuty" ? "Stamp Duty" : h === "stampDutyPaidBy" ? "Stamp Duty Paid By" : h));
+    const row = { ...rowFor(article, { stampDuty: undefined }), "Stamp Duty": 500, "Stamp Duty Paid By": "Alice" };
+    delete row.stampDuty;
+    delete row.stampDutyPaidBy;
     const buffer = buildCsv([row], headers);
     const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "with-duty-column.csv" });
     expect(batch.status).toBe("PREVIEW_READY");
     const item = await BulkEStampBatchItem.findOne({ batchId: batch._id, rowNumber: 1 });
     expect(item.status).toBe("VALID");
-    expect(item.inputData.stampDutyPaidBy).toBe("Alice"); // not overwritten with "Rs.500"
+    expect(item.inputData.stampDuty).toBe(500);
+    expect(item.inputData.stampDutyPaidBy).toBe("Alice");
   });
 
   it("a cell starting with '=' (formula-injection shape) is stored and treated as inert literal text, never evaluated", async () => {
@@ -246,9 +248,9 @@ describe("Upload - file parsing", () => {
 });
 
 describe("Upload - per-row validation", () => {
-  it("a negative considerationPrice marks the row INVALID with a validation error", async () => {
+  it("a negative stampDuty marks the row INVALID with a validation error", async () => {
     const { org, user, article } = await makeOrgWithArticle();
-    const buffer = buildCsv([rowFor(article, { considerationPrice: -5 })]);
+    const buffer = buildCsv([rowFor(article, { stampDuty: -5 })]);
     const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "neg.csv" });
     const item = await BulkEStampBatchItem.findOne({ batchId: batch._id, rowNumber: 1 });
     expect(item.status).toBe("INVALID");
@@ -306,9 +308,9 @@ describe("Upload - per-row validation", () => {
     expect(item.failureReason).toMatch(/stampDutyPaidBy/);
   });
 
-  it("duplicate rows (same stateCode/articleId/firstParty/secondParty/considerationPrice) are flagged, not rejected", async () => {
+  it("duplicate rows (same stateCode/articleId/firstParty/secondParty/stampDuty) are flagged, not rejected", async () => {
     const { org, user, article } = await makeOrgWithArticle();
-    const buffer = buildCsv([rowFor(article, { considerationPrice: 999 }), rowFor(article, { considerationPrice: 999 })]);
+    const buffer = buildCsv([rowFor(article, { stampDuty: 999 }), rowFor(article, { stampDuty: 999 })]);
     const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "dup-rows.csv" });
     const items = await BulkEStampBatchItem.find({ batchId: batch._id }).sort({ rowNumber: 1 });
     expect(items[0].isDuplicateSuspect).toBe(true);
@@ -322,7 +324,7 @@ describe("Upload - per-row validation", () => {
 describe("Preview never creates financial side effects", () => {
   it("upload + preview never creates an EStampRequest or touches the wallet", async () => {
     const { org, user, article } = await makeOrgWithArticle({ balance: 5000, fixedAmount: 500 });
-    const buffer = buildCsv([rowFor(article, { considerationPrice: 100 })]);
+    const buffer = buildCsv([rowFor(article, { stampDuty: 100 })]);
     const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "preview.csv" });
     await BulkEStampService.getBatchDetail(batch._id.toString(), org._id.toString(), Role.SUPER_ADMIN, {});
     expect(await EStampRequest.countDocuments({ organizationId: org._id })).toBe(0);
@@ -343,7 +345,7 @@ describe("Preview never creates financial side effects", () => {
 describe("Confirm - true reuse of EStampRequestService.createRequest", () => {
   it("creates an EStampRequest+EStampOrder per valid row with the deterministic bulk idempotencyKey, findable by that key", async () => {
     const { org, user, article } = await makeOrgWithArticle({ balance: 5000, fixedAmount: 500 });
-    const buffer = buildCsv([rowFor(article, { considerationPrice: 100 })]);
+    const buffer = buildCsv([rowFor(article, { stampDuty: 100 })]);
     const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "confirm.csv" });
     const result = await BulkEStampService.confirmBatch(batch._id.toString(), org._id.toString(), user._id.toString(), Role.SUPER_ADMIN);
     expect(result.batch.status).toBe("COMPLETED");
@@ -374,7 +376,7 @@ describe("Confirm - true reuse of EStampRequestService.createRequest", () => {
 describe("Confirm - wallet safety (upfront gate)", () => {
   it("insufficient total balance rejects the whole batch, creates zero requests, and debits nothing", async () => {
     const { org, user, article } = await makeOrgWithArticle({ balance: 800, fixedAmount: 500 });
-    const buffer = buildCsv([rowFor(article, { considerationPrice: 0 }), rowFor(article, { firstParty: "Carl", considerationPrice: 0 })]);
+    const buffer = buildCsv([rowFor(article, { stampDuty: 0 }), rowFor(article, { firstParty: "Carl", stampDuty: 0 })]);
     const { batch } = await upload({ org, user, buffer, mimeType: "text/csv", fileName: "insufficient.csv" });
     let err;
     try {

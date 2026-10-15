@@ -125,12 +125,26 @@ exports.createEStampRequestSchema = zod_1.z.object({
     // no-op a duplicate/double-click submission instead of double-charging.
     idempotencyKey: zod_1.z.string().min(10).max(100).optional(),
 }).strict();
-// Phase 11 - per-row shape for a bulk-upload spreadsheet row. Reuses
-// createEStampRequestSchema's field-level rules exactly (never retyped) minus
-// idempotencyKey - bulk generates its own deterministic
-// `bulk:<batchId>:row:<rowNumber>` key per row, a client/spreadsheet value is
-// never accepted for it.
-exports.bulkEStampRowSchema = exports.createEStampRequestSchema.omit({ idempotencyKey: true });
+// Phase 11 - per-row shape for a bulk-upload spreadsheet row. Unlike the
+// single-request schema, a bulk row never carries a considerationPrice to be
+// run through a %/slab formula - the filer enters the stamp duty amount
+// itself (see CalculationService.calculate's manualStampDuty support). A
+// FIXED-rule article's duty cannot be changed this way (the server always
+// substitutes the article's real fixed amount, ignoring whatever was typed
+// here) - additionalAmount is the only way to pay more than that fixed
+// minimum, and is simply added on top of any row's duty, always.
+exports.bulkEStampRowSchema = zod_1.z.object({
+    stateCode: zod_1.z.string().trim().min(2).max(10),
+    articleId: zod_1.z.string().trim().min(1),
+    firstParty: zod_1.z.string().trim().min(1).max(300),
+    secondParty: zod_1.z.string().trim().min(1).max(300),
+    descriptionOfDocument: zod_1.z.string().trim().min(1).max(1000),
+    propertyDescription: zod_1.z.string().trim().max(2000).optional(),
+    stampDuty: zod_1.z.number().finite().min(0),
+    additionalAmount: zod_1.z.number().finite().min(0).optional().default(0),
+    stampDutyPaidBy: zod_1.z.string().trim().min(1).max(300),
+    numberOfEStamps: zod_1.z.number().int().min(1).max(100).default(1),
+}).strict();
 // Confirm/cancel take no body - everything comes from the batchId route
 // param plus already-stored batch/item state (same no-body pattern as
 // cancelRequest/syncEStampOrderStatus elsewhere in this codebase). Kept as

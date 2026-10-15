@@ -16,6 +16,7 @@ const notification_service_1 = require("./notification.service");
 const fileSignature_1 = require("../utils/fileSignature");
 const indianStates_1 = require("../utils/indianStates");
 const estampPricing_1 = require("../utils/estampPricing");
+const sequence_1 = require("../utils/sequence");
 // Phase 11 - Bulk E-Stamp Request Management.
 //
 // Core reuse principle: this module NEVER calculates, debits a wallet, or
@@ -33,34 +34,35 @@ const ALLOWED_MIME_TYPES = [
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ];
 // The bulk-upload template's field names, in the exact order the CSV
-// template is generated in. Required fields mirror createEStampRequestSchema
-// minus idempotencyKey (bulk derives its own); propertyDescription is the
-// only optional column. extraFields is deliberately NOT part of the
-// spreadsheet template - state-specific extensible data entry is out of
-// scope for a flat CSV/XLSX row in this phase.
+// template is generated in. Required fields mirror bulkEStampRowSchema;
+// propertyDescription and additionalAmount are the only optional columns.
+// extraFields is deliberately NOT part of the spreadsheet template -
+// state-specific extensible data entry is out of scope for a flat CSV/XLSX
+// row in this phase. There is no considerationPrice column here - the filer
+// enters the stamp duty amount directly (see CalculationService.calculate's
+// manualStampDuty support).
 const REQUIRED_FIELDS = [
     "stateCode",
     "articleId",
     "firstParty",
     "secondParty",
     "descriptionOfDocument",
-    "considerationPrice",
+    "stampDuty",
     "stampDutyPaidBy",
     "numberOfEStamps",
 ];
-const OPTIONAL_FIELDS = ["propertyDescription"];
+const OPTIONAL_FIELDS = ["propertyDescription", "additionalAmount"];
 const ALL_TEMPLATE_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
 function isInternalRole(role) {
     return role === shared_1.Role.MASTER_ADMIN || role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
 }
 async function nextBatchNumber() {
-    // Same simple, safe-enough approach as estamp-request.service.js's
-    // nextSequenceNumber - not shared directly since that function isn't
-    // exported, and duplicating a 4-line helper is cheaper than introducing
-    // a cross-service coupling for it.
+    // Same dedicated-Counter approach as estamp-request.service.js's
+    // nextSequenceNumber - the first batch ever created (or the first after
+    // a reset) is numbered 1, not a random suffix.
     const year = new Date().getFullYear();
-    const rand = Math.floor(Math.random() * 900000 + 100000);
-    return `LDE-BULK-${year}-${rand}`;
+    const seq = await (0, sequence_1.nextSequence)("LDE-BULK");
+    return `LDE-BULK-${year}-${seq}`;
 }
 // Loads a batch, enforcing the identical tenant-isolation "not found" shape
 // (missing vs. belongs-to-another-org) as every other tenant-scoped lookup
@@ -95,10 +97,11 @@ const FIELD_ALIASES = {
     secondParty: ["second party", "second party name", "secondparty", "party 2", "party2", "2nd party"],
     descriptionOfDocument: ["description of document", "document description", "description", "descriptionofdocument", "doc description"],
     propertyDescription: ["property description", "property details", "property", "propertydescription"],
-    considerationPrice: ["consideration price", "consideration amount", "consideration value", "price", "amount", "considerationprice"],
-    // "stamp duty"/"stampduty" deliberately NOT aliased here - that header is
-    // the informational duty-amount column on the Template sheet (see
-    // bulk-estamp.controller.js), a different field from who pays it.
+    // The Template sheet's "Stamp Duty" column is now the real input field
+    // (see bulk-estamp.controller.js) - the filer's entered duty amount,
+    // never a consideration price run through a %/slab formula.
+    stampDuty: ["stamp duty", "stampduty", "duty", "stamp duty amount", "stampdutyamount"],
+    additionalAmount: ["additional amount", "additional amount (optional)", "extra amount", "top up amount", "topup amount", "additionalamount"],
     stampDutyPaidBy: ["stamp duty paid by", "duty paid by", "paid by", "stampdutypaidby"],
     numberOfEStamps: ["number of e-stamps", "number of estamps", "number of e stamps", "no of e-stamps", "no of estamps", "no. of e-stamps", "numberofestamps", "quantity", "count"],
 };
@@ -160,7 +163,7 @@ function rowToInputData(row, columnIndexByField) {
             value = value.trim();
         if (value === "" || value === undefined)
             value = null;
-        if (field === "considerationPrice" || field === "numberOfEStamps") {
+        if (field === "stampDuty" || field === "additionalAmount" || field === "numberOfEStamps") {
             value = value === null ? value : coerceNumeric(value);
         }
         data[field] = value;
@@ -168,7 +171,7 @@ function rowToInputData(row, columnIndexByField) {
     return data;
 }
 function duplicateKey(inputData) {
-    const parts = ["stateCode", "articleId", "firstParty", "secondParty", "considerationPrice"].map((f) => inputData[f]);
+    const parts = ["stateCode", "articleId", "firstParty", "secondParty", "stampDuty"].map((f) => inputData[f]);
     if (parts.some((p) => p === null || p === undefined || p === ""))
         return null;
     return parts.map((p) => String(p).trim().toUpperCase()).join("||");
@@ -343,26 +346,15 @@ exports.BulkEStampService = {
         // left exactly as typed, so the existing zod/ObjectId validation
         // below still rejects it with its normal, clear error - this step
         // only ever helps a valid human-entered value, never masks a bad one.
-function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps = 1, procurementFeeOverride) {
+function calculateEstampRowPricing(calcDuty, numberOfEStamps = 1, procurementFeeOverride) {
     const qty = Math.max(1, Number(numberOfEStamps) || 1);
     let duty = Number(calcDuty) || 0;
     if (duty === 0) {
-        const consideration = Number(considerationPrice) || 0;
-        if (consideration > 0) {
-            let perStamp = 100;
-            if (consideration <= 5000) {
-                perStamp = 100;
-            } else if (consideration <= 50000) {
-                perStamp = 200;
-            } else if (consideration <= 500000) {
-                perStamp = 500;
-            } else {
-                perStamp = Math.min(100000, Math.max(500, Math.round(consideration * 0.001)));
-            }
-            duty = perStamp * qty;
-        } else {
-            duty = 100 * qty;
-        }
+        // No duty could be determined (nothing meaningful was entered) - flat
+        // fallback fee, same as the old consideration-less branch. There is
+        // no considerationPrice to estimate a tiered duty from any more; the
+        // filer enters the real duty directly (see REQUIRED_FIELDS above).
+        duty = 100 * qty;
     }
     // Shared with the single-request preview so both flows quote the same
     // published pricing from one place (see utils/estampPricing.js). `duty`
@@ -472,7 +464,8 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
                     const calc = await calculation_service_1.CalculationService.calculate({
                         stateCode: result.data.stateCode,
                         articleId: result.data.articleId,
-                        considerationPrice: result.data.considerationPrice,
+                        manualStampDuty: result.data.stampDuty,
+                        additionalAmount: result.data.additionalAmount,
                         numberOfEStamps: result.data.numberOfEStamps,
                     });
                     calculatedDuty = calc.amount;
@@ -486,7 +479,7 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
             let pricing = null;
             if (isValid) {
                 validCount += 1;
-                pricing = calculateEstampRowPricing(calculatedDuty, result.data.considerationPrice, result.data.numberOfEStamps, procurementFeeOverride);
+                pricing = calculateEstampRowPricing(calculatedDuty, result.data.numberOfEStamps, procurementFeeOverride);
                 estimatedDutyTotal += pricing.stampDuty;
                 estimatedConvTotal += pricing.convenienceFee;
                 estimatedProcTotal += pricing.procurementFee;
@@ -602,7 +595,7 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
                 totalAmount: it.totalAmount,
             };
             if (it.status === "VALID" && (!it.totalAmount || it.calculatedAmount === 0)) {
-                pricing = calculateEstampRowPricing(it.stampDuty || it.calculatedAmount, it.inputData?.considerationPrice, it.inputData?.numberOfEStamps, procurementFeeOverride);
+                pricing = calculateEstampRowPricing(it.stampDuty || it.calculatedAmount, it.inputData?.numberOfEStamps, procurementFeeOverride);
             }
             return {
                 ...it,
@@ -628,7 +621,7 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
             let sumGst = 0;
             let sumTotal = 0;
             for (const v of allValid) {
-                const p = calculateEstampRowPricing(v.stampDuty || v.calculatedAmount, v.inputData?.considerationPrice, v.inputData?.numberOfEStamps, procurementFeeOverride);
+                const p = calculateEstampRowPricing(v.stampDuty || v.calculatedAmount, v.inputData?.numberOfEStamps, procurementFeeOverride);
                 sumDuty += p.stampDuty;
                 sumConv += p.convenienceFee;
                 sumProc += p.procurementFee;
@@ -708,7 +701,8 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
                 const { amount, articleVersionUsed } = await calculation_service_1.CalculationService.calculate({
                     stateCode: parsed.stateCode,
                     articleId: parsed.articleId,
-                    considerationPrice: parsed.considerationPrice,
+                    manualStampDuty: parsed.stampDuty,
+                    additionalAmount: parsed.additionalAmount,
                     numberOfEStamps: parsed.numberOfEStamps,
                 });
                 recalculated.push({ item, parsed, amount, articleVersionUsed });
@@ -766,7 +760,8 @@ function calculateEstampRowPricing(calcDuty, considerationPrice, numberOfEStamps
                     secondParty: parsed.secondParty,
                     descriptionOfDocument: parsed.descriptionOfDocument,
                     propertyDescription: parsed.propertyDescription,
-                    considerationPrice: parsed.considerationPrice,
+                    manualStampDuty: parsed.stampDuty,
+                    additionalAmount: parsed.additionalAmount,
                     stampDutyPaidBy: parsed.stampDutyPaidBy,
                     numberOfEStamps: parsed.numberOfEStamps,
                     idempotencyKey,

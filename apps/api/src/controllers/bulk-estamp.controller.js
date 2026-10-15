@@ -115,17 +115,24 @@ exports.cancelBatch = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
 const TEMPLATE_COLUMNS = [
     { header: "State", field: "stateCode", width: 28 },
     { header: "Article", field: "articleId", width: 48 },
-    // Informational only - auto-filled by formula from the selected Article,
-    // never read by matchHeaders()/rowToInputData() (it isn't in
-    // ALL_TEMPLATE_FIELDS, so an unrecognized header is ignored on upload
-    // same as any other extra column). Shows the filler the duty amount
-    // without them leaving the Template sheet.
-    { header: "Stamp Duty", field: "stampDutyInfo", width: 16 },
+    // The real stamp duty to charge, read by matchHeaders()/rowToInputData()
+    // (bulk-estamp.service.js). Auto-filled by formula and, via this sheet's
+    // data validation, locked to that exact amount for a FIXED-rule article -
+    // the server also independently ignores whatever is typed here for a
+    // FIXED article and always uses its real fixed amount, so this cannot be
+    // bypassed even by pasting over the validation. For every other rule
+    // type, the filler types the duty amount directly - there is no
+    // consideration-price-to-%/slab calculation for a bulk row.
+    { header: "Stamp Duty", field: "stampDuty", width: 16 },
+    // Optional top-up on top of a FIXED-rule article's non-negotiable base
+    // duty (or on top of any other row's entered duty) - the only way to pay
+    // MORE than a fixed rate without being rejected by the Stamp Duty
+    // column's own validation.
+    { header: "Additional Amount (Optional)", field: "additionalAmount", width: 26 },
     { header: "First Party", field: "firstParty", width: 20 },
     { header: "Second Party", field: "secondParty", width: 20 },
     { header: "Description of Document", field: "descriptionOfDocument", width: 30 },
     { header: "Property Description", field: "propertyDescription", width: 30 },
-    { header: "Consideration Price", field: "considerationPrice", width: 20 },
     { header: "Stamp Duty Paid By", field: "stampDutyPaidBy", width: 20 },
     { header: "Number of E-Stamps", field: "numberOfEStamps", width: 18 },
 ];
@@ -201,12 +208,12 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
     templateSheet.addRow({
         stateCode: exampleArticle ? (0, indianStates_1.stateNameForCode)(exampleArticle.stateCode) : "",
         articleId: exampleArticle ? `${exampleArticle.articleCode} - ${exampleArticle.title}` : "",
-        stampDutyInfo: "",
+        stampDuty: "",
+        additionalAmount: 0,
         firstParty: "Alice",
         secondParty: "Bob",
         descriptionOfDocument: "Sale agreement",
         propertyDescription: "Flat No. 101, Example Apartments",
-        considerationPrice: 1000000,
         stampDutyPaidBy: "Alice",
         numberOfEStamps: 1,
     });
@@ -247,6 +254,14 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
     const stateFormula = stateFullNames.length > 0 && stateFullNames.join(",").length <= 250
         ? `"${stateFullNames.join(",")}"`
         : "=STATE_NAMES_LIST";
+    const additionalAmountLetter = templateSheet.getColumn("additionalAmount").letter;
+    // Looks up the chosen State+Article Code against the "Article Reference"
+    // sheet's own Stamp Duty column (computed server-side, never guessed
+    // here) - blank for anything other than a FIXED-rule article, since only
+    // a FIXED rule has one single, non-negotiable number. Reused both to
+    // auto-fill column C's suggested value AND, below, to validate that a
+    // FIXED-rule row's Stamp Duty cannot be edited away from it.
+    const dutyLookup = (row) => `IFERROR(INDEX('Article Reference'!$E:$E,SUMPRODUCT(('Article Reference'!$A:$A=$A${row})*('Article Reference'!$B:$B=LEFT($B${row},IFERROR(FIND(" - ",$B${row})-1,0)))*ROW('Article Reference'!$A:$A))),"")`;
     for (let row = 2; row <= LAST_ROW; row += 1) {
         if (stateFullNames.length > 0) {
             templateSheet.getCell(`A${row}`).dataValidation = {
@@ -264,13 +279,8 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
             formulae: [`INDIRECT("ART_"&SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(UPPER($A${row})," ","_"),"-","_"),"'","_"),"&","_"),",","_"))`],
             showErrorMessage: false,
         };
-        // Auto-filled duty for whichever article is picked in this row -
-        // looks up the chosen State+Article Code against the "Article
-        // Reference" sheet (column E holds that sheet's own Stamp Duty
-        // value, computed server-side, never guessed here). SUMPRODUCT finds
-        // the matching row without needing an array-entered formula.
         const formulaCell = {
-            formula: `IFERROR(INDEX('Article Reference'!$E:$E,SUMPRODUCT(('Article Reference'!$A:$A=$A${row})*('Article Reference'!$B:$B=LEFT($B${row},IFERROR(FIND(" - ",$B${row})-1,0)))*ROW('Article Reference'!$A:$A))),"")`,
+            formula: dutyLookup(row),
         };
         // Row 2 is the only row with a known answer up front (the
         // pre-filled example article) - give it a cached result too, so it
@@ -280,6 +290,33 @@ exports.downloadTemplate = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
             formulaCell.result = exampleDuty;
         }
         templateSheet.getCell(`C${row}`).value = formulaCell;
+        // A FIXED-rule article's duty cannot be changed here - Excel rejects
+        // any typed value that doesn't match the looked-up fixed amount
+        // (blank is allowed while the row is still being filled in). This is
+        // a convenience guard rail only; the server independently ignores
+        // whatever is submitted for a FIXED article and always recalculates
+        // from its real fixed amount, so this cannot be bypassed by
+        // disabling or pasting over this validation.
+        templateSheet.getCell(`C${row}`).dataValidation = {
+            type: "custom",
+            allowBlank: true,
+            formulae: [`OR(${dutyLookup(row)}="",$C${row}=${dutyLookup(row)})`],
+            showErrorMessage: true,
+            errorStyle: "stop",
+            errorTitle: "Fixed stamp duty cannot be changed",
+            error: "This article has a fixed government duty rate and cannot be edited here. To pay more than the fixed amount, use the \"Additional Amount\" column instead.",
+        };
+        // Additional Amount: always optional, never negative.
+        templateSheet.getCell(`${additionalAmountLetter}${row}`).dataValidation = {
+            type: "decimal",
+            operator: "greaterThanOrEqual",
+            allowBlank: true,
+            formulae: [0],
+            showErrorMessage: true,
+            errorStyle: "stop",
+            errorTitle: "Invalid amount",
+            error: "Additional Amount must be zero or a positive number.",
+        };
     }
     // "Article Reference" - full, human-readable detail per article (state,
     // code, title, description, calculation rule) so a filler can see
