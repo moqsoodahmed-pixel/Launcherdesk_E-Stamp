@@ -49,6 +49,9 @@ const router = (0, express_1.Router)();
 // boundary for this route.
 router.post("/webhook", ctrl.razorpayWebhook);
 router.use(authenticate_1.authenticate);
+// Read-only pricing reference for the Add Money / Buy More UI - open to any
+// authenticated tenant actor, same openness as GET /estamp-packages.
+router.get("/topup-config", ctrl.getTopupConfig);
 router.post("/razorpay/order", rateLimiters_1.paymentLimiter, (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_MANAGE), (0, validate_1.validateBody)(validation_1.createRazorpayOrderSchema), ctrl.createRazorpayOrder);
 router.post("/razorpay/verify", rateLimiters_1.paymentLimiter, (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_MANAGE), (0, validate_1.validateBody)(validation_1.verifyRazorpayPaymentSchema), ctrl.verifyRazorpayPayment);
 router.get("/", (0, authorize_1.requirePermission)(shared_1.Permission.PAYMENT_VIEW), ctrl.listPayments);

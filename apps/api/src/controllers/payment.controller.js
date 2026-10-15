@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCreditSummary = exports.reconcilePayment = exports.creditBalance = exports.razorpayWebhook = exports.downloadInvoice = exports.getPayment = exports.listPayments = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
+exports.getTopupConfig = exports.getCreditSummary = exports.reconcilePayment = exports.creditBalance = exports.razorpayWebhook = exports.downloadInvoice = exports.getPayment = exports.listPayments = exports.verifyRazorpayPayment = exports.createRazorpayOrder = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const dateRange_1 = require("../utils/dateRange");
 const ApiResponse_1 = require("../utils/ApiResponse");
@@ -13,6 +13,9 @@ const shared_1 = require("@launcherdesk/shared");
 const mongoose_1 = require("mongoose");
 const orgAccess_1 = require("../utils/orgAccess");
 const invoicePdf_service_1 = require("../services/invoicePdf.service");
+const settings_service_1 = require("../services/settings.service");
+const calculation_service_1 = require("../services/calculation.service");
+const indianStates_1 = require("../utils/indianStates");
 function isInternalActor(req) {
     return req.user.role === shared_1.Role.MASTER_ADMIN || req.user.role === shared_1.Role.ASSISTANT_MASTER_ADMIN;
 }
@@ -46,6 +49,16 @@ exports.createRazorpayOrder = (0, asyncHandler_1.asyncHandler)(async (req, res) 
             stampsCount: pkg.stampsCount,
             packageKey: pkg.key,
         };
+    }
+    else {
+        // A custom top-up (no catalog package) must meet the live,
+        // Master-Admin-configurable minimum (see settingsRegistry.js
+        // MIN_WALLET_TOPUP) - checked here, not in the static zod schema,
+        // since the threshold can change at runtime.
+        const minAmount = await settings_service_1.SettingsService.getMinWalletTopup();
+        if (!Number.isFinite(amount) || amount < minAmount) {
+            throw ApiError_1.ApiError.badRequest(`Minimum top-up amount is ₹${minAmount}`, "AMOUNT_BELOW_MINIMUM");
+        }
     }
     const result = await payment_service_1.PaymentService.createOrder(orderParams);
     await (0, audit_service_1.recordAudit)({
@@ -448,4 +461,44 @@ exports.getCreditSummary = (0, asyncHandler_1.asyncHandler)(async (req, res) => 
             pendingCount: r.pendingCount,
         })),
     });
+});
+// Read-only, informational config for the Add Money / Buy More UI: the live
+// minimum custom top-up amount, plus whichever reference article(s) a
+// Master Admin configured to illustrate what that minimum covers (e.g.
+// "Article 30 - Lease of Immovable Property, Karnataka"). Open to any
+// authenticated tenant actor, same as GET /estamp-packages - it carries no
+// organization-specific or sensitive data.
+exports.getTopupConfig = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const minAmount = await settings_service_1.SettingsService.getMinWalletTopup();
+    const articleIds = await settings_service_1.SettingsService.getWalletTopupReferenceArticleIds();
+    let referenceArticles = [];
+    if (articleIds.length > 0) {
+        const validIds = articleIds.filter((id) => mongoose_1.Types.ObjectId.isValid(id));
+        const articles = await models_1.Article.find({ _id: { $in: validIds }, isActive: true }).lean();
+        const byId = new Map(articles.map((a) => [a._id.toString(), a]));
+        const resolved = await Promise.all(validIds
+            .filter((id) => byId.has(id))
+            .map(async (id) => {
+                const article = byId.get(id);
+                const calc = await calculation_service_1.CalculationService.calculate({
+                    stateCode: article.stateCode,
+                    articleId: article._id,
+                    considerationPrice: 0,
+                    numberOfEStamps: 1,
+                }).catch(() => null);
+                return {
+                    articleId: article._id,
+                    stateCode: article.stateCode,
+                    stateName: (0, indianStates_1.stateNameForCode)(article.stateCode),
+                    articleCode: article.articleCode,
+                    title: article.title,
+                    // A FIXED-rule article resolves to a real number here; any
+                    // other rule type (needs a real consideration price) is
+                    // null, not a guessed/zero amount.
+                    dutyAmount: calc && calc.amount > 0 ? calc.amount : null,
+                };
+            }));
+        referenceArticles = resolved;
+    }
+    return (0, ApiResponse_1.ok)(res, { minAmount, referenceArticles });
 });

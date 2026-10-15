@@ -240,6 +240,18 @@ exports.SettingsService = {
     async getBulkEstampMaxFileSizeMb() {
         return this.getEffectiveValue("BULK_ESTAMP_MAX_FILE_SIZE_MB");
     },
+    async getMinWalletTopup() {
+        return this.getEffectiveValue("MIN_WALLET_TOPUP");
+    },
+    // Trimmed, non-empty Article _id strings, in the order a Master Admin
+    // configured them - empty array means no reference article configured.
+    async getWalletTopupReferenceArticleIds() {
+        const raw = await this.getEffectiveValue("WALLET_TOPUP_REFERENCE_ARTICLE_IDS");
+        return String(raw || "")
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean);
+    },
     async isFeatureEnabled(flagKey) {
         return this.getEffectiveValue(flagKey);
     },

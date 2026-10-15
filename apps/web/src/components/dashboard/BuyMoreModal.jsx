@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { apiClient } from "../../api/client";
 import { formatCurrency, actionErrorMessage } from "../../utils/format";
-import { loadRazorpayScript } from "../../pages/wallet/WalletPage";
+import { loadRazorpayScript, topupHint, DEFAULT_MIN_TOPUP_AMOUNT } from "../../pages/wallet/WalletPage";
 
 const CUSTOM_PACKAGE = {
   id: "custom",
@@ -33,11 +33,19 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
   const [loadingPackages, setLoadingPackages] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
-  const [customAmount, setCustomAmount] = useState("1117");
+  const [customAmount, setCustomAmount] = useState(String(DEFAULT_MIN_TOPUP_AMOUNT));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [successResult, setSuccessResult] = useState(null);
   const purchasingRef = useRef(false);
+  const [topupConfig, setTopupConfig] = useState({ minAmount: DEFAULT_MIN_TOPUP_AMOUNT, referenceArticles: [] });
+
+  useEffect(() => {
+    apiClient
+      .get("/payments/topup-config")
+      .then(({ data }) => setTopupConfig(data.data))
+      .catch(() => {}); // keep the safe default - never blocks checkout
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,22 +91,21 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
   const finalStamps = isCustom ? Math.floor(finalAmount / 15) : selectedPkg.stampsCount;
   const copy = INTENT_COPY[intent] || INTENT_COPY.buy;
 
-  // A custom top-up must cover at least 10 E-Stamps at the base ₹100 duty
-  // plus the platform's flat procurement fee and GST - see
-  // payment.service.js's MIN_CUSTOM_TOPUP_AMOUNT, which enforces this same
-  // floor server-side regardless of what the client sends.
-  const MIN_CUSTOM_TOPUP_AMOUNT = 1117;
+  // A custom top-up must meet the live, Master-Admin-configurable minimum
+  // (see settingsRegistry.js MIN_WALLET_TOPUP) - payment.controller.js
+  // createRazorpayOrder enforces this same floor server-side regardless of
+  // what the client sends.
   const isAmountValid =
     !isCustom ||
-    (Number.isFinite(finalAmount) && finalAmount >= MIN_CUSTOM_TOPUP_AMOUNT && finalAmount <= 1000000);
+    (Number.isFinite(finalAmount) && finalAmount >= topupConfig.minAmount && finalAmount <= 1000000);
 
   async function handleCheckout(e) {
     e.preventDefault();
     if (purchasingRef.current) return;
     setError(null);
 
-    if (!Number.isFinite(finalAmount) || finalAmount < MIN_CUSTOM_TOPUP_AMOUNT) {
-      setError(`Please specify an amount of at least ₹${MIN_CUSTOM_TOPUP_AMOUNT} (covers 10 E-Stamps).`);
+    if (!Number.isFinite(finalAmount) || finalAmount < topupConfig.minAmount) {
+      setError(`Please specify an amount of at least ₹${topupConfig.minAmount}.`);
       return;
     }
     if (finalAmount > 1000000) {
@@ -338,7 +345,7 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-semibold text-sm text-slate-900">Custom Amount Top-Up</span>
-                <p className="text-xs text-slate-500">Minimum ₹1,117 — covers 10 E-Stamps</p>
+                <p className="text-xs text-slate-500">{topupHint(topupConfig)}</p>
               </div>
               <input
                 type="radio"
@@ -356,12 +363,12 @@ export default function BuyMoreModal({ onClose, onSuccess, intent = "buy", curre
                   </span>
                   <input
                     type="number"
-                    min={MIN_CUSTOM_TOPUP_AMOUNT}
+                    min={topupConfig.minAmount}
                     step="1"
                     value={customAmount}
                     onChange={(e) => setCustomAmount(e.target.value)}
                     className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    placeholder={`Enter amount (min ₹${MIN_CUSTOM_TOPUP_AMOUNT})`}
+                    placeholder={`Enter amount (min ₹${topupConfig.minAmount})`}
                   />
                 </div>
                 <span className="text-xs text-slate-500 whitespace-nowrap">

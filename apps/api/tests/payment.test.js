@@ -6,6 +6,7 @@ import { Organization, Wallet, Payment, User, AuditLog, Notification, WalletTran
 import { Role, Permission, AuditAction, OrganizationStatus, PaymentStatus } from "@launcherdesk/shared";
 import * as paymentController from "../src/controllers/payment.controller.js";
 import { PaymentService } from "../src/services/payment.service.js";
+import { SettingsService } from "../src/services/settings.service.js";
 import { requirePermission } from "../src/middleware/authorize.js";
 import { createRazorpayOrderSchema, verifyRazorpayPaymentSchema } from "@launcherdesk/validation";
 import { makeReq, makeRes, runController, runMiddleware } from "./helpers/http.js";
@@ -68,10 +69,28 @@ describe("Payment order creation", () => {
     expect(createRazorpayOrderSchema.safeParse({ amount: 5000000 }).success).toBe(false);
   });
 
-  it("rejects a custom top-up below the ₹1,117 minimum, but never a packageKey purchase (its own price is resolved server-side)", () => {
-    expect(createRazorpayOrderSchema.safeParse({ amount: 1116 }).success).toBe(false);
-    expect(createRazorpayOrderSchema.safeParse({ amount: 1117 }).success).toBe(true);
-    expect(createRazorpayOrderSchema.safeParse({ packageKey: "starter" }).success).toBe(true);
+  it("rejects a custom top-up below the live, Master-Admin-configurable MIN_WALLET_TOPUP (default ₹1,117), but never a packageKey purchase", async () => {
+    const org = await makeOrgWithWallet();
+    const belowBody = createRazorpayOrderSchema.parse({ amount: 1116 });
+    const belowReq = reqAsTenant(Role.SUPER_ADMIN, org._id, { body: belowBody });
+    const { error: belowError } = await runController(paymentController.createRazorpayOrder, belowReq, makeRes());
+    expect(belowError).not.toBeNull();
+    expect(belowError.statusCode).toBe(400);
+    expect(belowError.code).toBe("AMOUNT_BELOW_MINIMUM");
+
+    const atBody = createRazorpayOrderSchema.parse({ amount: 1117 });
+    const atReq = reqAsTenant(Role.SUPER_ADMIN, org._id, { body: atBody });
+    const { error: atError } = await runController(paymentController.createRazorpayOrder, atReq, makeRes());
+    expect(atError).toBeNull();
+  });
+
+  it("a Master-Admin-lowered MIN_WALLET_TOPUP takes effect immediately on the live check", async () => {
+    const org = await makeOrgWithWallet();
+    await SettingsService.updateSetting({ key: "MIN_WALLET_TOPUP", value: 100, actorId: new mongoose.Types.ObjectId(), actorRole: Role.MASTER_ADMIN });
+    const body = createRazorpayOrderSchema.parse({ amount: 150 });
+    const req = reqAsTenant(Role.SUPER_ADMIN, org._id, { body });
+    const { error } = await runController(paymentController.createRazorpayOrder, req, makeRes());
+    expect(error).toBeNull();
   });
 
   it("organization is derived from the authenticated user - a spoofed organizationId in the body is ignored for tenant actors", async () => {

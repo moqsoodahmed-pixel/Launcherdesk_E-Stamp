@@ -95,6 +95,22 @@ exports.SETTINGS_REGISTRY = {
         max: 100,
         description: "Maximum size (MB) for a bulk E-Stamp CSV/XLSX upload.",
     },
+    MIN_WALLET_TOPUP: {
+        key: "MIN_WALLET_TOPUP",
+        valueType: "DECIMAL",
+        category: "BUSINESS",
+        defaultValue: 1117,
+        min: 1,
+        max: 1000000,
+        description: "Minimum amount for a custom wallet top-up (no catalog package selected) - payment.controller.js createRazorpayOrder reads this live. Default covers 10 E-Stamps at the base duty plus the platform's flat procurement fee and GST.",
+    },
+    WALLET_TOPUP_REFERENCE_ARTICLE_IDS: {
+        key: "WALLET_TOPUP_REFERENCE_ARTICLE_IDS",
+        valueType: "STRING",
+        category: "BUSINESS",
+        defaultValue: "",
+        description: "Comma-separated Article _id list shown as a reference next to the minimum wallet top-up amount (e.g. \"this covers Article 30 - Lease of Immovable Property, Karnataka\"). Empty = no reference article configured. Managed via the article picker on the System Settings page, not typed by hand.",
+    },
     BULK_ESTAMP_ENABLED: {
         key: "BULK_ESTAMP_ENABLED",
         valueType: "BOOLEAN",

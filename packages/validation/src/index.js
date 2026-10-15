@@ -225,13 +225,11 @@ exports.calculatePreviewSchema = zod_1.z.object({
 // is never accepted here, only the amount; organization always comes from
 // the authenticated session (or, for internal actors, a separate trusted
 // param), never this body.
-// A custom top-up (no packageKey) must be at least enough to cover 10
-// E-Stamps at the base ₹100 duty plus the platform's flat procurement fee
-// and GST (see estampPricing.js) - a catalog package keeps its own
-// server-resolved price regardless of this floor, so it is enforced only
-// via the .refine below, never on the field itself.
-const MIN_CUSTOM_TOPUP_AMOUNT = 1117;
-exports.MIN_CUSTOM_TOPUP_AMOUNT = MIN_CUSTOM_TOPUP_AMOUNT;
+// A custom top-up's minimum amount (MIN_WALLET_TOPUP) is a live,
+// Master-Admin-configurable SystemSetting (default ₹1,117 - see
+// config/settingsRegistry.js), so it cannot be baked into this static schema
+// - payment.controller.js createRazorpayOrder enforces it dynamically,
+// after this schema's own static bounds (positive, <= 1,000,000) pass.
 exports.createRazorpayOrderSchema = zod_1.z.object({
     // packageKey selects a catalog EstampPackage, whose price/plan/stampsCount
     // are resolved server-side (see payment.controller.js) - amount/plan/
@@ -250,9 +248,6 @@ exports.createRazorpayOrderSchema = zod_1.z.object({
     organizationId: zod_1.z.string().optional(), // only ever honored for internal actors, see resolveOrgId
 }).strict().refine((d) => d.packageKey || d.amount !== undefined, {
     message: "Either packageKey or amount is required",
-    path: ["amount"],
-}).refine((d) => d.packageKey || (d.amount ?? 0) >= MIN_CUSTOM_TOPUP_AMOUNT, {
-    message: `Minimum top-up amount is ₹${MIN_CUSTOM_TOPUP_AMOUNT} (covers 10 E-Stamps)`,
     path: ["amount"],
 });
 exports.createEstampPackageSchema = zod_1.z.object({

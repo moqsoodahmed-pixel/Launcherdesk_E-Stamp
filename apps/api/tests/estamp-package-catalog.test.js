@@ -106,7 +106,7 @@ describe("E-Stamp package catalog - server-side pricing and admin notifications"
   it("notifies an Admin-role user in the same organization on purchase, alongside Master Admin, with no duplicates", async () => {
     const { masterAdmin, org, superAdmin, admin } = await setupOrgWithSuperAdminAndAdmin();
 
-    const orderReq = reqAsSuperAdmin(superAdmin, org, { amount: 1000, plan: "Custom Top-up", stampsCount: 60 });
+    const orderReq = reqAsSuperAdmin(superAdmin, org, { amount: 1117, plan: "Custom Top-up", stampsCount: 60 });
     const { res: orderRes } = await runController(paymentController.createRazorpayOrder, orderReq, makeRes());
     const { razorpayOrderId, paymentId } = orderRes.body.data;
 
@@ -136,7 +136,7 @@ describe("E-Stamp package catalog - server-side pricing and admin notifications"
     });
     expect(adminNotifications.length).toBe(1);
     expect(adminNotifications[0].metadata.organizationName).toBe("Catalog Test Org");
-    expect(adminNotifications[0].metadata.amount).toBe(1000);
+    expect(adminNotifications[0].metadata.amount).toBe(1117);
 
     // A retried webhook/verify for the same payment must never double-notify
     // the Admin (idempotent via eventKey's per-recipient suffix).

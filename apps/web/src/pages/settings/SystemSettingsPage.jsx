@@ -64,6 +64,124 @@ function formatValue(entry) {
   return String(entry.value);
 }
 
+// Shows/edits WALLET_TOPUP_REFERENCE_ARTICLE_IDS - a comma-separated Article
+// _id list (the raw STRING value stored by the setting) as removable chips,
+// with a type-ahead search (GET /articles) to add more. Saves straight
+// through the same PATCH /settings/:key endpoint as every other setting -
+// this is just a friendlier editor for that one string value, never a
+// separate API surface.
+function ReferenceArticlesEditor({ entry, onSave, saving }) {
+  const initialIds = String(entry.value || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const [selectedIds, setSelectedIds] = useState(initialIds);
+  const [selectedDetails, setSelectedDetails] = useState([]);
+  const [loadingDetails, setLoadingDetails] = useState(initialIds.length > 0);
+  const [search, setSearch] = useState("");
+  const [options, setOptions] = useState([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (initialIds.length === 0) {
+      setLoadingDetails(false);
+      return;
+    }
+    Promise.all(initialIds.map((id) => apiClient.get(`/articles/${id}`).then((r) => r.data.data).catch(() => null)))
+      .then((results) => {
+        if (cancelled) return;
+        setSelectedDetails(results.filter(Boolean));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDetails(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!search.trim()) {
+      setOptions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setSearching(true);
+      apiClient
+        .get("/articles", { params: { search: search.trim(), limit: 20 } })
+        .then((res) => setOptions(res.data.data.items || res.data.data || []))
+        .catch(() => setOptions([]))
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  function addArticle(article) {
+    if (selectedIds.includes(article._id)) return;
+    setSelectedIds((ids) => [...ids, article._id]);
+    setSelectedDetails((details) => [...details, article]);
+    setSearch("");
+    setOptions([]);
+  }
+
+  function removeArticle(id) {
+    setSelectedIds((ids) => ids.filter((x) => x !== id));
+    setSelectedDetails((details) => details.filter((a) => a._id !== id));
+  }
+
+  const dirty = selectedIds.join(",") !== String(entry.value || "");
+
+  return (
+    <div className="space-y-2 max-w-md">
+      <div className="flex flex-wrap gap-1.5">
+        {loadingDetails && <span className="text-xs text-slate-400">Loading...</span>}
+        {!loadingDetails && selectedDetails.length === 0 && <span className="text-xs text-slate-400">No reference article configured</span>}
+        {selectedDetails.map((a) => (
+          <span key={a._id} className="inline-flex items-center gap-1 bg-slate-100 rounded-full px-2 py-1 text-xs text-slate-700">
+            {a.articleCode} - {a.title} ({a.stateCode})
+            <button type="button" onClick={() => removeArticle(a._id)} aria-label={`Remove ${a.title}`} className="text-slate-400 hover:text-red-600 font-bold">
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="relative">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search articles to add (e.g. Lease, Karnataka)..."
+          aria-label="Search articles to add as a top-up reference"
+          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+        {(searching || options.length > 0) && (
+          <ul className="absolute z-10 bg-white border border-slate-200 rounded-lg mt-1 w-full max-h-48 overflow-auto text-xs shadow-lg">
+            {searching && <li className="px-2 py-1.5 text-slate-400">Searching...</li>}
+            {!searching &&
+              options.map((a) => (
+                <li key={a._id} onClick={() => addArticle(a)} className="px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-slate-700">
+                  {a.articleCode} - {a.title} ({a.stateCode})
+                </li>
+              ))}
+            {!searching && options.length === 0 && <li className="px-2 py-1.5 text-slate-400">No matching articles</li>}
+          </ul>
+        )}
+      </div>
+      <button
+        type="button"
+        disabled={!dirty || saving}
+        onClick={() => onSave(selectedIds.join(","))}
+        className="text-brand-600 hover:underline disabled:opacity-50 disabled:no-underline text-xs font-medium"
+      >
+        {saving ? "Saving..." : "Save"}
+      </button>
+      {dirty && !saving && <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600">Unsaved</span>}
+    </div>
+  );
+}
+
 export default function SystemSettingsPage() {
   const { user } = useAuth();
   const canView = hasEffectivePermission(user, SETTINGS_VIEW);
@@ -229,7 +347,17 @@ export default function SystemSettingsPage() {
                         {SETTING_CAVEATS[entry.key] && <div className="text-xs text-amber-600 mt-1">{SETTING_CAVEATS[entry.key]}</div>}
                       </td>
                       <td className="px-4 py-3">
-                        {canManage ? (
+                        {entry.key === "WALLET_TOPUP_REFERENCE_ARTICLE_IDS" ? (
+                          canManage ? (
+                            <ReferenceArticlesEditor
+                              entry={entry}
+                              saving={savingKey === entry.key}
+                              onSave={(value) => submitUpdate(entry, value)}
+                            />
+                          ) : (
+                            <span className="text-slate-700">{entry.value ? `${entry.value.split(",").filter(Boolean).length} article(s) configured` : "None configured"}</span>
+                          )
+                        ) : canManage ? (
                           entry.valueType === "BOOLEAN" ? (
                             <button
                               onClick={() => setDraft(entry.key, !draftValueFor(entry))}
@@ -265,16 +393,18 @@ export default function SystemSettingsPage() {
                       </td>
                       {canManage && (
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button
-                              disabled={savingKey === entry.key || !isDirty(entry)}
-                              onClick={() => handleSave(entry)}
-                              className="text-brand-600 hover:underline disabled:opacity-50 disabled:no-underline text-xs font-medium"
-                            >
-                              {savingKey === entry.key ? "Saving..." : "Save"}
-                            </button>
-                            {isDirty(entry) && savingKey !== entry.key && <span className="text-[10px] uppercase tracking-wide text-amber-600">Unsaved</span>}
-                          </div>
+                          {entry.key !== "WALLET_TOPUP_REFERENCE_ARTICLE_IDS" && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                disabled={savingKey === entry.key || !isDirty(entry)}
+                                onClick={() => handleSave(entry)}
+                                className="text-brand-600 hover:underline disabled:opacity-50 disabled:no-underline text-xs font-medium"
+                              >
+                                {savingKey === entry.key ? "Saving..." : "Save"}
+                              </button>
+                              {isDirty(entry) && savingKey !== entry.key && <span className="text-[10px] uppercase tracking-wide text-amber-600">Unsaved</span>}
+                            </div>
+                          )}
                         </td>
                       )}
                     </tr>

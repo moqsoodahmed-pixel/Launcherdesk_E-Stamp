@@ -24,11 +24,25 @@ export function loadRazorpayScript() {
   });
 }
 
-// Minimum amount for a wallet top-up - enough to cover at least 10
-// E-Stamps at the base ₹100 duty plus the platform's flat procurement fee
-// and GST (see estampPricing.js). Enforced server-side too (payment.service.js
-// MIN_CUSTOM_TOPUP_AMOUNT) so this is never just a client-side suggestion.
-const MIN_TOPUP_AMOUNT = 1117;
+// Fallback shown only until GET /payments/topup-config resolves - the real,
+// Master-Admin-configurable minimum (see settingsRegistry.js MIN_WALLET_TOPUP)
+// always wins once loaded. Enforced server-side regardless of what this page
+// shows, so this is never more than a client-side suggestion.
+export const DEFAULT_MIN_TOPUP_AMOUNT = 1117;
+
+// Builds the "Minimum ₹X — covers ..." hint shown next to Add Money, naming
+// whichever reference article(s) a Master Admin configured (e.g. "Article
+// 30(1)(i) - Lease of Immovable Property, Karnataka") instead of the generic
+// "10 E-Stamps" when none are configured. Exported so BuyMoreModal.jsx's
+// "Custom Amount Top-Up" shows the identical hint, same reuse pattern as
+// loadRazorpayScript above.
+export function topupHint(config) {
+  if (config.referenceArticles && config.referenceArticles.length > 0) {
+    const names = config.referenceArticles.map((a) => `Article ${a.articleCode} – ${a.title}, ${a.stateName}`).join("; ");
+    return `Minimum ₹${config.minAmount} — covers ${names}`;
+  }
+  return `Minimum ₹${config.minAmount} — covers 10 E-Stamps`;
+}
 
 const TX_BADGE = {
   CREDIT: "bg-green-100 text-green-700",
@@ -76,6 +90,7 @@ export default function WalletPage() {
   // null | "creating" | "opening" | "verifying"
   const [fundStep, setFundStep] = useState(null);
   const fundingRef = useRef(false);
+  const [topupConfig, setTopupConfig] = useState({ minAmount: DEFAULT_MIN_TOPUP_AMOUNT, referenceArticles: [] });
 
   useEffect(() => {
     if (!isInternal) return;
@@ -84,6 +99,14 @@ export default function WalletPage() {
       .then((res) => setOrgs(res.data.data.items || []))
       .catch(() => setOrgs([]));
   }, [isInternal]);
+
+  useEffect(() => {
+    if (!canFund) return;
+    apiClient
+      .get("/payments/topup-config")
+      .then((res) => setTopupConfig(res.data.data))
+      .catch(() => {}); // keep the safe default - never blocks Add Money from rendering
+  }, [canFund]);
 
   const load = useCallback(async () => {
     if (!scopeReady) {
@@ -132,8 +155,8 @@ export default function WalletPage() {
     setError(null);
     setNotice(null);
     const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount) || numericAmount < MIN_TOPUP_AMOUNT) {
-      setError(`Enter a valid amount of at least ₹${MIN_TOPUP_AMOUNT} (covers 10 E-Stamps).`);
+    if (!Number.isFinite(numericAmount) || numericAmount < topupConfig.minAmount) {
+      setError(`Enter a valid amount of at least ₹${topupConfig.minAmount}.`);
       return;
     }
     if (numericAmount > 1000000) {
@@ -275,23 +298,23 @@ export default function WalletPage() {
             {canFund && (
               <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h2 className="font-medium text-slate-900 mb-3">Add money</h2>
-                <p className="text-xs text-slate-500 mb-2">Minimum ₹{MIN_TOPUP_AMOUNT} — covers 10 E-Stamps</p>
+                <p className="text-xs text-slate-500 mb-2">{topupHint(topupConfig)}</p>
                 <form onSubmit={handleAddFunds} className="flex flex-col sm:flex-row gap-2">
                   <input
                     aria-label="Amount in rupees"
                     type="number"
-                    min={MIN_TOPUP_AMOUNT}
+                    min={topupConfig.minAmount}
                     max="1000000"
                     step="1"
                     inputMode="numeric"
-                    placeholder={`Amount (min ₹${MIN_TOPUP_AMOUNT})`}
+                    placeholder={`Amount (min ₹${topupConfig.minAmount})`}
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     disabled={!!fundStep}
                     className="flex-1 min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                   <button
-                    disabled={!!fundStep || !amount || Number(amount) < MIN_TOPUP_AMOUNT || Number(amount) > 1000000}
+                    disabled={!!fundStep || !amount || Number(amount) < topupConfig.minAmount || Number(amount) > 1000000}
                     className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
                   >
                     {stepLabel || "Add Money"}

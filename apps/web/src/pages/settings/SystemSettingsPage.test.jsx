@@ -271,3 +271,97 @@ describe("SystemSettingsPage - read-only rendering", () => {
     expect(screen.queryByRole("button", { name: "Enabled" })).not.toBeInTheDocument();
   });
 });
+
+const refArticlesEntry = (overrides = {}) => ({
+  key: "WALLET_TOPUP_REFERENCE_ARTICLE_IDS",
+  description: "Comma-separated Article _id list shown as a reference next to the minimum wallet top-up amount.",
+  category: "BUSINESS",
+  valueType: "STRING",
+  value: "",
+  defaultValue: "",
+  nullable: false,
+  version: 0,
+  updatedAt: null,
+  ...overrides,
+});
+
+describe("SystemSettingsPage - wallet top-up reference articles editor", () => {
+  function mockGet(routes) {
+    apiClient.get.mockImplementation((url, config) => {
+      for (const [pattern, result] of routes) {
+        if (pattern.test(url)) return typeof result === "function" ? result(url, config) : Promise.resolve({ data: { data: result } });
+      }
+      return Promise.reject(new Error(`Unhandled GET ${url}`));
+    });
+  }
+
+  it("shows 'No reference article configured' and a search box when empty, for a Master Admin", async () => {
+    useAuth.mockReturnValue({ user: masterAdmin() });
+    mockGet([[/\/settings$/, [refArticlesEntry()]]]);
+    render(<SystemSettingsPage />);
+    expect(await screen.findByText("No reference article configured")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search articles to add as a top-up reference")).toBeInTheDocument();
+  });
+
+  it("a read-only actor (settings.view only) sees a plain count, never the search box", async () => {
+    useAuth.mockReturnValue({ user: tenant("SUPER_ADMIN", ["settings.view"]) });
+    mockGet([[/\/settings$/, [refArticlesEntry({ value: "a1,a2" })]]]);
+    render(<SystemSettingsPage />);
+    expect(await screen.findByText("2 article(s) configured")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Search articles to add as a top-up reference")).not.toBeInTheDocument();
+  });
+
+  it("searching, adding an article, and saving PATCHes the comma-joined id list", async () => {
+    useAuth.mockReturnValue({ user: masterAdmin() });
+    const entry = refArticlesEntry();
+    mockGet([
+      [/\/settings$/, [entry]],
+      [/^\/articles$/, { items: [{ _id: "art-30", articleCode: "30(1)(i)", title: "Lease of Immovable Property", stateCode: "KA" }] }],
+    ]);
+    apiClient.patch.mockResolvedValue({ data: { data: {} } });
+
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    render(<SystemSettingsPage />);
+    const search = await screen.findByLabelText("Search articles to add as a top-up reference");
+    await user.type(search, "Lease");
+
+    const option = await screen.findByText(/30\(1\)\(i\) - Lease of Immovable Property \(KA\)/);
+    await user.click(option);
+
+    // Added as a removable chip, search cleared.
+    expect(await screen.findAllByText(/30\(1\)\(i\) - Lease of Immovable Property \(KA\)/)).toHaveLength(1);
+
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    expect(saveButton).not.toBeDisabled();
+    await user.click(saveButton);
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/settings/WALLET_TOPUP_REFERENCE_ARTICLE_IDS", expect.objectContaining({ value: "art-30" }))
+    );
+  });
+
+  it("removing a chip updates the dirty state so it can be saved back to empty", async () => {
+    useAuth.mockReturnValue({ user: masterAdmin() });
+    const entry = refArticlesEntry({ value: "art-30" });
+    mockGet([
+      [/\/settings$/, [entry]],
+      [/\/articles\/art-30$/, { _id: "art-30", articleCode: "30(1)(i)", title: "Lease of Immovable Property", stateCode: "KA" }],
+    ]);
+    apiClient.patch.mockResolvedValue({ data: { data: {} } });
+
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    render(<SystemSettingsPage />);
+    const removeButton = await screen.findByLabelText("Remove Lease of Immovable Property");
+    await user.click(removeButton);
+
+    expect(await screen.findByText("No reference article configured")).toBeInTheDocument();
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    await user.click(saveButton);
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/settings/WALLET_TOPUP_REFERENCE_ARTICLE_IDS", expect.objectContaining({ value: "" }))
+    );
+  });
+});
