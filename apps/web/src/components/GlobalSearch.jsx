@@ -95,7 +95,8 @@ export default function GlobalSearch() {
   if (groups.length === 0) return null;
 
   return (
-    <div className="relative flex-1 min-w-0 max-w-xs" ref={containerRef}>
+    <div className="relative flex-1 min-w-0 max-w-md" ref={containerRef}>
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
       <input
         type="search"
         role="searchbox"
@@ -108,11 +109,11 @@ export default function GlobalSearch() {
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={handleKeyDown}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        className="liquid-glass w-full !rounded-3xl py-2.5 pl-11 pr-5 text-sm text-[#1d1d1f] placeholder:text-black/30 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
       />
 
       {showPanel && (
-        <div className="absolute left-0 right-0 mt-1 bg-white rounded-xl border border-slate-200 shadow-lg z-50 max-h-96 overflow-y-auto">
+        <div className="absolute left-0 right-0 mt-2 bg-white rounded-xl border border-slate-200 shadow-2xl z-50 max-h-96 overflow-y-auto">
           {loading && <div className="px-4 py-6 text-center text-sm text-slate-400">Searching...</div>}
           {!loading && !hasAnyResults && <div className="px-4 py-6 text-center text-sm text-slate-400">No results for "{trimmed}".</div>}
           {!loading &&

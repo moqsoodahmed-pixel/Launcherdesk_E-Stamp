@@ -7,9 +7,9 @@ import { ChartSkeleton } from "./LoadingSkeleton";
 // call, never one giant Promise.all that fails everything together).
 export default function ChartCard({ title, action, loading, error, onRetry, empty, emptyText, height = 220, children }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+    <div className="liquid-glass rounded-[2.5rem] p-6 sm:p-8">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-lg font-extrabold tracking-tight text-[#1d1d1f]">{title}</h2>
         {action}
       </div>
       {loading && <ChartSkeleton height={height} />}

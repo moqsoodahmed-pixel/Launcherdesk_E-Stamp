@@ -8,9 +8,13 @@ export default function QuickActionButton({ to, label, icon }) {
   return (
     <Link
       to={to}
-      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+      className="group liquid-glass liquid-glass-hover flex items-center gap-3 rounded-3xl px-5 py-4 text-sm font-bold text-[#1d1d1f] hover:text-[#0066FF]"
     >
-      {icon && <span aria-hidden="true">{icon}</span>}
+      {icon && (
+        <span aria-hidden="true" className="w-10 h-10 shrink-0 rounded-2xl bg-blue-400/15 border border-white/70 flex items-center justify-center text-lg">
+          {icon}
+        </span>
+      )}
       {label}
     </Link>
   );

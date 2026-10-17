@@ -85,17 +85,17 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={containerRef}>
-      <button onClick={togglePanel} className="relative rounded-full p-2 hover:bg-slate-100" aria-label="Notifications">
-        <span className="text-xl">🔔</span>
+      <button onClick={togglePanel} className="liquid-glass relative rounded-full w-11 h-11 flex items-center justify-center text-black/60 hover:text-black" aria-label="Notifications">
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] leading-none rounded-full px-1.5 py-1 font-medium">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] leading-none rounded-full px-1.5 py-1 font-bold border-2 border-white/70">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border border-slate-200 shadow-lg z-50 overflow-hidden">
+        <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <span className="text-sm font-medium text-slate-900">Notifications</span>
             <button onClick={handleMarkAllRead} className="text-xs text-brand-600 hover:underline">
