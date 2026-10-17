@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const multer = require("multer");
 const ctrl = __importStar(require("../../controllers/organization.controller"));
 const authenticate_1 = require("../../middleware/authenticate");
 const authorize_1 = require("../../middleware/authorize");
@@ -41,6 +42,7 @@ const validate_1 = require("../../middleware/validate");
 const validation_1 = require("@launcherdesk/validation");
 const shared_1 = require("@launcherdesk/shared");
 const orgAccess_1 = require("../../utils/orgAccess");
+const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 // An Assistant Master Admin may only touch organizations assigned to them.
 const orgScope = (0, orgAccess_1.requireOrganizationParamAccess)("id");
 const router = (0, express_1.Router)();
@@ -56,6 +58,8 @@ router.patch("/:id/status", (0, authorize_1.requireRole)(shared_1.Role.MASTER_AD
 router.patch("/:id/estamp-service", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), ctrl.setEstampServiceEnabled);
 router.patch("/:id/assigned-assistant", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), ctrl.setAssignedAssistant);
 router.patch("/:id/procurement-fee", (0, authorize_1.requireRole)(shared_1.Role.MASTER_ADMIN), ctrl.setProcurementFeeOverride);
+router.post("/:id/logo", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_MANAGE), orgScope, logoUpload.single("file"), ctrl.uploadOrganizationLogo);
+router.delete("/:id/logo", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_MANAGE), orgScope, ctrl.removeOrganizationLogo);
 // Provisions the organization's initial Super Admin. Delegable to Assistant
 // Master Admin via CLIENT_MANAGE, same as organization create/edit.
 router.post("/:id/super-admin", (0, authorize_1.requirePermission)(shared_1.Permission.CLIENT_MANAGE), orgScope, (0, validate_1.validateBody)(validation_1.provisionSuperAdminSchema), ctrl.provisionSuperAdmin);

@@ -6,6 +6,9 @@ import { useAuth } from "../../context/AuthContext";
 import AssignedAssistantSelect from "../../components/organizations/AssignedAssistantSelect";
 import { CopyButton } from "../../components/vendor/vendorUi";
 
+const ALLOWED_LOGO_TYPES = ["image/png", "image/jpeg"];
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+
 export default function CreateOrganizationPage() {
   const { user } = useAuth();
   // Only a Master Admin picks the assistant; an assistant creating a client
@@ -16,6 +19,9 @@ export default function CreateOrganizationPage() {
   // temporary password). Lives only in this component's state.
   const [result, setResult] = useState(null);
   const [assistantId, setAssistantId] = useState("");
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoError, setLogoError] = useState(null);
+  const [logoUploadFailed, setLogoUploadFailed] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -23,14 +29,57 @@ export default function CreateOrganizationPage() {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
+  function handleLogoChange(e) {
+    const file = e.target.files?.[0] || null;
+    setLogoError(null);
+    if (!file) {
+      setLogoFile(null);
+      return;
+    }
+    if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+      setLogoError("Logo must be a PNG or JPEG image.");
+      setLogoFile(null);
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setLogoError("Logo must be 2MB or smaller.");
+      setLogoFile(null);
+      e.target.value = "";
+      return;
+    }
+    setLogoFile(file);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
+    // A company logo is required at setup - every organization must be
+    // created with branding from day one, not left to configure later.
+    if (!logoFile) {
+      setLogoError("A company logo is required to create an organization.");
+      return;
+    }
     setBusy(true);
     try {
       const body = canAssign && assistantId ? { ...form, assignedAssistantId: assistantId } : form;
       const { data } = await apiClient.post("/organizations", body);
-      setResult(data.data);
+      const organization = data.data.organization;
+      try {
+        const logoForm = new FormData();
+        logoForm.append("file", logoFile);
+        const { data: logoRes } = await apiClient.post(`/organizations/${organization._id}/logo`, logoForm, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        organization.logoUrl = logoRes.data.logoUrl;
+      } catch (logoErr) {
+        // The organization itself is already created at this point (same
+        // "non-fatal follow-up step" treatment as the welcome email below) -
+        // surfaced clearly on the result screen rather than losing the logo
+        // upload failure silently.
+        setLogoUploadFailed(true);
+      }
+      setResult({ ...data.data, organization });
     } catch (err) {
       const flat = err?.response?.data?.details;
       if (flat?.fieldErrors) {
@@ -61,6 +110,11 @@ export default function CreateOrganizationPage() {
           ) : (
             <p role="alert" className="text-amber-700">
               The welcome email could not be sent. Share the login details with the client another way.
+            </p>
+          )}
+          {logoUploadFailed && (
+            <p role="alert" className="text-amber-700">
+              The organization was created, but the logo upload failed. You can add it from the organization's detail page.
             </p>
           )}
           <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3">
@@ -115,6 +169,21 @@ export default function CreateOrganizationPage() {
             </label>
             <input id="create-org-phone" required minLength={6} value={form.contactPhone} onChange={(e) => update("contactPhone", e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
           </div>
+        </div>
+        <div>
+          <label htmlFor="create-org-logo" className="block text-sm font-medium text-slate-700 mb-1">
+            Company logo <span className="text-red-600">*</span>
+          </label>
+          <input
+            id="create-org-logo"
+            type="file"
+            accept="image/png,image/jpeg"
+            onChange={handleLogoChange}
+            className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-brand-700"
+          />
+          <p className="text-xs text-slate-500 mt-1">PNG or JPEG, up to 2MB. Required - shown throughout the dashboard wherever this organization appears.</p>
+          {logoFile && <p className="text-xs text-green-700 mt-1">Selected: {logoFile.name}</p>}
+          {logoError && <p className="text-xs text-red-600 mt-1">{logoError}</p>}
         </div>
         <div>
           <label htmlFor="create-org-super-admin" className="block text-sm font-medium text-slate-700 mb-1">

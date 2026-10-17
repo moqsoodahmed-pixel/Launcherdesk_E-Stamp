@@ -162,6 +162,8 @@ describe("assigned assistant", () => {
     await userEvent.type(screen.getByLabelText("Organization name"), "New Co");
     await userEvent.type(screen.getByLabelText("Contact email"), "n@new.test");
     await userEvent.type(screen.getByLabelText("Contact phone"), "9999999999");
+    const logoFile = new File(["fake-image-bytes"], "logo.png", { type: "image/png" });
+    await userEvent.upload(screen.getByLabelText(/Company logo/), logoFile);
     await userEvent.type(screen.getByLabelText("Super Admin name"), "New Owner");
     await screen.findByRole("option", { name: /Ravi/ });
     await userEvent.selectOptions(screen.getByLabelText("Assigned assistant"), "a1");

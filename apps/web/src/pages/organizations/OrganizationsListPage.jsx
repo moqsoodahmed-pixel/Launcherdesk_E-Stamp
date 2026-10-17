@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../../api/client";
 import { getErrorMessage } from "../../utils/errors";
+import OrganizationLogo from "../../components/common/OrganizationLogo";
 
 const STATUS_OPTIONS = ["PENDING_APPROVAL", "ACTIVE", "RESTRICTED", "SUSPENDED", "DEACTIVATED"];
 
@@ -125,7 +126,12 @@ export default function OrganizationsListPage() {
             )}
             {items.map((org) => (
               <tr key={org._id} className="border-t border-slate-100">
-                <td className="px-4 py-3 font-medium text-slate-900">{org.name}</td>
+                <td className="px-4 py-3 font-medium text-slate-900">
+                  <div className="flex items-center gap-2">
+                    <OrganizationLogo logoUrl={org.logoUrl} name={org.name} size={28} />
+                    <span>{org.name}</span>
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-slate-600">{org.contactEmail}</td>
                 <td className="px-4 py-3 text-slate-600">{org.contactPhone}</td>
                 <td className="px-4 py-3">

@@ -16,6 +16,12 @@ const organizationSchema = new mongoose_1.Schema({
         index: true,
     },
     isEstampServiceEnabled: { type: Boolean, default: false },
+    // A public, directly-browser-loadable Cloudinary delivery URL (never
+    // signed/expiring - see FileService.uploadPublicImage) - shown in the
+    // dashboard header and the Master Admin organizations list for every
+    // user who belongs to or can view this organization. null = no logo
+    // uploaded yet; the UI falls back to the organization's initials.
+    logoUrl: { type: String, default: null },
     // Per-organization override of the flat procurement charge (estampPricing.js's
     // PROCUREMENT_FEE) a Master Admin can set for this client specifically.
     // null = use the platform default for every organization without one.

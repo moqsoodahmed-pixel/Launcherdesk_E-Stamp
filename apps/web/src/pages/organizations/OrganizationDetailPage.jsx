@@ -7,6 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import AssignedAssistantSelect from "../../components/organizations/AssignedAssistantSelect";
 import TemporaryPasswordCell from "../../components/common/TemporaryPasswordCell";
 import { CopyButton } from "../../components/vendor/vendorUi";
+import OrganizationLogo from "../../components/common/OrganizationLogo";
 
 const STATUS_OPTIONS = ["ACTIVE", "PENDING_APPROVAL", "RESTRICTED", "SUSPENDED", "DEACTIVATED"];
 
@@ -188,11 +189,14 @@ export default function OrganizationDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <Link to="/organizations" className="text-sm text-slate-500 hover:underline">
-            ← Organizations
-          </Link>
-          <h1 className="text-xl font-semibold text-slate-900 mt-1">{org.name}</h1>
+        <div className="flex items-center gap-3">
+          <OrganizationLogo logoUrl={org.logoUrl} name={org.name} size={44} />
+          <div>
+            <Link to="/organizations" className="text-sm text-slate-500 hover:underline">
+              ← Organizations
+            </Link>
+            <h1 className="text-xl font-semibold text-slate-900 mt-1">{org.name}</h1>
+          </div>
         </div>
         <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium">{org.status.replace(/_/g, " ")}</span>
       </div>

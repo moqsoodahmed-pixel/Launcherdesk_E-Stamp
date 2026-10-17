@@ -145,6 +145,43 @@ exports.FileService = {
         }
         await models_1.FileAsset.deleteOne({ _id: asset._id });
     },
+    // Dedicated public-image path for organization logos - deliberately
+    // separate from upload()/getSignedUrl() above, which are private-by-
+    // default and expire after 300s (right for e-Stamp documents, wrong for
+    // a logo that must render instantly on every dashboard page load with a
+    // plain <img src>). Only png/jpeg, small size cap, no FileAsset row (a
+    // logo isn't part of the private-document/audit trail that model backs -
+    // the resulting URL is stored directly on Organization.logoUrl).
+    async uploadPublicImage({ organizationId, fileBuffer, mimeType, maxSizeBytes = 2 * 1024 * 1024 }) {
+        const ALLOWED_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg"]);
+        if (!ALLOWED_LOGO_MIME_TYPES.has(mimeType)) {
+            throw ApiError_1.ApiError.badRequest("Logo must be a PNG or JPEG image", "UNSUPPORTED_FILE_TYPE");
+        }
+        if ((0, fileSignature_1.isExecutableSignature)(fileBuffer)) {
+            throw ApiError_1.ApiError.badRequest("File content does not match an allowed file type", "FILE_CONTENT_MISMATCH");
+        }
+        if (fileBuffer.length > maxSizeBytes) {
+            throw ApiError_1.ApiError.badRequest("Logo image exceeds the maximum allowed size", "FILE_TOO_LARGE");
+        }
+        if (!env_1.env.CLOUDINARY_CLOUD_NAME) {
+            if (env_1.env.NODE_ENV === "production") {
+                throw ApiError_1.ApiError.internal("File storage is not configured (CLOUDINARY_CLOUD_NAME missing) - refusing to silently mock file storage in production", "FILE_STORAGE_NOT_CONFIGURED");
+            }
+            logger_1.logger.warn("[file.service] Cloudinary not configured - using DEV mock adapter for logo upload (no real upload)");
+            return { secureUrl: `https://mock-storage.local/logos/${organizationId}/${Date.now()}`, publicId: `mock-logo-${organizationId}-${Date.now()}` };
+        }
+        const cloudinary = getCloudinary();
+        const uploadResult = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream({
+                resource_type: "image",
+                folder: `launcherdesk/org-logos/${organizationId}`,
+                type: "upload", // public delivery, unlike the private document path above
+                overwrite: true,
+            }, (err, result) => (err ? reject(err) : resolve(result)));
+            stream.end(fileBuffer);
+        });
+        return { secureUrl: uploadResult.secure_url, publicId: uploadResult.public_id };
+    },
     async getSignedUrl(publicId, resourceType = "image") {
         if (!env_1.env.CLOUDINARY_CLOUD_NAME) {
             return `https://mock-storage.local/${publicId}`;

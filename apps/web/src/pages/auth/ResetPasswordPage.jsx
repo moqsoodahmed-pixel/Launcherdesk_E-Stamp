@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getErrorMessage } from "../../utils/errors";
-import logoImg from "../../assets/logo.png";
+// Served from /public - an animated GIF plays automatically as a plain <img>.
+const PLATFORM_LOGO = "/launcherdesk-logo-animated-BMOHLLXe.gif";
 
 export default function ResetPasswordPage() {
   const { resetPassword } = useAuth();
@@ -166,7 +167,7 @@ function AuthShell({ children }) {
     <div className="min-h-screen flex items-center justify-center bg-slate-100">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
         <div className="flex flex-col items-center mb-6">
-          <img src={logoImg} alt="LauncherDesk" className="h-12 w-auto max-w-[240px] object-contain mb-2" />
+          <img src={PLATFORM_LOGO} alt="LauncherDesk" className="h-12 w-auto max-w-[240px] object-contain mb-2" />
           <p className="text-xs uppercase tracking-wider text-slate-400 font-medium">E-Stamping Platform</p>
         </div>
         <h1 className="text-2xl font-semibold text-slate-900 mb-1">Reset password</h1>

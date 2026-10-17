@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setAssignedAssistant = exports.provisionSuperAdmin = exports.setProcurementFeeOverride = exports.setEstampServiceEnabled = exports.updateOrganizationStatus = exports.updateOrganization = exports.getOrganization = exports.listOrganizations = exports.createOrganization = void 0;
+exports.removeOrganizationLogo = exports.uploadOrganizationLogo = exports.setAssignedAssistant = exports.provisionSuperAdmin = exports.setProcurementFeeOverride = exports.setEstampServiceEnabled = exports.updateOrganizationStatus = exports.updateOrganization = exports.getOrganization = exports.listOrganizations = exports.createOrganization = void 0;
 const asyncHandler_1 = require("../utils/asyncHandler");
 const ApiResponse_1 = require("../utils/ApiResponse");
 const models_1 = require("../models");
@@ -15,6 +15,7 @@ const orgAccess_1 = require("../utils/orgAccess");
 const credentialVault_1 = require("../utils/credentialVault");
 const env_1 = require("../config/env");
 const email_service_1 = require("../services/email.service");
+const file_service_1 = require("../services/file.service");
 // The assignee must be an existing, active Assistant Master Admin.
 async function loadAssignableAssistant(assistantId) {
     if (!assistantId || !/^[a-f0-9]{24}$/i.test(String(assistantId))) {
@@ -460,4 +461,56 @@ exports.setAssignedAssistant = (0, asyncHandler_1.asyncHandler)(async (req, res)
         organization: org,
         assignedAssistant: assistant ? { _id: assistant._id, name: assistant.name, email: assistant.email } : null,
     });
+});
+// POST /organizations/:id/logo (multipart, field "file") - Master Admin, or
+// an Assistant Master Admin assigned to this organization (same CLIENT_MANAGE
+// + org-scope gate as updateOrganization), uploads/replaces this client's
+// logo on their behalf - used by the Create Organization wizard to make a
+// logo mandatory at setup, and by Master Admin to fix a client's branding
+// later. Same public-delivery upload as the tenant's own self-service path
+// (profile.controller.js's uploadMyOrganizationLogo) - only who may call it
+// differs.
+exports.uploadOrganizationLogo = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    if (!req.file) {
+        throw ApiError_1.ApiError.badRequest("No logo file provided", "NO_FILE");
+    }
+    const org = await models_1.Organization.findById(req.params.id);
+    if (!org) {
+        throw ApiError_1.ApiError.notFound("Organization not found");
+    }
+    const { secureUrl } = await file_service_1.FileService.uploadPublicImage({
+        organizationId: org._id,
+        fileBuffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+    });
+    org.logoUrl = secureUrl;
+    await org.save();
+    await (0, audit_service_1.recordAudit)({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        organizationId: org._id.toString(),
+        action: shared_2.AuditAction.ORG_MODIFIED,
+        entityType: "Organization",
+        entityId: org._id.toString(),
+        metadata: { field: "logoUrl" },
+        req,
+    });
+    return (0, ApiResponse_1.ok)(res, { _id: org._id, name: org.name, logoUrl: org.logoUrl }, "Logo updated");
+});
+exports.removeOrganizationLogo = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const org = await models_1.Organization.findByIdAndUpdate(req.params.id, { $set: { logoUrl: null } }, { new: true }).select("name logoUrl");
+    if (!org) {
+        throw ApiError_1.ApiError.notFound("Organization not found");
+    }
+    await (0, audit_service_1.recordAudit)({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        organizationId: org._id.toString(),
+        action: shared_2.AuditAction.ORG_MODIFIED,
+        entityType: "Organization",
+        entityId: org._id.toString(),
+        metadata: { field: "logoUrl", removed: true },
+        req,
+    });
+    return (0, ApiResponse_1.ok)(res, org, "Logo removed");
 });

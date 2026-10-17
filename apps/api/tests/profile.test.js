@@ -50,6 +50,19 @@ function call(method, path, token, body) {
   }));
 }
 
+function callMultipart(method, path, token, { fieldName = "file", fileBytes = "fake-png-bytes", fileName = "logo.png", mimeType = "image/png" } = {}) {
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const form = new FormData();
+  if (fileBytes !== null) {
+    form.append(fieldName, new Blob([fileBytes], { type: mimeType }), fileName);
+  }
+  return fetch(`${base}${path}`, { method, headers, body: form }).then(async (r) => ({
+    status: r.status,
+    body: await r.json(),
+  }));
+}
+
 describe("GET /profile/organization", () => {
   it("requires authentication", async () => {
     const res = await call("GET", "/profile/organization");
@@ -72,6 +85,82 @@ describe("GET /profile/organization", () => {
     const { token } = await makeUser({ role: Role.MASTER_ADMIN, organizationId: undefined });
     const res = await call("GET", "/profile/organization", token);
     expect(res.status).toBe(404);
+  });
+
+  it("includes logoUrl, null when no logo has ever been uploaded", async () => {
+    const org = await makeOrg("Org Logo Default");
+    const { token } = await makeUser({ organizationId: org._id });
+    const res = await call("GET", "/profile/organization", token);
+    expect(res.status).toBe(200);
+    expect(res.body.data.logoUrl).toBeNull();
+  });
+});
+
+describe("POST/DELETE /profile/organization/logo", () => {
+  it("requires authentication", async () => {
+    const res = await callMultipart("POST", "/profile/organization/logo", null);
+    expect(res.status).toBe(401);
+  });
+
+  it("a Super Admin can upload a logo - it is then returned by GET /profile/organization", async () => {
+    const org = await makeOrg("Org Logo Upload");
+    const { token } = await makeUser({ organizationId: org._id });
+    const res = await callMultipart("POST", "/profile/organization/logo", token);
+    expect(res.status).toBe(200);
+    expect(res.body.data.logoUrl).toBeTruthy();
+
+    const fresh = await Organization.findById(org._id);
+    expect(fresh.logoUrl).toBe(res.body.data.logoUrl);
+
+    const read = await call("GET", "/profile/organization", token);
+    expect(read.body.data.logoUrl).toBe(res.body.data.logoUrl);
+  });
+
+  it("writes an ORG_MODIFIED audit entry on upload", async () => {
+    const org = await makeOrg("Org Logo Audit");
+    const { user, token } = await makeUser({ organizationId: org._id });
+    await callMultipart("POST", "/profile/organization/logo", token);
+    const audit = await AuditLog.findOne({ entityId: org._id.toString(), action: AuditAction.ORG_MODIFIED, actorId: user._id });
+    expect(audit).toBeTruthy();
+  });
+
+  it("an Admin or User (not Super Admin) is rejected with 403, never reaching the upload", async () => {
+    const org = await makeOrg("Org Logo Forbidden");
+    for (const role of [Role.ADMIN, Role.USER]) {
+      const { token } = await makeUser({ role, organizationId: org._id });
+      const res = await callMultipart("POST", "/profile/organization/logo", token);
+      expect(res.status).toBe(403);
+    }
+    expect((await Organization.findById(org._id)).logoUrl).toBeNull();
+  });
+
+  it("rejects a non-PNG/JPEG file", async () => {
+    const org = await makeOrg("Org Logo Bad Type");
+    const { token } = await makeUser({ organizationId: org._id });
+    const res = await callMultipart("POST", "/profile/organization/logo", token, { mimeType: "application/pdf", fileName: "logo.pdf" });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an upload with no file", async () => {
+    const org = await makeOrg("Org Logo No File");
+    const { token } = await makeUser({ organizationId: org._id });
+    const res = await callMultipart("POST", "/profile/organization/logo", token, { fileBytes: null });
+    expect(res.status).toBe(400);
+  });
+
+  it("DELETE clears the logo back to null, and only a Super Admin may call it", async () => {
+    const org = await makeOrg("Org Logo Remove");
+    const { token: superToken } = await makeUser({ organizationId: org._id });
+    await callMultipart("POST", "/profile/organization/logo", superToken);
+    expect((await Organization.findById(org._id)).logoUrl).toBeTruthy();
+
+    const { token: adminToken } = await makeUser({ role: Role.ADMIN, organizationId: org._id });
+    const forbidden = await fetch(`${base}/profile/organization/logo`, { method: "DELETE", headers: { Authorization: `Bearer ${adminToken}` } });
+    expect(forbidden.status).toBe(403);
+
+    const res = await fetch(`${base}/profile/organization/logo`, { method: "DELETE", headers: { Authorization: `Bearer ${superToken}` } });
+    expect(res.status).toBe(200);
+    expect((await Organization.findById(org._id)).logoUrl).toBeNull();
   });
 });
 

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getErrorMessage } from "../../utils/errors";
-import logoImg from "../../assets/logo.png";
+// Served from /public - an animated GIF plays automatically as a plain <img>.
+const PLATFORM_LOGO = "/launcherdesk-logo-animated-BMOHLLXe.gif";
 
 // Only same-app relative paths are allowed as a post-login destination -
 // never "//evil.com" or an absolute URL (open redirect), never /login itself.
@@ -107,7 +108,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-100">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
         <div className="flex flex-col items-center mb-6">
-          <img src={logoImg} alt="LauncherDesk" className="h-14 w-auto max-w-[260px] object-contain mb-2" />
+          <img src={PLATFORM_LOGO} alt="LauncherDesk" className="h-14 w-auto max-w-[260px] object-contain mb-2" />
           <p className="text-xs uppercase tracking-wider text-slate-400 font-medium">E-Stamping Platform</p>
         </div>
 

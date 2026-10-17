@@ -6,7 +6,12 @@ import { fulfilmentModeOf } from "../utils/fulfilment";
 import ErrorBoundary from "../components/common/ErrorBoundary";
 import NotificationBell from "../components/NotificationBell";
 import GlobalSearch from "../components/GlobalSearch";
-import logoImg from "../assets/logo.png";
+import OrganizationBadge from "../components/OrganizationBadge";
+
+// Served from /public (not bundled through src/assets) - an animated GIF
+// plays automatically wherever it's rendered as a plain <img>, no extra
+// animation code needed.
+const PLATFORM_LOGO = "/launcherdesk-logo-animated-BMOHLLXe.gif";
 
 // Display-only helpers for the sidebar user card.
 function initialsOf(user) {
@@ -86,7 +91,7 @@ export default function DashboardLayout() {
           aria-label="Dashboard - LauncherDesk"
         >
           <img
-            src={logoImg}
+            src={PLATFORM_LOGO}
             alt="LauncherDesk"
             className="h-10 w-auto max-w-[190px] object-contain transition-opacity group-hover:opacity-90"
           />
@@ -170,8 +175,9 @@ export default function DashboardLayout() {
             <span className="text-xl leading-none">☰</span>
           </button>
           {user?.role !== "VENDOR" && <GlobalSearch />}
-          <div className="flex-1" />
           <NotificationBell />
+          <div className="flex-1" />
+          <OrganizationBadge />
         </div>
         <div className="max-w-6xl mx-auto p-4 sm:p-8 animate-fade-in">
           <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>

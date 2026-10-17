@@ -31,6 +31,8 @@ describe("Create organization (one step)", () => {
     await userEvent.type(screen.getByLabelText("Organization name"), "New Co");
     await userEvent.type(screen.getByLabelText("Contact email"), "owner@new.test");
     await userEvent.type(screen.getByLabelText("Contact phone"), "9999999999");
+    const logoFile = new File(["fake-image-bytes"], "logo.png", { type: "image/png" });
+    await userEvent.upload(screen.getByLabelText(/Company logo/), logoFile);
     await userEvent.type(screen.getByLabelText("Super Admin name"), "New Owner");
     if (extra) await extra();
     await userEvent.click(screen.getByRole("button", { name: "Create organization" }));
@@ -67,6 +69,35 @@ describe("Create organization (one step)", () => {
     expect(await screen.findByText(/A user with this email already exists/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Create organization" }));
     expect(await screen.findByText(/welcome email could not be sent/)).toBeInTheDocument();
+  });
+
+  it("blocks submission with no logo selected - never calls the API", async () => {
+    apiClient.get.mockReturnValue(ok({ items: [] }));
+    inRouter(<CreateOrganizationPage />);
+    await userEvent.type(screen.getByLabelText("Organization name"), "New Co");
+    await userEvent.type(screen.getByLabelText("Contact email"), "owner@new.test");
+    await userEvent.type(screen.getByLabelText("Contact phone"), "9999999999");
+    await userEvent.type(screen.getByLabelText("Super Admin name"), "New Owner");
+    await userEvent.click(screen.getByRole("button", { name: "Create organization" }));
+    expect(await screen.findByText("A company logo is required to create an organization.")).toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("uploads the selected logo to the new organization after it is created", async () => {
+    apiClient.get.mockReturnValue(ok({ items: [] }));
+    apiClient.post
+      .mockReturnValueOnce(ok({ organization: { _id: "o3", name: "New Co", status: "ACTIVE", isEstampServiceEnabled: true }, superAdmin: { email: "owner@new.test" }, tempPassword: "Tmp-3", emailSent: true }))
+      .mockReturnValueOnce(ok({ logoUrl: "https://cdn.example/o3-logo.png" }));
+    inRouter(<CreateOrganizationPage />);
+    await fillAndSubmit();
+    await screen.findByRole("region", { name: "Organization created" });
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/organizations/o3/logo",
+      expect.any(FormData),
+      expect.objectContaining({ headers: expect.objectContaining({ "Content-Type": "multipart/form-data" }) })
+    );
+    expect(screen.queryByText(/logo upload failed/)).not.toBeInTheDocument();
   });
 });
 
