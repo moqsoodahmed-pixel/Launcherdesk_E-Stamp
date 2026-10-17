@@ -58,7 +58,14 @@ exports.AuthService = {
         await user.save();
         const reverifyMs = env_1.env.OTP_REVERIFY_INTERVAL_HOURS * 60 * 60 * 1000;
         const lastVerified = user.lastOtpVerifiedAt?.getTime() ?? 0;
-        const otpStillValid = Date.now() - lastVerified <= reverifyMs;
+        // Local development convenience only: skip the OTP step entirely
+        // when NODE_ENV is exactly "development" (the .env value only ever
+        // set on a developer's own machine - never in the test suite,
+        // which runs under "test"/undefined, and never on a real
+        // deployment, which runs under "production" - see
+        // file.service.js's Cloudinary gate for the same fail-closed
+        // pattern elsewhere in this codebase).
+        const otpStillValid = env_1.env.NODE_ENV === "development" || Date.now() - lastVerified <= reverifyMs;
         if (otpStillValid) {
             // No OTP needed - issue tokens immediately.
             return this.issueTokens(user, req);

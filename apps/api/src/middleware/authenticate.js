@@ -61,10 +61,13 @@ exports.authenticate = (0,asyncHandler_1.asyncHandler)(async (req, _res, next) =
         }
     }
     // Enforce the 24-hour (configurable) OTP re-verification requirement on
-    // every authenticated request, not just at login.
+    // every authenticated request, not just at login. Same local-dev-only
+    // bypass as auth.service.js's loginStep1 - NODE_ENV is only ever
+    // "development" on a developer's own machine, never in the test suite
+    // or a real deployment.
     const reverifyMs = env_1.env.OTP_REVERIFY_INTERVAL_HOURS * 60 * 60 * 1000;
     const lastVerified = user.lastOtpVerifiedAt?.getTime() ?? 0;
-    if (Date.now() - lastVerified > reverifyMs) {
+    if (env_1.env.NODE_ENV !== "development" && Date.now() - lastVerified > reverifyMs) {
         throw ApiError_1.ApiError.unauthorized("OTP re-verification required");
     }
     // Effective permissions: centralized in @launcherdesk/shared so the exact
