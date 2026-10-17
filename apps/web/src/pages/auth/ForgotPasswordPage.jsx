@@ -3,7 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getErrorMessage } from "../../utils/errors";
 // Served from /public - an animated GIF plays automatically as a plain <img>.
-const PLATFORM_LOGO = "/launcherdesk-logo-animated-BMOHLLXe.gif";
+// BASE_URL must be prefixed (see DashboardLayout.jsx's identical constant
+// for why) - production serves this app under /e-stamp/, not domain root.
+const PLATFORM_LOGO = `${import.meta.env.BASE_URL}launcherdesk-logo-animated-BMOHLLXe.gif`;
 
 export default function ForgotPasswordPage() {
   const { forgotPassword } = useAuth();

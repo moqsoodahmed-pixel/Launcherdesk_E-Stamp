@@ -3,7 +3,9 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react
 import { useAuth } from "../../context/AuthContext";
 import { getErrorMessage } from "../../utils/errors";
 // Served from /public - an animated GIF plays automatically as a plain <img>.
-const PLATFORM_LOGO = "/launcherdesk-logo-animated-BMOHLLXe.gif";
+// BASE_URL must be prefixed (see DashboardLayout.jsx's identical constant
+// for why) - production serves this app under /e-stamp/, not domain root.
+const PLATFORM_LOGO = `${import.meta.env.BASE_URL}launcherdesk-logo-animated-BMOHLLXe.gif`;
 
 // Only same-app relative paths are allowed as a post-login destination -
 // never "//evil.com" or an absolute URL (open redirect), never /login itself.

@@ -10,8 +10,12 @@ import OrganizationBadge from "../components/OrganizationBadge";
 
 // Served from /public (not bundled through src/assets) - an animated GIF
 // plays automatically wherever it's rendered as a plain <img>, no extra
-// animation code needed.
-const PLATFORM_LOGO = "/launcherdesk-logo-animated-BMOHLLXe.gif";
+// animation code needed. BASE_URL (Vite's `base` config, "/e-stamp/" in
+// production - see vite.config.js) must be prefixed here: unlike a module
+// import, a public-folder asset referenced as a raw string is never
+// rewritten by Vite, so a hardcoded "/..." path 404s wherever the app is
+// deployed under a sub-path instead of the domain root.
+const PLATFORM_LOGO = `${import.meta.env.BASE_URL}launcherdesk-logo-animated-BMOHLLXe.gif`;
 
 // Display-only helpers for the sidebar user card.
 function initialsOf(user) {
