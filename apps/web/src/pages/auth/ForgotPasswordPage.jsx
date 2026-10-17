@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getErrorMessage } from "../../utils/errors";
+import AuthBackground from "../../components/common/AuthBackground";
 // Served from /public - an animated GIF plays automatically as a plain <img>.
 // BASE_URL must be prefixed (see DashboardLayout.jsx's identical constant
 // for why) - production serves this app under /e-stamp/, not domain root.
@@ -83,6 +84,7 @@ export default function ForgotPasswordPage() {
 function AuthShell({ children }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100">
+      <AuthBackground />
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
         <div className="flex flex-col items-center mb-6">
           <img src={PLATFORM_LOGO} alt="LauncherDesk" className="h-12 w-auto max-w-[240px] object-contain mb-2" />
