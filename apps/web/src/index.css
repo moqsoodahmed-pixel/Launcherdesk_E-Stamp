@@ -81,8 +81,12 @@ body::after {
   .input {
     @apply w-full rounded-2xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20;
     background: rgba(255, 255, 255, 0.7);
-    border-color: rgba(255, 255, 255, 0.9);
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+    /* A near-white border on a near-white/light-blue page is invisible -
+     * a real, observed bug (fields had no visible boundary at all, even
+     * though they worked fine functionally). A soft dark-tinted border
+     * keeps the glass look while actually being visible. */
+    border-color: rgba(15, 23, 42, 0.14);
+    box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06);
   }
 
   .liquid-glass {
@@ -356,35 +360,98 @@ body::after {
     border-radius: 1.25rem;
   }
 
-  /* Form controls: glass fields with a soft blue focus ring. */
+  /* Form controls: glass fields with a soft blue focus ring. A near-white
+   * border on a near-white/light-blue page was invisible - a real,
+   * observed bug (fields had no visible boundary at all while typing,
+   * even though they worked fine functionally). A soft dark-tinted
+   * border keeps the glass look while actually being visible. */
   #root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
   #root select,
   #root textarea {
     background-color: rgba(255, 255, 255, 0.72);
-    border-color: rgba(255, 255, 255, 0.95);
+    border-color: rgba(15, 23, 42, 0.14);
     border-radius: 1rem;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+    box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06);
   }
   #root input:focus,
   #root select:focus,
   #root textarea:focus {
-    background-color: rgba(255, 255, 255, 0.92);
+    background-color: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 102, 255, 0.45);
   }
 
-  /* Primary buttons: rounded, glossy accent. */
+  /* Premium glass treatment for every button-like element, not just the
+   * primary brand button: a smooth hover-lift + press-in on all of them,
+   * a glossy top-highlight + soft shadow on every solid-colored action
+   * button (whichever hue), and a light glass sheen on bordered/secondary
+   * buttons instead of a flat white box. */
+  #root button:not(:disabled),
+  #root a.rounded-lg,
+  #root a.rounded-xl,
+  #root a.rounded-2xl {
+    transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.15s ease, filter 0.15s ease;
+  }
+  #root button:not(:disabled):hover,
+  #root a.rounded-lg:hover,
+  #root a.rounded-xl:hover,
+  #root a.rounded-2xl:hover {
+    transform: translateY(-1px);
+  }
+  #root button:not(:disabled):active,
+  #root a.rounded-lg:active,
+  #root a.rounded-xl:active,
+  #root a.rounded-2xl:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  #root .bg-brand-600,
+  #root .bg-red-600,
+  #root .bg-emerald-600,
+  #root .bg-green-600,
+  #root .bg-amber-600,
+  #root .bg-slate-900 {
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  }
+  #root .bg-brand-600:hover,
+  #root .hover\:bg-brand-700:hover,
+  #root .bg-red-600:hover,
+  #root .hover\:bg-red-700:hover,
+  #root .bg-emerald-600:hover,
+  #root .hover\:bg-emerald-700:hover,
+  #root .bg-green-600:hover,
+  #root .hover\:bg-green-700:hover,
+  #root .bg-amber-600:hover,
+  #root .hover\:bg-amber-700:hover {
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
   #root .bg-brand-600 {
     background-color: var(--accent-blue);
-    box-shadow: 0 8px 24px rgba(0, 102, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.25);
   }
   #root .hover\:bg-brand-700:hover {
     background-color: #0052cc;
   }
+
+  /* Secondary/bordered buttons ("Cancel"/"Back"-style: white + slate
+   * border) - a light glass sheen instead of a flat opaque box. */
+  #root button.border.border-slate-300,
+  #root a.border.border-slate-300,
+  #root button.border.border-slate-200,
+  #root a.border.border-slate-200 {
+    background-color: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+  }
+  #root button.border.border-slate-300:hover,
+  #root a.border.border-slate-300:hover,
+  #root button.border.border-slate-200:hover,
+  #root a.border.border-slate-200:hover {
+    background-color: rgba(255, 255, 255, 0.78);
+  }
+
   #root button.rounded-lg,
   #root a.rounded-lg {
     border-radius: 1rem;
-  }
-  #root button:not(:disabled):active {
-    transform: scale(0.98);
   }
 
   /* Headings: tighter, heavier like the design. */
