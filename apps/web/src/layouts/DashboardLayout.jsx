@@ -7,7 +7,7 @@ import ErrorBoundary from "../components/common/ErrorBoundary";
 import NotificationBell from "../components/NotificationBell";
 import GlobalSearch from "../components/GlobalSearch";
 import OrganizationBadge from "../components/OrganizationBadge";
-import NavbarBalance from "../components/NavbarBalance";
+import SidebarBalance from "../components/SidebarBalance";
 
 // Served from /public (not bundled through src/assets) - an animated GIF
 // plays automatically wherever it's rendered as a plain <img>, no extra
@@ -44,6 +44,16 @@ function SidebarNav({ sections, allItems, pathname, search, onNavigate }) {
           <p className="px-4 pb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-black/30">{sec.heading}</p>
           {sec.items.map((item) => {
             const active = item === activeItem;
+            if (item.to === "/wallet") {
+              return (
+                <SidebarBalance
+                  key={item.to}
+                  item={item}
+                  active={active}
+                  onNavigate={onNavigate}
+                />
+              );
+            }
             return (
               <Link
                 key={item.to}
@@ -173,7 +183,7 @@ export default function DashboardLayout() {
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="lg:hidden liquid-glass rounded-full w-10 h-10 flex items-center justify-center text-black/60 hover:text-black"
+            className="lg:hidden liquid-glass rounded-full w-10 h-10 flex items-center justify-center text-black/60 hover:text-black shrink-0"
             aria-label="Open menu"
             aria-expanded={mobileOpen}
           >
@@ -182,7 +192,6 @@ export default function DashboardLayout() {
           {user?.role !== "VENDOR" && <GlobalSearch />}
           <NotificationBell />
           <div className="flex-1" />
-          <NavbarBalance />
           <OrganizationBadge />
         </div>
         <div className="max-w-6xl mx-auto p-4 sm:p-8 animate-fade-in">

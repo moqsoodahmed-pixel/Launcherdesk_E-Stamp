@@ -239,23 +239,27 @@ export default function NewRequestPage() {
   }
 
   return (
-    <div className="max-w-2xl pb-24">
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-xl font-semibold text-slate-900">Create E-Stamp Request</h1>
+    <div className="w-full pb-24">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Create E-Stamp Request</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Need to create many at once?{" "}
+            <Link to="/estamps/bulk" className="text-brand-600 hover:underline font-medium">
+              Use Bulk E-Stamp
+            </Link>
+            .
+          </p>
+        </div>
         {balance !== null && (
-          <div className="text-sm text-slate-500">
-            Available balance: <span className={`font-semibold tabular-nums ${balance <= 0 ? "text-red-600" : "text-emerald-600"}`}>{formatCurrency(balance)}</span>
+          <div className="flex items-center gap-2 self-start sm:self-auto px-4 py-2 rounded-xl bg-white/80 border border-slate-200 shadow-sm text-sm">
+            <span className="text-slate-500">Available balance:</span>
+            <span className={`font-bold tabular-nums ${balance <= 0 ? "text-red-600" : "text-emerald-600"}`}>
+              {formatCurrency(balance)}
+            </span>
           </div>
         )}
       </div>
-
-      <p className="text-sm text-slate-500 mb-4">
-        Need to create many at once?{" "}
-        <Link to="/estamps/bulk" className="text-brand-600 hover:underline">
-          Use Bulk E-Stamp
-        </Link>
-        .
-      </p>
 
       <Stepper step={step} />
 
@@ -281,10 +285,10 @@ export default function NewRequestPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6">
         {step === 0 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
               <Field label="First Party" error={errors.firstParty?.message} hint="Full legal name of the first party / executant / transferor">
                 <input className="input" {...register("firstParty")} placeholder="e.g. John Doe / ABC Corp" maxLength={300} />
               </Field>
@@ -406,7 +410,7 @@ export default function NewRequestPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 items-start">
               {/* This article's duty has no official formula (CUSTOM rule) -
                   there is no "consideration price" to calculate from, so the
                   filer enters the exact government stamp duty themselves and
@@ -479,7 +483,7 @@ export default function NewRequestPage() {
           />
         )}
 
-        <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div className="sticky bottom-0 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 mt-8 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 sm:px-8 py-4 flex items-center justify-between rounded-b-2xl">
           <button
             type="button"
             onClick={goBack}
@@ -530,12 +534,16 @@ export default function NewRequestPage() {
 
 function Stepper({ step }) {
   return (
-    <ol className="flex flex-wrap gap-2 mb-4 text-xs">
+    <ol className="flex flex-wrap items-center gap-2 sm:gap-3 mb-6 text-xs sm:text-sm">
       {STEPS.map((label, i) => (
         <li
           key={label}
-          className={`rounded-full px-3 py-1 font-medium ${
-            i === step ? "bg-brand-600 text-white" : i < step ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
+          className={`rounded-full px-3.5 py-1.5 font-medium transition-colors ${
+            i === step
+              ? "bg-brand-600 text-white shadow-sm"
+              : i < step
+              ? "bg-emerald-100 text-emerald-800"
+              : "bg-slate-100 text-slate-500"
           }`}
         >
           {i + 1}. {label}
@@ -696,13 +704,13 @@ function FieldGroup({ label, error, children }) {
 
 function Field({ label, error, hint, children }) {
   return (
-    <div className="block">
+    <div className="block flex-1 min-w-0">
       <label className="block text-sm font-medium text-slate-700 mb-1">
-        {label}
+        <span className="block mb-1.5">{label}</span>
         {children}
       </label>
-      {hint && !error && <span className="block text-xs text-slate-400 mt-1">{hint}</span>}
-      {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}
+      {hint && !error && <span className="block text-xs text-slate-400 mt-1.5 leading-relaxed">{hint}</span>}
+      {error && <span className="block text-xs text-red-600 mt-1.5">{error}</span>}
     </div>
   );
 }

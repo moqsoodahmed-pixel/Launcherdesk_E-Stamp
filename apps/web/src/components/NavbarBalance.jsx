@@ -87,7 +87,7 @@ export default function NavbarBalance() {
 
   if (canOpenWallet) {
     return (
-      <Link to="/wallet" className="focus:outline-none focus:ring-2 focus:ring-blue-500/30 rounded-full">
+      <Link to="/wallet" className="shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/30 rounded-full">
         {content}
       </Link>
     );
