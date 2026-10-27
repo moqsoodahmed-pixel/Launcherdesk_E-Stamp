@@ -244,7 +244,7 @@ export default function NewRequestPage() {
         <h1 className="text-xl font-semibold text-slate-900">Create E-Stamp Request</h1>
         {balance !== null && (
           <div className="text-sm text-slate-500">
-            Available balance: <span className="font-semibold text-slate-900">{formatCurrency(balance)}</span>
+            Available balance: <span className={`font-semibold tabular-nums ${balance <= 0 ? "text-red-600" : "text-emerald-600"}`}>{formatCurrency(balance)}</span>
           </div>
         )}
       </div>
