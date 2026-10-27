@@ -7,6 +7,7 @@ import ErrorBoundary from "../components/common/ErrorBoundary";
 import NotificationBell from "../components/NotificationBell";
 import GlobalSearch from "../components/GlobalSearch";
 import OrganizationBadge from "../components/OrganizationBadge";
+import NavbarBalance from "../components/NavbarBalance";
 
 // Served from /public (not bundled through src/assets) - an animated GIF
 // plays automatically wherever it's rendered as a plain <img>, no extra
@@ -181,6 +182,7 @@ export default function DashboardLayout() {
           {user?.role !== "VENDOR" && <GlobalSearch />}
           <NotificationBell />
           <div className="flex-1" />
+          <NavbarBalance />
           <OrganizationBadge />
         </div>
         <div className="max-w-6xl mx-auto p-4 sm:p-8 animate-fade-in">

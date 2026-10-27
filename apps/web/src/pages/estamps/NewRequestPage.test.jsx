@@ -120,31 +120,27 @@ describe("NewRequestPage - who pays the stamp duty", () => {
     await screen.findByLabelText(/Consideration Price/);
   }
 
-  it("selects only ONE party when both parties share the same name", async () => {
+  it("selects only ONE party when both parties share the same name via dropdown", async () => {
     await goToFinancialDetails({ firstParty: "das", secondParty: "das" });
-    const first = screen.getByRole("button", { name: "das (First Party)" });
-    const second = screen.getByRole("button", { name: "das (Second Party)" });
+    const select = screen.getByLabelText(/Stamp Duty Paid By/i);
 
     // Nothing is selected until the user picks.
-    expect(first).toHaveAttribute("aria-pressed", "false");
-    expect(second).toHaveAttribute("aria-pressed", "false");
+    expect(select.value).toBe("");
 
-    fireEvent.click(first);
-    expect(first).toHaveAttribute("aria-pressed", "true");
-    expect(second).toHaveAttribute("aria-pressed", "false");
+    fireEvent.change(select, { target: { value: "FIRST" } });
+    expect(select.value).toBe("FIRST");
 
     // Picking the other identically-named party moves the selection
-    // instead of lighting both up.
-    fireEvent.click(second);
-    expect(first).toHaveAttribute("aria-pressed", "false");
-    expect(second).toHaveAttribute("aria-pressed", "true");
+    fireEvent.change(select, { target: { value: "SECOND" } });
+    expect(select.value).toBe("SECOND");
   });
 
   it("still selects exactly one party when the names differ", async () => {
     await goToFinancialDetails({ firstParty: "Alice", secondParty: "Bob" });
-    fireEvent.click(screen.getByRole("button", { name: "Bob (Second Party)" }));
-    expect(screen.getByRole("button", { name: "Alice (First Party)" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "Bob (Second Party)" })).toHaveAttribute("aria-pressed", "true");
+    const select = screen.getByLabelText(/Stamp Duty Paid By/i);
+    expect(select.value).toBe("");
+    fireEvent.change(select, { target: { value: "SECOND" } });
+    expect(select.value).toBe("SECOND");
   });
 
   it("names which party pays on the review screen, not just the shared name", async () => {
@@ -154,7 +150,8 @@ describe("NewRequestPage - who pays the stamp duty", () => {
     });
     await goToFinancialDetails({ firstParty: "das", secondParty: "das" });
     fireEvent.change(screen.getByLabelText(/Consideration Price/), { target: { value: "100" } });
-    fireEvent.click(screen.getByRole("button", { name: "das (Second Party)" }));
+    const select = screen.getByLabelText(/Stamp Duty Paid By/i);
+    fireEvent.change(select, { target: { value: "SECOND" } });
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await screen.findByText("Create Request");
@@ -226,7 +223,8 @@ describe("NewRequestPage - Review & Submit", () => {
 
     const considerationInput = await screen.findByLabelText(/Consideration Price/);
     fireEvent.change(considerationInput, { target: { value: "100" } });
-    fireEvent.click(await screen.findByText("Alice (First Party)"));
+    const payerSelect = await screen.findByLabelText(/Stamp Duty Paid By/i);
+    fireEvent.change(payerSelect, { target: { value: "FIRST" } });
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await screen.findByText("Create Request");

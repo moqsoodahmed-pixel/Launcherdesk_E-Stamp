@@ -25,7 +25,7 @@ export default function ClientBalanceCard() {
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <dt className="text-xs text-slate-500">Available balance</dt>
-            <dd className="text-2xl font-semibold text-slate-900 tabular-nums">{formatCurrency(data.availableBalance ?? data.balance)}</dd>
+            <dd className={`text-2xl font-bold tabular-nums ${(data.availableBalance ?? data.balance ?? 0) <= 0 ? "text-red-600" : "text-emerald-600"}`}>{formatCurrency(data.availableBalance ?? data.balance)}</dd>
           </div>
           <div>
             <dt className="text-xs text-slate-500">Reserved</dt>

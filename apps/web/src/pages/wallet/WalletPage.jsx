@@ -136,7 +136,12 @@ export default function WalletPage() {
         return;
       }
       const d = r.value?.data?.data;
-      if (k === "balance" && d) setBalance(d);
+      if (k === "balance" && d) {
+        setBalance(d);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("ld:balance_refresh"));
+        }
+      }
       if (k === "transactions" && d) setTransactions(d.items || []);
       if (k === "payments" && d) setPayments(d.items || []);
       if (k === "summary" && d) setSummary(d);
@@ -268,12 +273,34 @@ export default function WalletPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {canViewWallet && (
               <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <p className="text-sm text-slate-500 mb-1">Available balance</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm text-slate-500">Available balance</p>
+                  {!sectionErrors.balance && balance !== null && (
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                        (balance?.availableBalance ?? balance?.balance ?? 0) <= 0
+                          ? "bg-red-50 text-red-700 border-red-200"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          (balance?.availableBalance ?? balance?.balance ?? 0) <= 0 ? "bg-red-500" : "bg-emerald-500"
+                        }`}
+                      />
+                      {(balance?.availableBalance ?? balance?.balance ?? 0) <= 0 ? "Low / Zero" : "Available"}
+                    </span>
+                  )}
+                </div>
                 {sectionErrors.balance ? (
                   <p className="text-sm text-red-600">{sectionErrors.balance}</p>
                 ) : (
                   <>
-                    <p className="text-3xl font-semibold text-slate-900 tabular-nums">
+                    <p
+                      className={`text-3xl font-bold tabular-nums ${
+                        (balance?.availableBalance ?? balance?.balance ?? 0) <= 0 ? "text-red-600" : "text-emerald-600"
+                      }`}
+                    >
                       {loading && balance === null ? "…" : formatCurrency(balance?.availableBalance ?? balance?.balance ?? 0)}
                     </p>
                     {balance?.reservedBalance !== undefined && (

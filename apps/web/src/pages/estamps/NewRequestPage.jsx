@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "react-router-dom";
@@ -423,38 +423,35 @@ export default function NewRequestPage() {
                 </Field>
               )}
               {values.firstParty || values.secondParty ? (
-                <FieldGroup label="Stamp Duty Paid By *" error={errors.stampDutyPaidBy?.message}>
-                  <div className="flex gap-2">
+                <Field label="Stamp Duty Paid By *" error={errors.stampDutyPaidBy?.message} hint="Select who is paying the stamp duty">
+                  <select
+                    id="stamp-duty-paid-by-select"
+                    aria-label="Stamp Duty Paid By"
+                    className="input"
+                    value={paidBySide || ""}
+                    onChange={(e) => {
+                      const side = e.target.value;
+                      if (!side) {
+                        setPaidBySide(null);
+                        setValue("stampDutyPaidBy", "", { shouldValidate: true });
+                      } else {
+                        choosePayer(side);
+                      }
+                    }}
+                  >
+                    <option value="">Select who is paying...</option>
                     {values.firstParty && (
-                      <button
-                        type="button"
-                        aria-pressed={paidBySide === "FIRST"}
-                        onClick={() => choosePayer("FIRST")}
-                        className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
-                          paidBySide === "FIRST"
-                            ? "border-brand-600 bg-brand-50 text-brand-700 font-medium"
-                            : "border-slate-300 text-slate-600"
-                        }`}
-                      >
+                      <option value="FIRST">
                         {values.firstParty} (First Party)
-                      </button>
+                      </option>
                     )}
                     {values.secondParty && (
-                      <button
-                        type="button"
-                        aria-pressed={paidBySide === "SECOND"}
-                        onClick={() => choosePayer("SECOND")}
-                        className={`px-3 py-2 rounded-lg border text-sm flex-1 text-left ${
-                          paidBySide === "SECOND"
-                            ? "border-brand-600 bg-brand-50 text-brand-700 font-medium"
-                            : "border-slate-300 text-slate-600"
-                        }`}
-                      >
+                      <option value="SECOND">
                         {values.secondParty} (Second Party)
-                      </button>
+                      </option>
                     )}
-                  </div>
-                </FieldGroup>
+                  </select>
+                </Field>
               ) : (
                 <Field label="Stamp Duty Paid By *" error={errors.stampDutyPaidBy?.message}>
                   <input className="input" {...register("stampDutyPaidBy")} placeholder="Enter party names on the previous step first" />
